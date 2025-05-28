@@ -1,4 +1,25 @@
-## Attempts to change operating system on Retroid Pocket 3 Plus
+## Attempts at changing operating system on Retroid Pocket 3 Plus
+
+
+# Purpose
+- More games to play (Windows/Linux/Emulation/Android)
+- Make multiplayer gaming *easier*:
+
+  1. A lot of this will clearly not run per say, but work with me here I'm ranting
+  2. Hamachi
+  3. Soapbox
+  4. Parsec
+  5. FightCade
+  6. Arkadyzja
+  7. FS/CAPS Amiga
+  8. MAMEPPK/Ace/Calice/fba/Nebula/Kawaks - Arcade
+  9. GBE+/Mesen/NEStopia/RockNES/VirtualNES/Snes9x/ZSnes/Gopher64-netplay/Project64/TGBDual/SameBoy/DoubleCherryGB/rgbds/Tango/VBALink/No$GBA/melonDS/DeSmuME/mGBA-Dolphin/WiiLinkPatcher/Dolphin-Triforce/Slippi Launcher/Cemu/
+  10. Gens/Flycast/Fusion - SEGA
+  11. ePSX/Duckstation-Netplay/PCSX2-online/RPCS3/PPSSPP - Sony
+  12. XLinkKai - XBOX
+  13. Mednafen
+ 
+- Similar to EmuDeck and other shell scripts, downloaded all these files, make one large UI that sets up all these files along with an ipcheck with copy and paste functionality with current controller to join a session or start one. Happy I didn't start that yet (Only one 1 emulation handheld that is an android, guess what it is).
 
 I recommend a linux handheld (more versatility to play Windows, Android and Linux games with ease if setup properly)
 
@@ -20,7 +41,7 @@ List of Smartphones with same board:
 - Realme C25Y RMX3265
 - Micromax In 2C E6533
 - Symphony Z33
-
+- I know there's more than this (https://en.wikipedia.org/wiki/List_of_UNISOC_systems_on_chips | https://phonesdata.com/en/chipset/unisoc/tiger-t618-(12-nm)/ | https://www.epey.co.uk/phone/chipset/unisoc-t618/ )
 
 # Issues to why I've been unable to natively change system (Even when Magisk, TWRP or Bootloader Unlocked | Regardless of combination)
 - Unable to flash an empty vbmeta, which makes things fail to install:
@@ -175,7 +196,7 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - Virtual Desktop Streamer
 - WireGuard
 
-
 # Files I've uploaded
 - Mockups of a compute setup, opencl integration and init of ideas I had as well.
-- Latest attempt at Zackptg5's dual boot setup.
+- Last attempt at Zackptg5's dual boot setup.
+- Write up of thoughts
