@@ -127,6 +127,8 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 
 
 # Linux:
+- Armbian ARM64 https://www.armbian.com/uefi-arm64/
+- Manjaro ARM https://github.com/manjaro-arm
 - VK hdr layer (yeah probably wasn't going to work but fk it) https://github.com/Zamundaaa/VK_hdr_layer
 - MangoHud https://github.com/flightlessmango/MangoHud
 - Bottles https://github.com/bottlesdevs/Bottles
@@ -170,3 +172,5 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - Virtual Desktop Streamer
 - WireGuard
 
+
+I've added mockups of a compute setup, opencl integration and init of ideas I had as well.
