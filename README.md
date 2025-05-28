@@ -102,6 +102,8 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - Windows on ARM apps: https://www.worksonwoa.com/en
 - Battery Bar https://batterybarpro.com/
 - Reshade with shaderGlass https://itch.io/post/11717383
+- CloudGamePad for Chome browsers https://github.com/ls-ramos/CloudGamepad
+- SaveState https://github.com/Matteo842/SaveState
 - Syncthing
 - antstream
 - EA App
@@ -147,24 +149,22 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - Umu launcher https://github.com/Open-Wine-Components/umu-launcher
 - GL4ES https://github.com/ptitSeb/gl4es
 - GLFW https://github.com/glfw/glfw
+- NonSteamLauncher https://github.com/moraroy/NonSteamLaunchers-On-Steam-Deck
+- Copy MuOS Hotspot https://github.com/nvcuong1312/hotspotmuos
+- Self Hosted Cloud Gaming (Estiate 15USD for 30 Hrs per month) https://github.com/PierreBeucher/cloudypad
+- CloudGamePad for Chome browsers https://github.com/ls-ramos/CloudGamepad
+- PRoton DB 
 - WineTrix
 - Syncthing
 - ReShade
 - antstream
-- EA App
 - Emu Deck
-- Epic Games Launcher
 - Fightcade
 - Flashpoint Archive
 - Moonlight/GameStream Client
 - Sunshine/GameStream Server
 - Apollo and Artemis
-- GeForce NOW
-- GOG Galaxy
-- Itch.io
-- HumbleBumble
 - PICO-8
-- PS Remote Play
 - RetroArch
 - Steam
 - TCNO Account Switcher
