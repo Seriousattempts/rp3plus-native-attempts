@@ -75,8 +75,11 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - Boot loops of course. Except 1 https://github.com/jytmX/OrangeFox-Recovery-Builder-2024/releases/tag/11995394593
 - Boots intro OrangeFox recovery (Have to sign it with a vbmeta), but touch screen doesn't work. Doubt it make a difference but the attempt was made.
 - Unpacking and repacking didn't work (unless Magisk did it). Didn't care to try APatch.
+- Tried a HxD modification to the boot/uboot to prioritize mmcblk1 over mmcblk0. OBviously failed https://mh-nexus.de/en/hxd/
 
-
+# Tried PostMarketOS
+- Couldn't replicate booting intro the device, had issues with using pmbootstrap (APKBUILD file, issues regardless of kernel fork selected https://wiki.postmarketos.org/wiki/Porting_to_a_new_device/Kernel_package/Preparation) https://wiki.postmarketos.org/wiki/Unisoc_Tiger_T610/T618_(UMS512)
+- Device is not part of mainline as well.
 
 ## If anyone get's a different operating system running natively:
 - Check RAM usage (Can check in developer mode)
@@ -173,4 +176,6 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 - WireGuard
 
 
-I've added mockups of a compute setup, opencl integration and init of ideas I had as well.
+# Files I've uploaded
+- Mockups of a compute setup, opencl integration and init of ideas I had as well.
+- Latest attempt at Zackptg5's dual boot setup.
