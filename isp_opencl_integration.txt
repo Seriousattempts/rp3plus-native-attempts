@@ -1,0 +1,3036 @@
+#ifndef ISP_OPENCL_INTEGRATION
+#define ISP_OPENCL_INTEGRATION
+
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
+#include <CL/cl_ext_arm.h>  // ARM-specific extensions for ARMv8
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <math.h>
+#include <sys/time.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <pthread.h>
+
+// Enhanced Mali-G52 specific configurations
+#define MALI_G52_OPTIMAL_LOCAL_SIZE_X 32  // Optimal for Mali-G52 MC2
+#define MALI_G52_OPTIMAL_LOCAL_SIZE_Y 8   // Optimal for Mali-G52 MC2
+#define DMA_BUF_ALIGNMENT 64
+#define TIGER_T618_MAX_FREQ_MHZ 950       // Maximum overclocked frequency for Tiger T618
+#define DEFAULT_FREQUENCY_MHZ 700
+#define MALI_G52_L2_CACHE_SIZE (128 * 1024) // 128KB L2 cache
+#define MALI_G52_MAX_COMPUTE_UNITS 2       // MC2 configuration
+#define MAX_HDMI_RESOLUTIONS 16
+#define MAX_SENSOR_BUFFER_COUNT 8
+#define CLEANUP_STACK_SIZE 64
+#define AFBC_SUPERBLOCK_SIZE_WIDTH 16
+#define AFBC_SUPERBLOCK_SIZE_HEIGHT 16
+#define ASTC_BLOCK_SIZE_WIDTH 4
+#define ASTC_BLOCK_SIZE_HEIGHT 4
+#define ASTC_LDR_PRECISION_3D 1
+
+
+// DVFS levels for Mali-G52
+typedef enum {
+    DVFS_LEVEL_POWER_SAVE, // 200 MHz
+    DVFS_LEVEL_LOW,        // 450 MHz
+    DVFS_LEVEL_MEDIUM,     // 700 MHz
+    DVFS_LEVEL_HIGH,       // 850 MHz
+    DVFS_LEVEL_MAX,        // 950 MHz
+    DVFS_LEVEL_AUTO        // Automatic adjustment based on workload
+} dvfs_level_t;
+
+typedef enum {
+    SENSOR_THERMAL,     // thermal-sensor@00 (0x00)
+    SENSOR_MAIN,        // sensor-main@20 (0x20)
+    SENSOR_SUB,         // sensor-sub@5a (0x5a)
+    SENSOR_MAIN2,       // sensor-main2@20 (0x20)
+    SENSOR_SUB2,        // sensor-sub2@6e (0x6e)
+    SENSOR_MAIN3,       // sensor-main3@6c (0x6c)
+    SENSOR_ACCELEROMETER, // LSM303D accelerometer
+    SENSOR_GYROSCOPE,
+    SENSOR_MAGNETOMETER,  // LSM303D magnetometer
+    SENSOR_PROXIMITY,
+    SENSOR_AMBIENT_LIGHT, // TCS3472 light sensor
+    SENSOR_HALL,         // SNG-SPRD-004 hall effect sensor
+    SENSOR_MAX
+} sensor_type_t;
+
+
+// 3Plus Resolution
+#define DEFAULT_WIDTH 1336
+#define DEFAULT_HEIGHT 752
+
+// Enhanced HDMI Resolution structure for dynamic adjustment
+typedef struct {
+    cl_uint width;
+    cl_uint height;
+    cl_uint refresh_rate;
+    cl_bool preferred;
+    cl_bool supported;
+    cl_bool supported_by_display;
+    cl_bool native_display;
+    cl_bool native_device;
+    cl_float aspect_ratio;
+    cl_uchar pixel_encoding;      // RGB, YUV, etc.
+    cl_uchar color_depth;         // Color depth in bits (8, 10, 12, etc.)
+    cl_bool hdr_enabled;
+    cl_bool vrr_enabled;
+    cl_bool llm_enabled;
+    cl_bool qms_supported;
+    cl_bool qft_enabled;
+    cl_bool earc_available;
+    cl_uint max_audio_channels;
+    cl_uint current_audio_format;
+    cl_bool cec_enabled;
+    cl_uint cec_version;
+    cl_bool hec_available;
+    cl_uint hdcp_version;
+    cl_float max_luminance;
+    cl_float max_framerate;
+    cl_uint color_depth;
+    cl_uint color_space;
+    cl_bool ALLM_supported;
+    cl_bool QFT_supported;
+    cl_bool QMS_supported;
+} hdmi_advanced_context_t;
+
+// Enhanced HDMI output management structure
+typedef struct {
+    cl_bool hdmi_connected;
+    cl_uint current_resolution_index;
+    hdmi_resolution_t available_resolutions[MAX_HDMI_RESOLUTIONS];
+    cl_uint resolution_count;
+    cl_uint refresh_rate;
+    cl_bool adaptive_sync_enabled;
+    cl_bool hdmi_2_2_supported;  // HDMI 2.2 support flag
+    cl_bool extension_mode;      // TRUE for extension, FALSE for duplication
+    cl_bool primary_is_device;   // TRUE if device is primary, FALSE if HDMI is primary
+    cl_bool fb_console_enabled;  // Framebuffer console support
+    cl_char display_name[64];    // Display name from EDID
+    cl_char edid_version[16];    // EDID version information
+    cl_uint max_supported_width;  // Maximum supported width
+    cl_uint max_supported_height; // Maximum supported height
+    cl_bool hdr_supported;        // HDR support flag
+} hdmi_context_t;
+
+// HDMI feature identifiers
+typedef enum {
+    HDMI_FEATURE_HDR,
+    HDMI_FEATURE_VRR,
+    HDMI_FEATURE_LLM,
+    HDMI_FEATURE_QMS,
+    HDMI_FEATURE_QFT,
+    HDMI_FEATURE_HEC
+} hdmi_feature_t;
+
+// HDMI flag constants
+#define HDMI_FLAG_HDR  (1 << 0)
+#define HDMI_FLAG_VRR  (1 << 1)
+#define HDMI_FLAG_LLM  (1 << 2)
+#define HDMI_FLAG_QMS  (1 << 3)
+#define HDMI_FLAG_QFT  (1 << 4)
+#define HDMI_FLAG_HEC  (1 << 5)
+
+// Helper function declarations
+static float read_float_from_sys(const char* path);
+static int read_int_from_sys(const char* path);
+static cl_int write_to_sys(const char* path, const char* value);
+
+// Enhanced HDMI initialization with feature detection
+cl_int isp_init_hdmi_advanced(isp_opencl_ctx* ctx) {
+    
+    // Add new feature detection
+    if (ctx->hdmi.hdr_supported) {
+        // Initialize HDR metadata
+        if (access("/sys/class/drm/card0-HDMI-A-1/hdr_metadata", F_OK) == 0) {
+            ctx->hdmi_advanced.hdr_enabled = CL_TRUE;
+            ctx->hdmi_advanced.max_luminance = read_float_from_sys("/sys/class/drm/card0-HDMI-A-1/hdr_metadata/max_luminance");
+            ctx->hdmi_advanced.color_space = read_int_from_sys("/sys/class/drm/card0-HDMI-A-1/hdr_metadata/color_space");
+        }
+    }
+
+    // Detect VRR support
+    if (access("/sys/class/drm/card0-HDMI-A-1/vrr_capable", F_OK) == 0) {
+        ctx->hdmi_advanced.vrr_enabled = CL_TRUE;
+    }
+    
+    // Detect Low Latency Mode support
+    if (access("/sys/class/drm/card0-HDMI-A-1/allm_capable", F_OK) == 0) {
+        ctx->hdmi_advanced.ALLM_supported = CL_TRUE;
+    }
+    
+    // Add audio capability detection
+    ctx->hdmi_advanced.max_audio_channels = read_int_from_sys("/sys/class/drm/card0-HDMI-A-1/audio_channels");
+    ctx->hdmi_advanced.earc_available = access("/sys/class/drm/card0-HDMI-A-1/earc_capable", F_OK) == 0;
+    
+    return CL_SUCCESS;
+}
+
+// Enhanced resolution setting with advanced features
+cl_int isp_set_hdmi_resolution_advanced(isp_opencl_ctx* ctx, cl_uint width, cl_uint height, 
+                                       cl_uint flags) {
+    
+    // Set HDR with proper validation
+    if (flags & HDMI_FLAG_HDR) {
+        if (ctx->hdmi_advanced.hdr_supported) {
+            if (access("/sys/class/drm/card0-HDMI-A-1/hdr_output", F_OK) != -1) {
+                if (write_to_sys("/sys/class/drm/card0-HDMI-A-1/hdr_output", "1") == CL_SUCCESS) {
+                    ctx->hdmi_advanced.hdr_enabled = CL_TRUE;
+                    log("HDR enabled successfully");
+                } else {
+                    log("Failed to enable HDR");
+                    return CL_INVALID_OPERATION;
+                }
+            } else {
+                log("HDR sysfs interface not found");
+                return CL_DEVICE_NOT_AVAILABLE;
+            }
+        } else {
+            log("HDR not supported by display");
+            return CL_DEVICE_NOT_AVAILABLE;
+        }
+    }
+
+    
+    // Handle VRR
+    if (flags & HDMI_FLAG_VRR) {
+        if (ctx->hdmi_advanced.vrr_enabled) {
+            write_to_sys("/sys/class/drm/card0-HDMI-A-1/vrr_enabled", "1");
+        }
+    }
+    
+    // Handle Low Latency Mode
+    if (flags & HDMI_FLAG_LLM) {
+        if (ctx->hdmi_advanced.ALLM_supported) {
+            write_to_sys("/sys/class/drm/card0-HDMI-A-1/allm_enabled", "1");
+        }
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Independent toggle functions for HDMI features
+cl_int isp_toggle_hdr(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.hdr_supported) {
+        ctx->hdmi_advanced.hdr_enabled = enable;
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/hdr_output", 
+                    enable ? "1" : "0");
+        if (enable) {
+            write_to_sys("/sys/class/drm/card0-HDMI-A-1/hdr_eotf", "pq");
+        }
+        return CL_SUCCESS;
+    }
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+cl_int isp_toggle_vrr(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.vrr_supported) {
+        ctx->hdmi_advanced.vrr_enabled = enable;
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/vrr_enabled", 
+                    enable ? "1" : "0");
+        return CL_SUCCESS;
+    }
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+cl_int isp_toggle_llm(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.ALLM_supported) {
+        ctx->hdmi_advanced.llm_enabled = enable;
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/allm_enabled", 
+                    enable ? "1" : "0");
+        return CL_SUCCESS;
+    }
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+cl_int isp_toggle_qms(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.QMS_supported) {
+        ctx->hdmi_advanced.qms_enabled = enable;
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/qms_enabled", 
+                    enable ? "1" : "0");
+        return CL_SUCCESS;
+    }
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+cl_int isp_toggle_qft(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.QFT_supported) {
+        ctx->hdmi_advanced.qft_enabled = enable;
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/qft_enabled", 
+                    enable ? "1" : "0");
+        return CL_SUCCESS;
+}
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+cl_int isp_toggle_hec(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx->hdmi.hdmi_connected) return CL_INVALID_OPERATION;
+    
+    if (ctx->hdmi_advanced.hec_available) {
+        write_to_sys("/sys/class/drm/card0-HDMI-A-1/hec_enabled", 
+                    enable ? "1" : "0");
+        return CL_SUCCESS;
+    }
+    return CL_DEVICE_NOT_AVAILABLE;
+}
+
+// Unified resolution management with Mali-G52 optimizations
+cl_int isp_apply_resolution(isp_opencl_ctx* ctx, cl_uint width, cl_uint height) {
+    // Validate against Mali-G52 capabilities
+    if (width > 3840 || height > 2160) {
+        log("Resolution %ux%u exceeds Mali-G52 MC2 capabilities", width, height);
+        return CL_INVALID_VALUE;
+    }
+    
+    // Set AFBC compression for Mali-G52
+    cl_image_format fmt = {CL_RGBA, CL_UNORM_INT8};
+    cl_image_desc desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        width, height, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_AFBC_MODE_ARM
+    };
+    
+    // Create temporary buffer for mode setting
+    cl_mem test_buffer = clCreateImage(ctx->context, CL_MEM_READ_WRITE, 
+                                      &fmt, &desc, NULL, &status);
+    if (status != CL_SUCCESS) {
+        log("Failed to create test buffer for resolution validation");
+        return status;
+    }
+    
+    // Actual resolution change
+    char mode_str[32];
+    snprintf(mode_str, sizeof(mode_str), "%ux%u", width, height);
+    
+    if (write_to_sys("/sys/class/drm/card0-HDMI-A-1/mode", mode_str) != CL_SUCCESS) {
+        log("Failed to set HDMI resolution via sysfs");
+        clReleaseMemObject(test_buffer);
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    // Update context
+    ctx->current_width = width;
+    ctx->current_height = height;
+    clReleaseMemObject(test_buffer);
+    
+    return CL_SUCCESS;
+}
+
+// Mali-G52 specific HDMI feature control
+cl_int mali_g52_hdmi_feature(isp_opencl_ctx* ctx, hdmi_feature_t feature, cl_bool enable) {
+    const char* feature_path = NULL;
+    const char* feature_name = NULL;
+    
+    switch(feature) {
+        case HDMI_FEATURE_HDR:
+            feature_path = "/sys/class/mali/mali0/device/hdr_enabled";
+            feature_name = "HDR";
+            break;
+        case HDMI_FEATURE_VRR:
+            feature_path = "/sys/class/mali/mali0/device/vrr_enabled";
+            feature_name = "VRR";
+            break;
+        case HDMI_FEATURE_LLM:
+            feature_path = "/sys/class/mali/mali0/device/low_latency_mode";
+            feature_name = "Low Latency Mode";
+            break;
+        default:
+            return CL_INVALID_VALUE;
+    }
+    
+    if (access(feature_path, F_OK) == -1) {
+        log("%s not supported by Mali-G52", feature_name);
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    if (write_to_sys(feature_path, enable ? "1" : "0") != CL_SUCCESS) {
+        log("Failed to set %s state", feature_name);
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    // Update context
+    switch(feature) {
+        case HDMI_FEATURE_HDR:
+            ctx->hdmi_advanced.hdr_enabled = enable;
+            break;
+        case HDMI_FEATURE_VRR:
+            ctx->hdmi_advanced.vrr_enabled = enable;
+            break;
+        case HDMI_FEATURE_LLM:
+            ctx->hdmi_advanced.llm_enabled = enable;
+            break;
+    }
+    
+    return CL_SUCCESS;
+}
+
+// OpenCL 3.0 kernel with dynamic workload support
+const char* isp_kernel_source = R"(
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#pragma OPENCL EXTENSION cl_arm_fp16_storage : enable
+#pragma OPENCL EXTENSION cl_arm_printf : enable
+#pragma OPENCL EXTENSION cl_arm_integer_dot_product : enable
+#pragma OPENCL EXTENSION cl_arm_fp16_dot_product : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable
+#pragma OPENCL EXTENSION cl_arm_shared_virtual_memory : enable
+#pragma OPENCL EXTENSION cl_arm_non_uniform_work_group_size : enable
+#pragma OPENCL EXTENSION cl_arm_import_memory : enable
+#pragma OPENCL EXTENSION cl_arm_scheduling_controls : enable
+#pragma OPENCL EXTENSION cl_arm_thread_limit_hint : enable
+#pragma OPENCL EXTENSION cl_arm_transaction_memory : enable
+#pragma OPENCL OPTIMIZE ON
+__attribute__((work_group_size_hint(MALI_G52_OPTIMAL_LOCAL_SIZE_X, MALI_G52_OPTIMAL_LOCAL_SIZE_Y, 1)))
+__attribute__((reqd_work_group_size(MALI_G52_OPTIMAL_LOCAL_SIZE_X, MALI_G52_OPTIMAL_LOCAL_SIZE_Y, 1)))
+
+// Add logging function
+static void log(const char* message) {
+    fprintf(stderr, "ISP-CL: %s\n", message);
+}
+
+// ARMv8.2-A specific checks and Mali-G52 optimizations
+struct context* create_context() {
+    struct context* ctx = malloc(sizeof(struct context));
+    cl_device_id device;
+    cl_platform_id platform;
+    char extensions[1024];
+    
+    // Get Mali-G52 device
+    clGetPlatformIDs(1, &platform, NULL);
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+    ctx->device = device;
+    
+    // Check ARMv8.2-A features
+    clGetDeviceInfo(device, CL_DEVICE_EXTENSIONS, sizeof(extensions), extensions, NULL);
+    ctx->has_armv82 = strstr(extensions, "cl_arm_fp16") && 
+                     strstr(extensions, "cl_arm_integer_dot_product");
+    
+    // Initialize Mali-G52 specific features
+    init_mali_g52_features(ctx);
+    
+    return ctx;
+}
+
+// Add Mali-G52 initialization
+void init_mali_g52_features(struct context* ctx) {
+    if(ctx->has_armv82) {
+        // Enable ARMv8.2-A instruction extensions
+        __asm__(".arch_extension fp16");
+        __asm__(".arch_extension asimdhp");
+        __asm__(".arch_extension rcpc");
+        
+        // Set optimal workgroup size
+        cl_uint optimal_size = MALI_G52_OPTIMAL_LOCAL_SIZE_X;
+        clSetDeviceInfo(ctx->device, CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_ARM, 
+                       sizeof(optimal_size), &optimal_size, NULL);
+        
+        // Configure tile buffers
+        cl_device_tiling_properties_arm tiling_props = {
+            CL_TILING_ARM_2D_X_MAJOR,
+            MALI_G52_OPTIMAL_LOCAL_SIZE_X,
+            MALI_G52_OPTIMAL_LOCAL_SIZE_Y
+        };
+        clSetDeviceInfo(ctx->device, CL_DEVICE_TILING_PROPERTIES_ARM, 
+                       sizeof(tiling_props), &tiling_props, NULL);
+        
+        // Enable AFBC/ASTC
+        cl_mem_properties_arm props[] = {
+            CL_MEM_ARM_ASTC_COMPRESSION_ARM, CL_TRUE,
+            CL_MEM_ARM_AFBC_COMPRESSION_ARM, CL_TRUE,
+            0
+        };
+        clSetDeviceInfo(ctx->device, CL_DEVICE_MEMORY_PROPERTIES_ARM,
+                       sizeof(props), props, NULL);
+    }
+}
+
+// Enhanced compressed image creation
+cl_mem create_compressed_image(cl_context context, cl_mem_flags flags, 
+                              size_t width, size_t height) {
+    cl_image_format astc_format = {CL_ARM_ASTC, CL_UNORM_INT8};
+    cl_image_desc desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        width, height, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_AFBC_MODE_ARM
+    };
+
+    cl_mem_properties_arm props[] = {
+        CL_MEM_ARM_ASTC_COMPRESSION_ARM, CL_TRUE,
+        CL_MEM_ARM_AFBC_COMPRESSION_ARM, CL_TRUE,
+        0
+    };
+
+    return clCreateImageWithProperties(context, flags, &astc_format, &desc, props, NULL);
+}
+
+// Fix kernel structure
+__kernel void matrix_multiply_fp16_dotprod(
+    __global half* a,
+    __global half* b,
+    __global half* result,
+    int width) 
+{
+    const int row = get_global_id(1);
+    const int col = get_global_id(0);
+
+    half8 sum = (half8)(0.0h);
+
+    for (int k = 0; k < width; k += 8) {
+        half8 a_vec = vload8(0, &a[row * width + k]);
+        half8 b_vec = vload8(0, &b[col * width + k]);
+        sum += dot(a_vec, b_vec);
+    }
+    
+    result[row * width + col] = sum.s0 + sum.s1 + sum.s2 + sum.s3 
+                               + sum.s4 + sum.s5 + sum.s6 + sum.s7;
+}
+
+
+// Enhanced context creation with Mali-G52 specific features
+struct context* create_context() {
+    struct context* ctx = malloc(sizeof(struct context));
+    
+    // Initialize Mali-G52 specific features
+    ctx->device = device;  // From previous device query
+    init_mali_g52_features(ctx);
+    
+    return ctx;
+}
+
+// Mali-G52 specific initialization
+void init_mali_g52_features(struct context* ctx) {
+    if(ctx->has_armv82) {
+        // Set optimal workgroup size for Mali-G52 MC2
+        cl_uint optimal_size = MALI_G52_OPTIMAL_LOCAL_SIZE_X;
+        clSetDeviceInfo(ctx->device, CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_ARM, 
+                       sizeof(optimal_size), &optimal_size, NULL);
+        
+        // Enable AFBC/ASTC compression
+        cl_mem_properties_arm props[] = {
+            CL_MEM_ARM_ASTC_COMPRESSION_ARM, CL_TRUE,
+            CL_MEM_ARM_AFBC_COMPRESSION_ARM, CL_TRUE,
+            0
+        };
+        clSetDeviceInfo(ctx->device, CL_DEVICE_MEMORY_PROPERTIES_ARM,
+                       sizeof(props), props, NULL);
+    }
+}
+
+// ASTC/AFBC compressed image creation
+cl_mem create_compressed_image(cl_context context, cl_mem_flags flags, 
+                              size_t width, size_t height) {
+    cl_image_format astc_format = {CL_ARM_ASTC, CL_UNORM_INT8};
+    cl_image_desc desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        width, height, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_AFBC_MODE_ARM
+    };
+
+    return clCreateImage(context, flags, &astc_format, &desc, NULL, NULL);
+}
+
+
+// Generic processing kernel with dynamic intensity based on frequency
+__kernel void isp_process_dynamic(
+    __global uchar4* input,
+    __global uchar4* output,
+    int width, 
+    int height,
+    float intensity,
+    float frequency_scale
+) {
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    const int lx = get_local_id(0);
+    const int ly = get_local_id(1);
+    const int group_x = get_group_id(0);
+    const int group_y = get_group_id(1);
+    
+    // Enhanced caching with overlapping borders - optimized for Mali-G52
+    __local uchar4 tile[18][34]; // 32x16 workgroup + 2px padding each side
+    
+    // Optimized memory access pattern for Mali-G52
+    if(lx < 34 && ly < 18) {
+        int gx = clamp(group_x * 32 + lx - 1, 0, width-1);
+        int gy = clamp(group_y * 16 + ly - 1, 0, height-1);
+        tile[ly][lx] = input[gy * width + gx];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    // Only process valid pixels
+    if(x >= width || y >= height) return;
+    
+    // Dynamic processing based on frequency scaling and algorithm selection
+    float4 result = convert_float4(tile[ly+1][lx+1]);
+    
+    // Three quality tiers based on frequency scaling
+    if (frequency_scale > 0.8f) {
+        // High-quality processing with bilateral filter
+        float4 sum = (float4)(0.0f);
+        float total_weight = 0.0f;
+        float sigma = intensity * 10.0f;
+        
+        // 3x3 bilateral filter optimized for Mali-G52
+        for(int dy = -1; dy <= 1; dy++) {
+            for(int dx = -1; dx <= 1; dx++) {
+                uchar4 n = tile[ly+dy+1][lx+dx+1];
+                float4 diff = convert_float4(tile[ly+1][lx+1] - n);
+                float weight = native_exp(-(dot(diff, diff))/(2.0f * sigma * sigma));
+                sum += convert_float4(n) * weight;
+                total_weight += weight;
+            }
+        }
+        result = sum / total_weight;
+    } 
+    else if (frequency_scale > 0.5f) {
+        // Medium quality with box blur
+        float4 sum = (float4)(0.0f);
+        for(int dy = -1; dy <= 1; dy++) {
+            for(int dx = -1; dx <= 1; dx++) {
+                sum += convert_float4(tile[ly+dy+1][lx+dx+1]);
+            }
+        }
+        result = sum / 9.0f;
+    }
+    else {
+        // Low quality - minimal operations at low frequencies
+        // Apply simple contrast enhancement only
+        result = result * intensity;
+    }
+    
+    output[y * width + x] = convert_uchar4_sat(result);
+}
+
+
+// DSP-Accelerated OpenCL Kernels
+__kernel void dsp_matrix_multiply(
+    __global half* a,
+    __global half* b,
+    __global half* result,
+    int dim,
+    __global dsp_state_t* state
+) {
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    
+    half sum = 0.0h;
+    for (int k = 0; k < dim; ++k) {
+        sum += a[y * dim + k] * b[k * dim + x];
+    }
+    
+    // Use DSP acceleration if available
+    if (state->dsp_available) {
+        result[y * dim + x] = dsp_fma(sum, state->dsp_scale_factor);
+    } else {
+        result[y * dim + x] = sum;
+    }
+}
+
+// DSP-Audio Process
+__kernel void dsp_audio_process(
+    __global short* input,
+    __global short* output,
+    int sample_rate,
+    __global dsp_audio_params_t* params
+) {
+    const int idx = get_global_id(0);
+    
+    // ARMv8.2-A optimized audio processing
+    short sample = input[idx];
+    
+    // Use half-precision for DSP processing
+    half h_sample = convert_half(sample);
+    h_sample = dsp_biquad_filter(h_sample, params->biquad_coeffs);
+    
+    // Apply ARMv8.2-A dot product if available
+    if (params->use_dotprod) {
+        h_sample = dsp_dot_product(h_sample, params->filter_state);
+    }
+    
+    output[idx] = convert_short_sat(h_sample);
+}
+
+// Enhanced sensor data processing with dynamic frequency scaling
+__kernel void process_sensor_data(
+    __global float4* input_data,
+    __global float4* output_data,
+    int data_length,
+    float sensitivity,
+    float frequency_scale,
+    int sensor_type
+) {
+    const int id = get_global_id(0);
+    if (id >= data_length) return;
+    
+    float4 data = input_data[id];
+    float4 result = data;
+    
+    // Enhanced processing based on sensor type with dynamic scaling
+    switch(sensor_type) {
+        case 0: // Accelerometer - optimized for Mali-G52
+            // Apply more sophisticated filtering at higher frequencies
+            if (frequency_scale > 0.7f) {
+                if (id > 1 && id < data_length - 2) {
+                    // 5-point weighted average for high-quality
+                    float4 prev2 = input_data[id-2];
+                    float4 prev1 = input_data[id-1];
+                    float4 next1 = input_data[id+1];
+                    float4 next2 = input_data[id+2];
+                    result = prev2 * 0.05f + prev1 * 0.2f + data * 0.5f + next1 * 0.2f + next2 * 0.05f;
+                }
+            } else if (frequency_scale > 0.4f) {
+                // 3-point weighted average for medium quality
+                if (id > 0 && id < data_length - 1) {
+                    float4 prev = input_data[id-1];
+                    float4 next = input_data[id+1];
+                    result = prev * 0.25f + data * 0.5f + next * 0.25f;
+                }
+            } else {
+                // Simple sensitivity scaling for low power
+                result = data * sensitivity;
+            }
+            break;
+            
+        case 1: // Gyroscope - optimized drift compensation
+            // More accurate drift compensation at higher frequencies
+            if (frequency_scale > 0.7f && id > 2 && id < data_length - 3) {
+                float4 running_avg = (float4)(0.0f);
+                for (int i = -3; i <= 3; i++) {
+                    running_avg += input_data[id+i];
+                }
+                running_avg /= 7.0f;
+                
+                // Drift compensation
+                float4 drift = running_avg - data;
+                result = data + drift * (0.3f * frequency_scale);
+            } else if (frequency_scale > 0.4f && id > 0 && id < data_length - 1) {
+                // Simpler drift compensation
+                float4 avg = (input_data[id-1] + data + input_data[id+1]) / 3.0f;
+                float4 drift = avg - data;
+                result = data + drift * 0.2f;
+            }
+            break;
+            
+        case 2: // Magnetometer - calibration improvement
+            // Adaptive calibration based on frequency
+            if (frequency_scale > 0.6f) {
+                // Apply hard-iron correction
+                float4 hard_iron_offset = (float4)(0.1f, 0.1f, 0.1f, 0.0f);
+                result = data - hard_iron_offset;
+                
+                // Apply soft-iron correction (simplified)
+                float soft_iron_scale = 1.05f;
+                result.xyz *= soft_iron_scale;
+            }
+            break;
+            
+        case 3: // Temperature sensor
+        case 4: // Proximity
+        case 5: // Ambient Light
+        case 6: // Pressure
+        case 7: // Humidity
+            // Simple filtering with sensitivity adjustment
+            result = data * sensitivity * (0.8f + frequency_scale * 0.4f);
+            break;
+            
+        default:
+            // Default processing - simple scaling
+            result = data * sensitivity;
+            break;
+        case SENSOR_HALL: // SNG-SPRD-004 hall effect sensor
+            // Hall effect sensors provide binary output (presence/absence of magnetic field)
+            result = data.x > 0.5f ? (float4)(1.0f, 0.0f, 0.0f, 0.0f) : (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+            break;
+
+
+    }
+    
+    output_data[id] = result;
+}
+
+// Enhanced AFBC-inspired compression with dynamic work distribution
+__kernel void compress_data_afbc(
+    __global uchar4* input,
+    __global uchar* output_compressed,
+    __global int* output_size,
+    int width,
+    int height,
+    float quality,
+    float frequency_scale
+) {
+    // Enhanced compression algorithm that adapts to available frequency
+    const int block_x = get_group_id(0);
+    const int block_y = get_group_id(1);
+    const int local_x = get_local_id(0);
+    const int local_y = get_local_id(1);
+    
+    // Using 4x4 pixel blocks (AFBC standard)
+    const int block_width = 4;
+    const int block_height = 4;
+    const int blocks_x = (width + block_width - 1) / block_width;
+    
+    __local uchar4 block_data[4][4];
+    __local float avg_colors[4];
+    __local int compression_level;
+    
+    // Optimized block loading with thread coalescing for Mali-G52
+    int gx = block_x * block_width + local_x;
+    int gy = block_y * block_height + local_y;
+    
+    if (local_x < block_width && local_y < block_height && gx < width && gy < height) {
+        block_data[local_y][local_x] = input[gy * width + gx];
+    } else if (local_x < block_width && local_y < block_height) {
+        block_data[local_y][local_x] = (uchar4)(0, 0, 0, 255);
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    // Dynamic compression based on frequency
+    float adjusted_quality = quality * frequency_scale;
+    
+    // Main compression work - only one thread per workgroup performs this
+    if (local_x == 0 && local_y == 0) {
+        // Calculate block averages - optimized for Mali-G52
+        float4 avg = (float4)(0.0f);
+        for (int y = 0; y < block_height; y++) {
+            for (int x = 0; x < block_width; x++) {
+                avg += convert_float4(block_data[y][x]);
+            }
+        }
+        avg /= (block_width * block_height);
+        
+        // Store average color
+        avg_colors[0] = avg.x;
+        avg_colors[1] = avg.y;
+        avg_colors[2] = avg.z;
+        avg_colors[3] = avg.w;
+        
+        // Adaptive compression level based on quality and frequency
+        int block_idx = block_y * blocks_x + block_x;
+        int offset = block_idx * 8; // 8 bytes per block header
+        
+        // Dynamic compression level
+        compression_level = (int)(adjusted_quality * 255.0f);
+        
+        // Write compressed block header
+        output_compressed[offset] = (uchar)compression_level;
+        output_compressed[offset + 1] = (uchar)avg_colors[0];
+        output_compressed[offset + 2] = (uchar)avg_colors[1];
+        output_compressed[offset + 3] = (uchar)avg_colors[2];
+        output_compressed[offset + 4] = (uchar)avg_colors[3];
+        
+        // Bit flags for pixel variance (high frequency details)
+        uchar variance_flags = 0;
+        
+        // Calculate variance flags based on frequency scaling
+        if (frequency_scale > 0.7f) {
+            // Fine-grained encoding at high frequencies
+            for (int i = 0; i < 4; i++) {
+                float luma = 0.299f * block_data[i/2][i%2].x + 
+                             0.587f * block_data[i/2][i%2].y + 
+                             0.114f * block_data[i/2][i%2].z;
+                float avg_luma = 0.299f * avg.x + 0.587f * avg.y + 0.114f * avg.z;
+                
+                if (fabs(luma - avg_luma) > 10.0f * adjusted_quality) {
+                    variance_flags |= (1 << i);
+                }
+            }
+        }
+        
+        output_compressed[offset + 5] = variance_flags;
+        
+        // Last block updates output size
+        if (block_x == blocks_x - 1 && block_y == (height + block_height - 1) / block_height - 1) {
+            *output_size = (block_idx + 1) * 8;
+        }
+    }
+}
+)";
+
+// Resource tracking for cleanup
+typedef struct {
+    enum {
+        RESOURCE_PROGRAM,
+        RESOURCE_KERNEL,
+        RESOURCE_MEM,
+        RESOURCE_EVENT,
+        RESOURCE_SAMPLER,
+        RESOURCE_HOST_PTR,
+	RESOURCE_DEVICE
+    } type;
+    void* resource;
+} cleanup_resource_t;
+
+// HDMI output management structure
+typedef struct {
+    cl_bool hdmi_connected;
+    cl_uint current_resolution_index;
+    hdmi_resolution_t available_resolutions[MAX_HDMI_RESOLUTIONS];
+    cl_uint resolution_count;
+    cl_uint refresh_rate;
+    cl_bool adaptive_sync_enabled;
+} hdmi_context_t;
+
+// Enhanced modem integration structure
+typedef struct {
+    cl_bool modem_firmware_loaded;
+    cl_uint modem_clock_current;
+    cl_uint modem_clock_min;
+    cl_uint modem_clock_max;
+    cl_mem modem_shared_buffer;
+    cl_mem modem_csi_buffer;
+    cl_mem modem_antenna_pattern_buffer;
+    float modem_temperature;
+    cl_uint modem_active_channels;
+    cl_uint modem_tx_power;
+    cl_uint modem_buffer_usage;
+    cl_uint l2_cache_partition;
+    pthread_mutex_t modem_mutex;
+    cl_bool thermal_throttling;
+    cl_bool dvfs_enabled;
+    cl_bool use_gpu_acceleration;
+    cl_bool use_bf16_matrices;
+    cl_bool rcpc_enabled;
+} modem_context_t;
+
+// Enhanced VDSP Integration structure
+typedef struct {
+    cl_bool vdsp_available;
+    cl_uint vdsp_freq;
+    cl_mem vdsp_buffer;
+    void* vdsp_mapped_ptr;
+    cl_bool shared_memory_available;
+    cl_uint vdsp_compute_units;
+    float vdsp_utilization;
+} vdsp_context_t;
+
+// Enhanced crypto engine structure 
+typedef struct {
+    cl_bool crypto_available;
+    cl_uint crypto_mode;
+    cl_uint key_size;
+    void* key_data;
+    cl_bool hardware_acceleration;
+    cl_bool secure_boot_verified;
+    cl_uint supported_algorithms;
+    float crypto_performance_mhz;
+} crypto_context_t;
+
+// Enhanced DVFS management structure
+typedef struct {
+    cl_uint current_freq_mhz;
+    dvfs_level_t current_level;
+    cl_uint min_freq_mhz;
+    cl_uint max_freq_mhz;
+    float current_scaling_factor;
+    struct timeval last_update_time;
+    cl_uint temperature;
+    cl_uint power_usage_mw;
+    cl_bool thermal_throttling;
+    cl_uint throttling_threshold;
+    float workload_history[8];
+    cl_uint workload_index;
+    pthread_mutex_t dvfs_mutex;
+} dvfs_context_t;
+
+// DSP Integration Structures
+typedef struct {
+    cl_bool dsp_available;
+    half dsp_scale_factor;
+    cl_uint processing_mode;
+    cl_mem internal_buffer;
+} dsp_state_t;
+
+typedef struct {
+    cl_bool use_dotprod;
+    half biquad_coeffs[10]; // b0, b1, b2, a1, a2 for each channel (stereo)
+    half filter_state[8];   // z1, z2 for each channel (stereo)
+    cl_uint filter_type;    // 0: lowpass, 1: highpass, 2: bandpass, 3: notch, 4: peak, 5: lowshelf, 6: highshelf
+    half resonance;
+    half cutoff_freq;
+} dsp_audio_params_t;
+
+typedef struct {
+    cl_bool dsp_available;
+    cl_uint dsp_type;
+    cl_mem dsp_shared_buffer;
+    cl_uint dsp_frequency;
+    cl_bool armv82_features_enabled;
+    cl_uint active_workload;
+} dsp_context_t;
+
+// Enhanced sensor context with buffer management
+typedef struct {
+    cl_bool sensor_available[SENSOR_MAX];
+    cl_uint sensor_data_size[SENSOR_MAX];
+    cl_mem sensor_buffers[SENSOR_MAX][MAX_SENSOR_BUFFER_COUNT];
+    cl_uint buffer_count[SENSOR_MAX];
+    float sensitivity[SENSOR_MAX];
+    float update_rate[SENSOR_MAX];
+    struct timeval last_update[SENSOR_MAX];
+    pthread_mutex_t sensor_mutex;
+} sensor_context_t;
+
+// ARMv8.2-A specific optimizations
+#if defined(__aarch64__) && defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+    #define USE_ARM_FP16 1
+    #define ARM_DOT_PROD_ENABLED 1
+#else
+    #define USE_ARM_FP16 0
+    #define ARM_DOT_PROD_ENABLED 0
+#endif
+
+#if defined(__aarch64__)
+__asm__(".arch_extension rcpc");
+__asm__(".arch_extension lse");
+#endif
+
+// Mali-G52 specific memory alignment
+#define MALI_G52_MEM_ALIGNMENT 64
+
+// Enhanced memory management context
+typedef struct {
+    cleanup_resource_t resources[CLEANUP_STACK_SIZE];
+    cl_uint resource_count;
+    pthread_mutex_t cleanup_mutex;
+    cl_bool use_dma_buf;
+    size_t dma_buf_limit;
+    size_t mmap_limit;
+    size_t current_dma_usage;
+    size_t current_mmap_usage;
+    cl_uint num_allocations;
+    cl_uint peak_memory_usage;
+    cl_bool use_zero_copy;
+    size_t memory_alignment;
+    cl_bool use_unified_memory;
+    pthread_mutex_t memory_mutex;
+    size_t l2_cache_usage;
+    size_t max_allocation_size;
+    cl_mem modem_shared_buffer;
+} memory_context_t;
+
+// Enhanced cleanup stack
+typedef struct {
+    cleanup_resource_t resources[CLEANUP_STACK_SIZE];
+    cl_uint resource_count;
+    pthread_mutex_t cleanup_mutex;
+} cleanup_context_t;
+
+// Enhanced main ISP OpenCL context
+typedef struct {
+    // OpenCL objects
+    cl_context context;
+    cl_command_queue queue;
+    cl_program program;
+    cl_kernel process_kernel;
+    cl_kernel sensor_kernel;
+    cl_kernel compression_kernel;
+    cl_platform_id platform;
+    cl_device_id device;
+    
+    // Device capabilities
+    cl_uint compute_units;
+    cl_ulong global_mem_size;
+    cl_ulong local_mem_size;
+    cl_bool has_arm_extensions;
+    
+    // Enhanced feature contexts
+    memory_context_t memory;
+    dvfs_context_t dvfs;
+    vdsp_context_t vdsp;
+    crypto_context_t crypto;
+    sensor_context_t sensors;
+    hdmi_context_t hdmi;
+    cleanup_context_t cleanup;
+    
+    // Resolution info with HDMI support
+    cl_uint current_width;
+    cl_uint current_height;
+    cl_bool output_to_hdmi;
+    
+    // Error tracking
+    cl_int last_error;
+    char error_message[256];
+    
+    // Performance monitoring
+    struct timeval last_performance_check;
+    float avg_processing_time_ms;
+    cl_uint frames_processed;
+    cl_event timing_event;
+} isp_opencl_ctx;
+
+// Enhanced error checking macro with ARM-specific error codes
+const char* cl_error_string(cl_int error) {
+    switch(error) {
+        // Standard OpenCL errors
+        case CL_SUCCESS: return "Success";
+        case CL_DEVICE_NOT_FOUND: return "Device not found";
+        // (other standard error codes as in original)
+        
+        // ARM-specific error codes
+        case -1000: return "ARM extension not supported";
+        case -1001: return "ARM SVM allocation failed";
+        case -1002: return "ARM DMA-BUF import failed";
+        case -1003: return "ARM coherent memory not available";
+        case -1004: return "ARM secure execution failed";
+        case -1005: return "ARM AFBC format not supported";
+        default: return "Unknown error";
+    }
+}
+
+// Enhanced error checking macro
+#define CL_CHECK(ctx, func) {\
+    cl_int err = func;\
+    if(err != CL_SUCCESS) {\
+        snprintf((ctx)->error_message, sizeof((ctx)->error_message),\
+                "OpenCL Error [%s:%d]: %s\n", __FILE__, __LINE__, cl_error_string(err));\
+        fprintf(stderr, "%s", (ctx)->error_message);\
+        (ctx)->last_error = err;\
+        return err;\
+    }\
+}
+
+// Enhanced memory alignment helper for Mali-G52
+static inline size_t align_size(size_t size) {
+    return (size + DMA_BUF_ALIGNMENT - 1) & ~(DMA_BUF_ALIGNMENT - 1);
+}
+
+// Enhanced DVFS helper with workload tracking
+static cl_int set_dvfs_level(isp_opencl_ctx* ctx, dvfs_level_t level) {
+    pthread_mutex_lock(&ctx->dvfs.dvfs_mutex);
+    
+    // In production, this would interface with the GPU driver
+    switch(level) {
+        case DVFS_LEVEL_POWER_SAVE:
+            ctx->dvfs.current_freq_mhz = 200;
+            ctx->dvfs.current_scaling_factor = 0.25f;
+            break;
+        case DVFS_LEVEL_LOW:
+            ctx->dvfs.current_freq_mhz = 450;
+            ctx->dvfs.current_scaling_factor = 0.45f;
+            break;
+        case DVFS_LEVEL_MEDIUM:
+            ctx->dvfs.current_freq_mhz = 700;
+            ctx->dvfs.current_scaling_factor = 0.65f;
+            break;
+        case DVFS_LEVEL_HIGH:
+            ctx->dvfs.current_freq_mhz = 850;
+            ctx->dvfs.current_scaling_factor = 0.85f;
+            break;
+        case DVFS_LEVEL_MAX:
+            ctx->dvfs.current_freq_mhz = 950;
+            ctx->dvfs.current_scaling_factor = 1.0f;
+            break;
+        case DVFS_LEVEL_AUTO:
+            // Keep current settings, will be adjusted dynamically
+            break;
+        default:
+            pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+            return CL_INVALID_VALUE;
+    }
+    
+    if (level != DVFS_LEVEL_AUTO) {
+        ctx->dvfs.current_level = level;
+    }
+    
+    gettimeofday(&ctx->dvfs.last_update_time, NULL);
+    pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+    
+    return CL_SUCCESS;
+}
+
+// Enhanced dynamic frequency adjustment based on workload history
+static cl_int update_dvfs_auto(isp_opencl_ctx* ctx, cl_uint workload_hint) {
+    pthread_mutex_lock(&ctx->dvfs.dvfs_mutex);
+    
+    // Set Mali GPU power state based on workload
+    for (int i = 0; i < ctx->cleanup.resource_count; i++) {
+        if (ctx->cleanup.resources[i].type == RESOURCE_KERNEL) {
+            clSetKernelPowerGatingARM(ctx->cleanup.resources[i].resource, 
+                (ctx->dvfs.current_scaling_factor > 0.7) ? CL_POWER_GATE_OFF_ARM : 
+                CL_POWER_GATE_ON_DEMAND_ARM);
+        }
+    }
+    
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    
+    // Only update every 100ms to avoid thrashing
+    long time_diff_ms = 
+        (current_time.tv_sec - ctx->dvfs.last_update_time.tv_sec) * 1000 + 
+        (current_time.tv_usec - ctx->dvfs.last_update_time.tv_usec) / 1000;
+    
+    if (time_diff_ms < 100) {
+        pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+        return CL_SUCCESS; // Too soon to update
+    }
+    
+    // Update workload history
+    ctx->dvfs.workload_history[ctx->dvfs.workload_index] = workload_hint;
+    ctx->dvfs.workload_index = (ctx->dvfs.workload_index + 1) % 8;
+    
+    // Calculate average workload
+    float avg_workload = 0.0f;
+    for (int i = 0; i < 8; i++) {
+        avg_workload += ctx->dvfs.workload_history[i];
+    }
+    avg_workload /= 8.0f;
+    
+    // Temperature throttling takes precedence
+    if (ctx->dvfs.temperature > ctx->dvfs.throttling_threshold) {
+        ctx->dvfs.thermal_throttling = CL_TRUE;
+        ctx->dvfs.current_level = DVFS_LEVEL_POWER_SAVE;
+        ctx->dvfs.current_freq_mhz = 200;
+        ctx->dvfs.current_scaling_factor = 0.25f;
+        pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+        return CL_SUCCESS;
+    } else if (ctx->dvfs.temperature > ctx->dvfs.throttling_threshold - 10) {
+        ctx->dvfs.thermal_throttling = CL_TRUE;
+        ctx->dvfs.current_level = DVFS_LEVEL_LOW;
+        ctx->dvfs.current_freq_mhz = 350;
+        ctx->dvfs.current_scaling_factor = 0.45f;
+        pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+        return CL_SUCCESS;
+    } else {
+        ctx->dvfs.thermal_throttling = CL_FALSE;
+    }
+    
+    // Workload-based selection with hysteresis
+    dvfs_level_t target_level;
+    if (avg_workload > 85.0f) {
+        target_level = DVFS_LEVEL_MAX;
+    } else if (avg_workload > 65.0f) {
+        target_level = DVFS_LEVEL_HIGH;
+    } else if (avg_workload > 40.0f) {
+        target_level = DVFS_LEVEL_MEDIUM;
+    } else if (avg_workload > 20.0f) {
+        target_level = DVFS_LEVEL_LOW;
+    } else {
+        target_level = DVFS_LEVEL_POWER_SAVE;
+    }
+    
+    // Only change if different and not throttling
+    if (target_level != ctx->dvfs.current_level && !ctx->dvfs.thermal_throttling) {
+        switch(target_level) {
+            case DVFS_LEVEL_POWER_SAVE:
+                ctx->dvfs.current_freq_mhz = 200;
+                ctx->dvfs.current_scaling_factor = 0.25f;
+                break;
+            case DVFS_LEVEL_LOW:
+                ctx->dvfs.current_freq_mhz = 450;
+                ctx->dvfs.current_scaling_factor = 0.45f;
+                break;
+            case DVFS_LEVEL_MEDIUM:
+                ctx->dvfs.current_freq_mhz = 700;
+                ctx->dvfs.current_scaling_factor = 0.65f;
+                break;
+            case DVFS_LEVEL_HIGH:
+                ctx->dvfs.current_freq_mhz = 850;
+                ctx->dvfs.current_scaling_factor = 0.85f;
+                break;
+            case DVFS_LEVEL_MAX:
+                ctx->dvfs.current_freq_mhz = 950;
+                ctx->dvfs.current_scaling_factor = 1.0f;
+                break;
+            default:
+                break;
+        }
+        
+        ctx->dvfs.current_level = target_level;
+    }
+    
+    gettimeofday(&ctx->dvfs.last_update_time, NULL);
+    pthread_mutex_unlock(&ctx->dvfs.dvfs_mutex);
+    
+    return CL_SUCCESS;
+}
+
+// Modem thermal management with ARMv8.2-A optimizations
+static cl_int modem_thermal_check(isp_opencl_ctx* ctx) {
+    pthread_mutex_lock(&ctx->modem.modem_mutex);
+    
+    // Read thermal zone directly with optimized I/O
+    int fd = open("/sys/class/thermal/thermal_zone0/temp", O_RDONLY);
+    if (fd >= 0) {
+        char temp_str[16] = {0};
+        ssize_t n = read(fd, temp_str, sizeof(temp_str) - 1);
+        close(fd);
+        
+        if (n > 0) {
+            int temp = atoi(temp_str);
+            ctx->modem.modem_temperature = temp / 1000.0f;
+            
+            // Apply thermal throttling with ARMv8.2-A RCpc atomics
+            if (ctx->modem.modem_temperature > 85.0f) {
+                // Critical temperature - aggressive throttling with RCpc atomics
+                __atomic_store_n(&ctx->modem.thermal_throttling, CL_TRUE, __ATOMIC_RELAXED);
+                modem_set_clock(ctx, ctx->modem.modem_clock_min);
+            } else if (ctx->modem.modem_temperature > 75.0f) {
+                // High temperature - moderate throttling
+                __atomic_store_n(&ctx->modem.thermal_throttling, CL_TRUE, __ATOMIC_RELAXED);
+                modem_set_clock(ctx, ctx->modem.modem_clock_min + 
+                               (ctx->modem.modem_clock_max - ctx->modem.modem_clock_min) / 3);
+            } else {
+                // Normal temperature - no throttling
+                __atomic_store_n(&ctx->modem.thermal_throttling, CL_FALSE, __ATOMIC_RELAXED);
+            }
+        }
+    }
+    
+    pthread_mutex_unlock(&ctx->modem.modem_mutex);
+    return CL_SUCCESS;
+}
+
+// Enhanced DMA-BUF import function with ARMv8.2-A optimizations
+cl_mem isp_import_dmabuf(isp_opencl_ctx* ctx, int dma_buf_fd, size_t size, cl_mem_flags flags) {
+    pthread_mutex_lock(&ctx->memory.memory_mutex);
+    cl_int err;
+    
+    // Align size to required boundary for ARMv8.2-A
+    size = align_size(size);
+    
+    // Enhanced ARM-specific properties for DMA-BUF import with ARMv8.2-A optimizations
+    cl_import_properties_arm import_props[] = {
+        CL_IMPORT_TYPE_ARM, CL_IMPORT_TYPE_DMA_BUF_ARM,
+        CL_IMPORT_DMA_BUF_DATA_ALIGNMENT_ARM, DMA_BUF_ALIGNMENT,
+        CL_IMPORT_DMA_BUF_DATA_OFFSET_ARM, 0,
+        CL_IMPORT_DMA_BUF_PLANE_OFFSET_ARM, 0,
+        
+        // Add cache hints for ARMv8.2-A memory system
+        CL_IMPORT_MEMORY_CACHED_ARM, CL_TRUE,
+        CL_IMPORT_MEMORY_CACHE_POLICY_ARM, CL_MEM_CACHE_WRITE_BACK,
+        0
+    };
+    
+    // Import the DMA-BUF as an OpenCL buffer
+    cl_mem buffer = clImportMemoryARM(ctx->context, flags, 
+                                     import_props, &dma_buf_fd, 
+                                     size, &err);
+    
+    if (err != CL_SUCCESS) {
+        snprintf(ctx->error_message, sizeof(ctx->error_message),
+                "Failed to import DMA-BUF: %s\n", cl_error_string(err));
+        fprintf(stderr, "%s", ctx->error_message);
+        ctx->last_error = err;
+        pthread_mutex_unlock(&ctx->memory.memory_mutex);
+        return NULL;
+    }
+    
+    // Update memory tracking
+    ctx->memory.current_dma_usage += size;
+    ctx->memory.num_allocations++;
+    
+    // Track for automatic cleanup
+    if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = buffer;
+        ctx->cleanup.resource_count++;
+    }
+    
+    pthread_mutex_unlock(&ctx->memory.memory_mutex);
+    return buffer;
+}
+
+// Enhanced memory allocation with automatic DMA-BUF/MMAP selection
+cl_mem isp_allocate_buffer(isp_opencl_ctx* ctx, size_t size, cl_mem_flags flags) {
+    pthread_mutex_lock(&ctx->memory.memory_mutex);
+    
+    // Ensure size is aligned for optimal performance
+    size = align_size(size);
+    
+    // Track maximum allocation for statistics
+    if (size > ctx->memory.max_allocation_size) {
+        ctx->memory.max_allocation_size = size;
+    }
+    
+    // Dynamic switching between DMA-BUF and memory mapping
+    if (flags & CL_MEM_USE_HOST_PTR) {
+        if (ctx->memory.current_mmap_usage + size > ctx->memory.mmap_limit) {
+            fprintf(stderr, "MMAP limit reached, switching to DMA_BUF\n");
+            ctx->memory.use_dma_buf = CL_TRUE;
+        }
+    } else {
+        if (ctx->memory.current_dma_usage + size > ctx->memory.dma_buf_limit) {
+            fprintf(stderr, "DMA_BUF limit reached, switching to MMAP\n");
+            ctx->memory.use_dma_buf = CL_FALSE;
+        }
+    }
+    
+    cl_int err;
+    cl_mem buffer = NULL;
+    void* host_ptr = NULL;
+    
+    // Handle based on strategy and flags
+    if (ctx->memory.use_dma_buf && !(flags & CL_MEM_USE_HOST_PTR) && 
+        ctx->has_arm_extensions && size > 16384) {
+        // Use ARM-specific zero-copy extensions for large buffers
+        int fd = -1;
+        
+        // In production, this would call into a DRM allocator
+        // For simulation, we fall back to regular buffer allocation
+        buffer = clCreateBuffer(ctx->context, flags, size, NULL, &err);
+        
+        if (err == CL_SUCCESS) {
+            ctx->memory.current_dma_usage += size;
+        }
+    } else if (ctx->memory.use_unified_memory && ctx->has_arm_extensions && 
+              !(flags & CL_MEM_USE_HOST_PTR)) {
+        // Use ARM SVM for unified memory
+        cl_svm_mem_flags svm_flags = 0;
+        
+        if (flags & CL_MEM_READ_ONLY)
+            svm_flags |= CL_MEM_READ_ONLY;
+        if (flags & CL_MEM_WRITE_ONLY)
+            svm_flags |= CL_MEM_WRITE_ONLY;
+        if (flags & CL_MEM_READ_WRITE)
+            svm_flags |= CL_MEM_READ_WRITE;
+        
+        host_ptr = clSVMAlloc(ctx->context, svm_flags, size, DMA_BUF_ALIGNMENT);
+        
+        if (host_ptr) {
+            buffer = clCreateBuffer(ctx->context, 
+                                  flags | CL_MEM_USE_HOST_PTR, 
+                                  size, host_ptr, &err);
+            
+            if (err == CL_SUCCESS) {
+                ctx->memory.current_mmap_usage += size;
+            } else {
+                clSVMFree(ctx->context, host_ptr);
+                host_ptr = NULL;
+            }
+        } else {
+            err = CL_OUT_OF_HOST_MEMORY;
+            buffer = NULL;
+        }
+    } else if (!(flags & CL_MEM_USE_HOST_PTR)) {
+        // Standard buffer allocation
+        buffer = clCreateBuffer(ctx->context, flags, size, NULL, &err);
+        
+        if (err == CL_SUCCESS) {
+            ctx->memory.current_dma_usage += size;
+        }
+    } else {
+        // Host memory already provided
+        buffer = clCreateBuffer(ctx->context, flags, size, 
+                              (void*)(uintptr_t)(flags & CL_MEM_USE_HOST_PTR), &err);
+        
+        if (err == CL_SUCCESS) {
+            ctx->memory.current_mmap_usage += size;
+        }
+    }
+    
+    if (err != CL_SUCCESS) {
+        snprintf(ctx->error_message, sizeof(ctx->error_message),
+                "Failed to allocate buffer: %s\n", cl_error_string(err));
+        fprintf(stderr, "%s", ctx->error_message);
+        ctx->last_error = err;
+        pthread_mutex_unlock(&ctx->memory.memory_mutex);
+        return NULL;
+    }
+    
+    // Update memory tracking
+    ctx->memory.num_allocations++;
+    size_t current_total = ctx->memory.current_dma_usage + ctx->memory.current_mmap_usage;
+    if (current_total > ctx->memory.peak_memory_usage) {
+        ctx->memory.peak_memory_usage = current_total;
+    }
+    
+    // Track for automatic cleanup
+    if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+        pthread_mutex_lock(&ctx->cleanup.cleanup_mutex);
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = buffer;
+        ctx->cleanup.resource_count++;
+        
+        // If we allocated host memory, track it too
+        if (host_ptr && ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+            ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_HOST_PTR;
+            ctx->cleanup.resources[ctx->cleanup.resource_count].resource = host_ptr;
+            ctx->cleanup.resource_count++;
+        }
+        pthread_mutex_unlock(&ctx->cleanup.cleanup_mutex);
+    }
+    
+    pthread_mutex_unlock(&ctx->memory.memory_mutex);
+    return buffer;
+}
+
+// Enhanced image creation with AFBC support for Mali-G52
+cl_mem isp_create_afbc_image(isp_opencl_ctx* ctx, cl_uint width, cl_uint height, cl_mem_flags flags) {
+    pthread_mutex_lock(&ctx->memory.memory_mutex);
+    cl_int err;
+    
+    // Enable AFBC for Mali-G52
+    cl_image_format fmt = {CL_RGBA, CL_UNORM_INT8};
+    cl_image_desc desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        width, height, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_AFBC_MODE_ARM
+    };
+    
+    cl_mem image = clCreateImage(ctx->context, flags, &fmt, &desc, NULL, &err);
+    
+    if (err != CL_SUCCESS) {
+        snprintf(ctx->error_message, sizeof(ctx->error_message),
+                "Failed to create AFBC image: %s\n", cl_error_string(err));
+        fprintf(stderr, "%s", ctx->error_message);
+        ctx->last_error = err;
+        pthread_mutex_unlock(&ctx->memory.memory_mutex);
+        return NULL;
+    }
+    
+    // Track for automatic cleanup
+    if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+        pthread_mutex_lock(&ctx->cleanup.cleanup_mutex);
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = image;
+        ctx->cleanup.resource_count++;
+        pthread_mutex_unlock(&ctx->cleanup.cleanup_mutex);
+    }
+    
+    pthread_mutex_unlock(&ctx->memory.memory_mutex);
+    return image;
+}
+
+// Enhanced memory model with RCpc support
+#ifdef RCPC_SUPPORT
+#define MEMORY_SCOPE_DEVICE_RCPC 5  // Device-wide scope with RCpc ordering
+
+// RCpc-optimized atomic operations
+inline void atomic_store_explicit_rcpc(atomic_uint* obj, unsigned int val) {
+    atomic_store_explicit(obj, val, memory_order_relaxed, MEMORY_SCOPE_DEVICE_RCPC);
+}
+
+inline unsigned int atomic_load_explicit_rcpc(atomic_uint* obj) {
+    return atomic_load_explicit(obj, memory_order_relaxed, MEMORY_SCOPE_DEVICE_RCPC);
+}
+#endif
+
+
+// Enhanced shared buffer allocation with VDSP compatibility
+cl_mem isp_allocate_shared_buffer(isp_opencl_ctx* ctx, size_t size) {
+    // Align size
+    size = align_size(size);
+    
+    // Prefer VDSP-compatible memory if available
+    if (ctx->vdsp.vdsp_available && ctx->vdsp.shared_memory_available) {
+        // ARM-specific extensions for VDSP compatibility
+        cl_mem_flags flags = CL_MEM_READ_WRITE;
+        
+        // Additional properties for coherent memory
+        cl_mem_properties_arm props[] = {
+            CL_MEM_COHERENT_HOST_ACCESS_ARM, CL_TRUE,
+            0
+        };
+        
+        cl_int err;
+        cl_mem buffer = clCreateBufferWithProperties(ctx->context, 
+                                                  props, flags, size, NULL, &err);
+        
+        if (err == CL_SUCCESS) {
+            pthread_mutex_lock(&ctx->memory.memory_mutex);
+            ctx->memory.current_dma_usage += size;
+            ctx->memory.num_allocations++;
+            
+            // Track for automatic cleanup
+            if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+                pthread_mutex_lock(&ctx->cleanup.cleanup_mutex);
+                ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+                ctx->cleanup.resources[ctx->cleanup.resource_count].resource = buffer;
+                ctx->cleanup.resource_count++;
+                pthread_mutex_unlock(&ctx->cleanup.cleanup_mutex);
+            }
+            
+            pthread_mutex_unlock(&ctx->memory.memory_mutex);
+            return buffer;
+        } else {
+            // Fall back to regular buffer
+            return isp_allocate_buffer(ctx, size, CL_MEM_READ_WRITE);
+        }
+    }
+    
+    // Fall back to regular buffer allocation
+    return isp_allocate_buffer(ctx, size, CL_MEM_READ_WRITE);
+}
+
+cl_mem isp_import_modem_buffer(isp_opencl_ctx* ctx, size_t size) {
+    cl_import_properties_arm props[] = {
+        CL_IMPORT_TYPE_ARM, CL_IMPORT_TYPE_DMA_BUF_ARM,
+        CL_IMPORT_DMA_BUF_DATA_OFFSET_ARM, 0,
+        CL_IMPORT_MEMORY_CACHED_ARM, CL_TRUE,
+        0
+    };
+    
+    int fd = open("/sys/kernel/debug/dma_buf/wifi_bt_shared", O_RDWR);
+    if(fd < 0) return NULL;
+    
+    return clImportMemoryARM(ctx->context, CL_MEM_READ_WRITE, props, fd, size, NULL);
+}
+
+// Enhanced modem import with ASTC/AFBC support with ARMv8.2-A optimizations
+cl_int isp_init_modem(isp_opencl_ctx* ctx) {
+    cl_int status = CL_SUCCESS;
+    int fd;
+    
+    // Initialize modem context
+    pthread_mutex_init(&ctx->modem.modem_mutex, NULL);
+    ctx->modem.modem_clock_min = 400000000;  // 400MHz
+    ctx->modem.modem_clock_max = 1500000000; // 1.5GHz
+    ctx->modem.modem_clock_current = 800000000; // 800MHz initial
+    ctx->modem.l2_cache_partition = 65536;   // 64KB
+    ctx->modem.use_gpu_acceleration = CL_TRUE;
+    ctx->modem.use_bf16_matrices = CL_TRUE;  // Enable bfloat16 for Tiger T618
+    ctx->modem.rcpc_enabled = CL_TRUE;       // Enable RCpc for atomic updates
+    
+    // Verify modem firmware is loaded
+    fd = open("/dev/l_modem", O_RDONLY);
+    if (fd >= 0) {
+        ctx->modem.modem_firmware_loaded = CL_TRUE;
+        close(fd);
+    } else {
+        log("WARNING: l_modem device not found or firmware not loaded");
+        ctx->modem.modem_firmware_loaded = CL_FALSE;
+        return CL_DEVICE_NOT_FOUND;
+    }
+    
+    // Create 2MB shared DMA buffer for modem operations
+    cl_mem_flags flags = CL_MEM_READ_WRITE;
+    
+    // Allocate shared buffer with DMA capabilities
+    cl_import_properties_arm props[] = {
+        CL_IMPORT_TYPE_ARM, CL_IMPORT_TYPE_DMA_BUF_ARM,
+        CL_IMPORT_DMA_BUF_DATA_ALIGNMENT_ARM, DMA_BUF_ALIGNMENT,
+        CL_IMPORT_MEMORY_CACHED_ARM, CL_TRUE,
+        0
+    };
+    
+    // Create 2MB (2097152 bytes) shared buffer for modem
+    fd = open("/sys/kernel/debug/dma_buf/cellular_modem_shared", O_RDWR);
+    if (fd >= 0) {
+        ctx->modem.modem_shared_buffer = clImportMemoryARM(
+            ctx->context,
+            CL_MEM_READ_WRITE,
+            props,
+            fd,
+            2097152, // 2MB exactly as specified
+            &status
+        );
+        close(fd);
+        
+        if (status != CL_SUCCESS) {
+            log("Failed to import modem shared buffer");
+            return status;
+        }
+    } else {
+        // Fallback to regular buffer if DMA-BUF not available
+        ctx->modem.modem_shared_buffer = clCreateBuffer(
+            ctx->context,
+            CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
+            2097152,
+            NULL,
+            &status
+        );
+        
+        if (status != CL_SUCCESS) {
+            log("Failed to create modem shared buffer");
+            return status;
+        }
+    }
+    
+    // Create CSI buffer with ASTC compression for Tiger T618
+    cl_image_format astc_format = {CL_RGBA, CL_UNORM_INT8};
+    cl_image_desc desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        1024, 768, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_ASTC_MODE_ARM
+    };
+    
+    // Add ARM ASTC properties
+    cl_mem_properties_arm astc_props[] = {
+        CL_MEM_ARM_ASTC_COMPRESSION_ARM, CL_TRUE,
+        0
+    };
+    
+    ctx->modem.modem_csi_buffer = clCreateImageWithProperties(
+        ctx->context,
+        astc_props,
+        astc_format,
+        &desc,
+        NULL,
+        &status
+    );
+    
+    if (status != CL_SUCCESS) {
+        log("Failed to create CSI buffer with ASTC compression");
+        return status;
+    }
+    
+    // Create antenna pattern buffer with AFBC for Tiger T618
+    cl_image_format afbc_format = {CL_RGBA, CL_UNORM_INT8};
+    cl_image_desc afbc_desc = {
+        CL_MEM_OBJECT_IMAGE2D,
+        512, 512, 1, 1, 0, 0,
+        0, 0, CL_IMAGE_ARM_AFBC_MODE_ARM
+    };
+    
+    ctx->modem.modem_antenna_pattern_buffer = clCreateImage(
+        ctx->context,
+        CL_MEM_READ_WRITE,
+        &afbc_format,
+        &afbc_desc,
+        NULL,
+        &status
+    );
+    
+    if (status != CL_SUCCESS) {
+        log("Failed to create antenna pattern buffer with AFBC");
+        return status;
+    }
+    
+    // Register resources for cleanup
+    if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE - 3) {
+        pthread_mutex_lock(&ctx->cleanup.cleanup_mutex);
+        
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = ctx->modem.modem_shared_buffer;
+        ctx->cleanup.resource_count++;
+        
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = ctx->modem.modem_csi_buffer;
+        ctx->cleanup.resource_count++;
+        
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = ctx->modem.modem_antenna_pattern_buffer;
+        ctx->cleanup.resource_count++;
+        
+        pthread_mutex_unlock(&ctx->cleanup.cleanup_mutex);
+    }
+    
+    // Configure RCpc extension
+    int rcpc_fd = open("/proc/sys/arm/rcpc_enabled", O_WRONLY);
+    if (rcpc_fd >= 0) {
+        write(rcpc_fd, "1", 1);
+        close(rcpc_fd);
+    }
+    
+    // Set up initial L2 cache partitioning
+    int l2_fd = open("/sys/kernel/debug/dsu_pmu/l3_partition", O_WRONLY);
+    if (l2_fd >= 0) {
+        write(l2_fd, "compute=896K,graphics=640K,modem=64K,system=384K,other=64K", 60);
+        close(l2_fd);
+    }
+    
+    log("Modem subsystem initialized with ARMv8.2-A optimizations");
+    return CL_SUCCESS;
+}
+
+// Add new GNSS processing kernel
+__kernel void gnss_dual_frequency(
+    __global short2* l1_samples,
+    __global short2* l5_samples,
+    __global float4* ephemeris,
+    __global float* result,
+    __global atomic_uint* timestamp
+) 
+
+// CRC32-accelerated FEC
+__kernel void modem_fec_accel(__global uchar4* input, __global uchar4* output) {
+    uint crc = 0;
+    #pragma arm unroll(4)
+    for(int i=0; i<1024; i++) {
+        crc = __crc32w(crc, input[i].w);
+    }
+    output[0] = (uchar4)(crc >> 24, crc >> 16, crc >> 8, crc);
+}
+
+// BLE Mesh Networking
+void ble_mesh_update(__global uchar* adv_data) {
+    uint32_t crc = 0;
+    #pragma arm unroll(8)
+    for(int i=0; i<31; i++) {
+        crc = __crc32cb(crc, adv_data[i]);
+    }
+    adv_data[31] = crc >> 24;
+    adv_data[32] = crc >> 16;
+    adv_data[33] = crc >> 8;
+    adv_data[34] = crc;
+}
+
+{
+    // ARMv8.2-A hardware timestamp
+    uint64_t ts = arm_read_cntvct();
+    atomic_store_explicit(timestamp, ts, memory_order_relaxed, memory_scope_device);
+
+    // NEON-optimized correlation
+    int16x8_t l1_vec = vld1q_s16((const short*)l1_samples);
+    int16x8_t l5_vec = vld1q_s16((const short*)l5_samples);
+    
+    // ASTC-compressed ephemeris decoding
+    float4 compressed = vload4(0, ephemeris);
+    float4 decoded = astc_decode(compressed);
+
+    // Dual-frequency processing
+    float sum = 0.0f;
+    #pragma unroll
+    for(int i=0; i<8; i++) {
+        sum += (l1_vec[i] * decoded.x) + (l5_vec[i] * decoded.y);
+    }
+    
+    // SVM buffer output
+    result[get_global_id(0)] = sum;
+}
+
+// Add ASTC decompression function
+float4 astc_decode(float4 compressed) {
+    // Mali-G52 ASTC implementation
+    float4 result;
+    asm volatile(
+        "ASTC_DECODE %0, %1" 
+        : "=w"(result) 
+        : "w"(compressed)
+    );
+    return result;
+}
+
+// Add half-precision kernel optimized for ARMv8.2-A
+__kernel void isp_process_half_precision(
+    __global uchar4* input,
+    __global uchar4* output,
+    int width, 
+    int height,
+    half intensity,
+    half frequency_scale
+) {
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    
+    if(x >= width || y >= height) return;
+    
+    // Use half-precision for calculations
+    half4 pixel = convert_half4(input[y * width + x]);
+    half4 result = pixel * intensity;
+    
+    output[y * width + x] = convert_uchar4_sat(result);
+}
+
+// ARMv8.2-A optimized packet processing for modem
+__kernel void modem_packet_processing(
+    __global uchar4* input_packets,
+    __global uchar4* output_packets,
+    __global uint* packet_lengths,
+    __global uint* crc_results,
+    int packet_count,
+    float frequency_scale
+) {
+    const int packet_id = get_global_id(0);
+    
+    if (packet_id >= packet_count) return;
+    
+    // Get packet length
+    uint packet_length = packet_lengths[packet_id];
+    uint packet_offset = 0;
+    for (int i = 0; i < packet_id; i++) {
+        packet_offset += packet_lengths[i];
+    }
+    
+    // Calculate CRC using ARMv8.2-A CRC32 intrinsics
+    uint crc = 0xFFFFFFFF;
+    
+    #pragma arm unroll(8)
+    for (int i = 0; i < packet_length; i++) {
+        uchar4 data = input_packets[packet_offset + i];
+        // Use ARMv8.2-A CRC32 intrinsics for Tiger T618
+        crc = __crc32w(crc, *((uint*)&data));
+    }
+    
+    crc_results[packet_id] = crc;
+    
+    // Apply packet processing based on frequency
+    if (frequency_scale > 0.8f) {
+        // High-quality processing for fast clock
+        #pragma arm unroll(4)
+        for (int i = 0; i < packet_length; i++) {
+            uchar4 data = input_packets[packet_offset + i];
+            // Apply enhanced processing
+            output_packets[packet_offset + i] = data;
+        }
+    } else {
+        // Basic copy for power saving
+        for (int i = 0; i < packet_length; i++) {
+            output_packets[packet_offset + i] = input_packets[packet_offset + i];
+        }
+    }
+}
+
+// Check for Cortex-A75/A55 BF16 support
+cl_int check_bf16_support(cl_device_id device) {
+    char extensions[1024];
+    clGetDeviceInfo(device, CL_DEVICE_EXTENSIONS, sizeof(extensions), extensions, NULL);
+    
+    // Check for ARMv8.2-A BF16 extension
+    if (strstr(extensions, "cl_arm_bf16") != NULL) {
+        return CL_SUCCESS;
+    }
+    
+    // Fallback to FP32 if BF16 not available
+    log("BF16 not supported, using FP32 fallback");
+    return CL_INVALID_OPERATION;
+}
+
+// BF16 signal processing for modem matrices using ARMv8.2-A
+__kernel void modem_signal_matrix(
+    __global __bf16* input_matrix,
+    __global __bf16* filter_matrix,
+    __global __bf16* output_matrix,
+    int matrix_size
+) {
+    const int row = get_global_id(0);
+    const int col = get_global_id(1);
+    
+    if (row >= matrix_size || col >= matrix_size) return;
+    
+    // Use bf16 for Tiger T618's ARMv8.2-A support
+    __bf16 sum = 0.0f;
+    
+    for (int k = 0; k < matrix_size; k++) {
+        sum += input_matrix[row * matrix_size + k] * filter_matrix[k * matrix_size + col];
+    }
+    
+    // Use RCpc relaxed memory ordering for atomic updates
+    __atomic_store_n(&output_matrix[row * matrix_size + col], sum, __ATOMIC_RELAXED);
+}
+
+// ARMv8.2-A BF16 accelerated signal processing for modem
+__kernel void modem_signal_process_bf16(
+    __global ushort* input_signal,      // BF16 encoded signal samples
+    __global ushort* channel_matrix,    // BF16 channel matrix
+    __global ushort* output_signal,     // BF16 output buffer
+    int signal_length,
+    int matrix_dim,
+    __global float* snr_out
+) {
+    const int idx = get_global_id(0);
+    
+    if (idx >= signal_length)
+        return;
+    
+    // Process data in blocks of 8 for optimal BF16 SIMD
+    ushort8 accum = (ushort8)(0);
+    
+    for (int block = 0; block < signal_length; block += 8) {
+        // Load BF16 values and process with dot product
+        if (block + 8 <= signal_length) {
+            ushort8 signal_block = vload8(0, &input_signal[block]);
+            ushort8 channel_block = vload8(0, &channel_matrix[idx * matrix_dim + block]);
+            
+            // BF16 dot product acceleration
+            #ifdef cl_arm_integer_dot_product
+            accum = arm_dot(signal_block, channel_block, accum);
+            #else
+            // Fallback implementation
+            for (int i = 0; i < 8; i++) {
+                float signal_val = bfloat16_to_float(signal_block[i]);
+                float channel_val = bfloat16_to_float(channel_block[i]);
+                float result = signal_val * channel_val;
+                accum[i] += float_to_bfloat16(result);
+            }
+            #endif
+        }
+    }
+    
+    // Reduce and store result
+    float sum = 0.0f;
+    for (int i = 0; i < 8; i++) {
+        sum += bfloat16_to_float(accum[i]);
+    }
+    
+    output_signal[idx] = float_to_bfloat16(sum);
+    
+    // Calculate SNR with CRC32 acceleration
+    uint32_t signal_power = 0;
+    uint32_t noise_power = 1;  // Avoid div by zero
+    
+    #ifdef cl_arm_crc32
+    // Use ARMv8.2-A CRC32 acceleration
+    signal_power = arm_crc32(input_signal, signal_length * sizeof(ushort));
+    noise_power = max(1u, signal_power ^ arm_crc32(output_signal, signal_length * sizeof(ushort)));
+    #else
+    // Fallback implementation
+    for (int i = 0; i < signal_length; i++) {
+        float s = bfloat16_to_float(input_signal[i]);
+        signal_power += (uint32_t)(s * s * 1000);
+        
+        float n = bfloat16_to_float(input_signal[i] - output_signal[i]);
+        noise_power += (uint32_t)(n * n * 1000);
+    }
+    #endif
+    
+    // Calculate SNR
+    atomic_add(snr_out, (float)signal_power / (float)noise_power);
+}
+
+// BF16 Signal Processing for Modem using ARMv8.2-A extensions
+cl_int modem_signal_process_bf16(cl_mem input_buffer, cl_mem output_buffer, size_t samples) {
+    float32x4_t val = vld1q_bf16_x4(input_ptr);
+    val = vmulq_bf16(val, bf16_weights);
+    vst1q_bf16_x4(output_ptr, val);
+    cl_int err = CL_SUCCESS;
+    // Use BF16 intrinsics specific to ARMv8.2-A
+    cl_kernel kernel = clCreateKernel(program, "process_modem_signal_bf16", &err);
+    if (err != CL_SUCCESS) return err;
+    
+    // Set kernel arguments
+    err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
+    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
+    err |= clSetKernelArg(kernel, 2, sizeof(cl_uint), &samples);
+    
+    // Execute optimized for Mali-G52 MC2
+    size_t local_size[2] = {32, 8}; // Optimal for Mali-G52
+    size_t global_size[2] = {
+        ((samples + local_size[0] - 1) / local_size[0]) * local_size[0],
+        local_size[1]
+    };
+    
+    err |= clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_size, local_size, 0, NULL, NULL);
+    
+    clReleaseKernel(kernel);
+    return err;
+}
+
+// Import modem buffer with ASTC/AFBC support for your Mali-G52
+cl_int isp_import_modem_buffer(void* modem_data, size_t size, cl_mem* gpu_buffer) {
+    cl_int err = CL_SUCCESS;
+    cl_image_format img_format;
+    cl_image_desc img_desc;
+    
+    // ASTC/AFBC support for Mali-G52
+    img_format.image_channel_order = CL_RGBA;
+    img_format.image_channel_data_type = CL_UNORM_INT8;
+    
+    img_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    img_desc.image_width = 256;  // Power of 2 for optimal ASTC
+    img_desc.image_height = (size + 1023) / 1024; // Align to 1KB blocks
+    img_desc.image_depth = 0;
+    img_desc.image_array_size = 0;
+    img_desc.image_row_pitch = 0;
+    img_desc.image_slice_pitch = 0;
+    img_desc.num_mip_levels = 0;
+    img_desc.num_samples = 0;
+    img_desc.buffer = NULL;
+    
+    // Use the Mali-G52 specific extensions for AFBC
+    cl_mem_flags mem_flags = CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR | CL_MEM_EXTENDED_ARM_AFBC;
+    
+    *gpu_buffer = clCreateImage(context, mem_flags, &img_format, &img_desc, modem_data, &err);
+    return err;
+}
+
+// Modem thermal management integrated with OpenCL workloads
+void modem_thermal_check(cl_device_id device, modem_thermal_limits_t* limits) {
+    cl_float gpu_temp;
+clGetDeviceInfo(device, CL_DEVICE_THERMAL_STATUS_ARM, sizeof(gpu_temp), &gpu_temp, NULL);
+if(gpu_temp > 70.0f) { // Coordinate with GPU thermal state
+    modem_set_clock(MODEM_CLOCK_LOW);
+}
+    cl_int err;
+    cl_uint temp;
+    size_t size;
+    
+    // Get device temperature via OpenCL extension
+    err = clGetDeviceInfo(device, CL_DEVICE_TEMPERATURE_ARM, sizeof(cl_uint), &temp, &size);
+    if (err == CL_SUCCESS) {
+        // Update modem thermal limits based on GPU temperature
+        if (temp > 85) {
+            limits->max_freq = 800000; // 800 MHz cap
+            limits->voltage_limit = 950; // 950mV cap
+        } else if (temp > 75) {
+            limits->max_freq = 1200000; // 1.2 GHz cap
+            limits->voltage_limit = 1050; // 1050mV cap
+        } else {
+            limits->max_freq = 1500000; // Full 1.5 GHz
+            limits->voltage_limit = 1200; // 1200mV cap
+        }
+        
+        // Apply limits via sysfs
+        char cmd[128];
+        sprintf(cmd, "echo %u > /sys/devices/platform/modem_dvfs/scaling_max_freq", limits->max_freq);
+        system(cmd);
+    }
+}
+
+// ASTC compressed CSI data processing
+__kernel void modem_csi_processing(
+    __read_only image2d_t csi_data,
+    __write_only image2d_t processed_csi,
+    sampler_t sampler,
+    float signal_strength,
+    float noise_floor
+) {
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    
+    // Read from ASTC compressed image
+    float4 csi_sample = read_imagef(csi_data, sampler, (int2)(x, y));
+    
+    // Process CSI data
+    float snr = signal_strength / noise_floor;
+    float4 result = csi_sample * snr;
+    
+    // Write back to compressed format
+    write_imagef(processed_csi, (int2)(x, y), result);
+}
+
+// Memory alignment helper
+static inline size_t align_size(size_t size) {
+    return (size + DMA_BUF_ALIGNMENT - 1) & ~(DMA_BUF_ALIGNMENT - 1);
+}
+
+// Initialize sensor context with all sensors from sensors.txt
+cl_int isp_init_sensors(isp_opencl_ctx* ctx) {
+    pthread_mutex_init(&ctx->sensors.sensor_mutex, NULL);
+    
+    // Define available sensors based on device capabilities
+    ctx->sensors.sensor_available[SENSOR_THERMAL] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_MAIN] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_SUB] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_MAIN2] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_SUB2] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_MAIN3] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_ACCELEROMETER] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_GYROSCOPE] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_MAGNETOMETER] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_PROXIMITY] = CL_TRUE;
+    ctx->sensors.sensor_available[SENSOR_AMBIENT_LIGHT] = CL_TRUE;
+    
+    // Initialize sensor data sizes and buffers
+    for (int i = 0; i < SENSOR_MAX; i++) {
+        if (ctx->sensors.sensor_available[i]) {
+            // Different sensor types have different data sizes
+            switch(i) {
+                case SENSOR_MAIN:
+                case SENSOR_SUB:
+                case SENSOR_MAIN2:
+                case SENSOR_SUB2:
+                case SENSOR_MAIN3:
+                    ctx->sensors.sensor_data_size[i] = 256;  // 256 float4 entries for camera sensors
+                    ctx->sensors.sensitivity[i] = 1.0f;
+                    ctx->sensors.update_rate[i] = 30.0f;  // 30Hz
+                    break;
+                
+                case SENSOR_ACCELEROMETER:
+                case SENSOR_GYROSCOPE:
+                case SENSOR_MAGNETOMETER:
+                    ctx->sensors.sensor_data_size[i] = 128;  // 128 float4 entries
+                    ctx->sensors.sensitivity[i] = 1.0f;
+                    ctx->sensors.update_rate[i] = 100.0f;  // 100Hz
+                    break;
+                    
+                case SENSOR_THERMAL:
+                    ctx->sensors.sensor_data_size[i] = 16;   // 16 float4 entries
+                    ctx->sensors.sensitivity[i] = 1.0f;
+                    ctx->sensors.update_rate[i] = 1.0f;    // 1Hz
+                    break;
+                    
+                case SENSOR_PROXIMITY:
+                case SENSOR_AMBIENT_LIGHT:
+                    ctx->sensors.sensor_data_size[i] = 32;   // 32 float4 entries
+                    ctx->sensors.sensitivity[i] = 1.0f;
+                    ctx->sensors.update_rate[i] = 10.0f;   // 10Hz
+                    break;
+                    
+                default:
+                    ctx->sensors.sensor_data_size[i] = 0;
+                    break;
+            }
+            
+            // Allocate buffers for each sensor
+            ctx->sensors.buffer_count[i] = 2;  // Double buffering
+            
+            for (cl_uint j = 0; j < ctx->sensors.buffer_count[i]; j++) {
+                size_t buffer_size = ctx->sensors.sensor_data_size[i] * sizeof(cl_float4);
+                
+                ctx->sensors.sensor_buffers[i][j] = isp_allocate_buffer(
+                    ctx, buffer_size, CL_MEM_READ_WRITE);
+                
+                if (!ctx->sensors.sensor_buffers[i][j]) {
+                    return ctx->last_error;
+                }
+            }
+            
+            gettimeofday(&ctx->sensors.last_update[i], NULL);
+        }
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Initialize compute DSP with dedicated compute units
+cl_int isp_init_cdsp(isp_opencl_ctx* ctx) {
+    cl_int status = CL_SUCCESS;
+    int cdsp_fd, ret;
+    char buffer[256];
+    
+    // Log initialization
+    log("Initializing CDSP for compute operations");
+    
+    // Check if CDSP is available
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/status", O_RDONLY);
+    if (cdsp_fd < 0) {
+        log("CDSP not available or not loaded");
+        return CL_DEVICE_NOT_FOUND;
+    }
+    
+    ret = read(cdsp_fd, buffer, sizeof(buffer) - 1);
+    close(cdsp_fd);
+    
+    if (ret <= 0 || strncmp(buffer, "active", 6) != 0) {
+        log("CDSP is not active");
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    // Configure CDSP for compute operations (not camera)
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/mode", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, "compute", 7);
+        close(cdsp_fd);
+    }
+    
+    // Enable ARMv8.2-A and 8.3-A RCpc features for CDSP
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/features", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        // Enable FP16, dot product, and NEON optimizations
+        write(cdsp_fd, "fp16=1 dotprod=1 neon=1 rcpc=1", 30);
+        close(cdsp_fd);
+    }
+    
+    // Set optimal clock frequency for computation
+    cl_uint gpu_freq;
+    clGetDeviceInfo(ctx->cl_device, CL_DEVICE_MAX_CLOCK_FREQUENCY, 
+                    sizeof(gpu_freq), &gpu_freq, NULL);
+
+    // Calculate CDSP frequency based on GPU frequency with DVFS-specific mapping
+unsigned long cdsp_freq;
+    if (gpu_freq == 200000000) {
+        cdsp_freq = 170000000;  // DVFS_LEVEL_POWER_SAVE
+    } else if (gpu_freq == 450000000) {
+        cdsp_freq = 382500000;  // DVFS_LEVEL_LOW
+    } else if (gpu_freq == 700000000) {
+        cdsp_freq = 595000000;  // DVFS_LEVEL_MEDIUM
+    } else if (gpu_freq == 850000000) {
+        cdsp_freq = 722500000;  // DVFS_LEVEL_HIGH
+    } else if (gpu_freq == 950000000) {
+        cdsp_freq = 786250000;  // DVFS_LEVEL_MAX
+    } else {
+        cdsp_freq = (unsigned long)(gpu_freq * 0.79);  // Default 79%
+    }
+
+    // Apply Tiger T618-specific floor/ceiling
+    if (cdsp_freq < 325000000) cdsp_freq = 325000000;
+    if (cdsp_freq > 950000000) cdsp_freq = 950000000;
+
+    char freq_buf[16];
+    snprintf(freq_buf, sizeof(freq_buf), "%lu", cdsp_freq);
+
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/clock", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, freq_buf, strlen(freq_buf));
+        close(cdsp_fd);
+        log("Set CDSP frequency to %s Hz (%.1f%% of GPU %u Hz)", 
+            freq_buf, (cdsp_freq/(float)gpu_freq)*100, gpu_freq);
+    }
+    
+    // Initialize shared memory pool between GPU and CDSP
+    if (ctx != NULL) {
+        // Allocate shared buffer for preprocessing tasks
+        cl_mem_flags flags = CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR;
+        
+        // Create buffer for GPU-DSP communication
+        ctx->dsp_shared_buffer = clCreateBuffer(
+            ctx->cl_context,
+            flags,
+            1024 * 1024, // 1MB shared buffer
+            NULL,
+            &status
+        );
+        
+        if (status != CL_SUCCESS) {
+            log("Failed to create GPU-DSP shared buffer");
+            return status;
+        }
+        
+        // Register the resource for cleanup
+        if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+            ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_BUFFER;
+            ctx->cleanup.resources[ctx->cleanup.resource_count].resource = ctx->dsp_shared_buffer;
+            ctx->cleanup.resource_count++;
+        }
+        
+        // Enable memory coherency for GPU-DSP communication
+        cdsp_fd = open("/sys/kernel/dsp/cdsp/coherent", O_WRONLY);
+        if (cdsp_fd >= 0) {
+            write(cdsp_fd, "1", 1);
+            close(cdsp_fd);
+        }
+    }
+    
+    // Configure audio/video processing offload
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/av_processing", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, "enable", 6);
+        close(cdsp_fd);
+    }
+    
+    // Configure NEON SIMD acceleration with BF16 support
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/simd", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, "neon=1 bf16=1", 13);
+        close(cdsp_fd);
+    }
+    
+    // Connect to ARM Compute Library
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/compute_lib", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, "arm_compute", 11);
+        close(cdsp_fd);
+    }
+    
+    // Set workload balancing strategy for parallel tasks
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/workload_balance", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        // Adaptive balancing based on 4GB system
+        write(cdsp_fd, "adaptive:4gb", 12);
+        close(cdsp_fd);
+    }
+    
+    // Configure power management policy
+    cdsp_fd = open("/sys/kernel/dsp/cdsp/power_policy", O_WRONLY);
+    if (cdsp_fd >= 0) {
+        write(cdsp_fd, "balanced", 8);
+        close(cdsp_fd);
+    }
+    
+    log("CDSP initialized successfully for compute operations");
+    return CL_SUCCESS;
+}
+
+// Import modem DMA buffer with ASTC/AFBC optimization
+cl_mem isp_import_modem_buffer(isp_opencl_ctx* ctx, int dma_buf_fd, size_t size, cl_mem_flags flags) {
+    cl_int err = CL_SUCCESS;
+    
+    // Align size to Mali-G52 requirements
+    size = align_size(size);
+    
+    // Enhanced ARM-specific properties for DMA-BUF import with ASTC/AFBC support
+    cl_import_properties_arm import_props[] = {
+        CL_IMPORT_TYPE_ARM, CL_IMPORT_TYPE_DMA_BUF_ARM,
+        CL_IMPORT_DMA_BUF_DATA_ALIGNMENT_ARM, MALI_G52_MEM_ALIGNMENT,
+        CL_IMPORT_MEMORY_CACHED_ARM, CL_TRUE,
+        // Add Mali-G52 specific optimizations for modem data
+        CL_MEM_ARM_ASTC_COMPRESSION_ARM, CL_TRUE,
+        CL_MEM_ARM_AFBC_COMPRESSION_ARM, CL_TRUE,
+        0
+    };
+    
+    // Import DMA buffer
+    cl_mem buffer = clImportMemoryARM(ctx->context, flags, import_props, dma_buf_fd, &err);
+    
+    if (err != CL_SUCCESS) {
+        snprintf(ctx->error_message, sizeof(ctx->error_message),
+                "Failed to import modem DMA buffer: %s\n", cl_error_string(err));
+        return NULL;
+    }
+    
+    // Register for cleanup
+    pthread_mutex_lock(&ctx->cleanup.cleanup_mutex);
+    if (ctx->cleanup.resource_count < CLEANUP_STACK_SIZE) {
+        ctx->cleanup.resources[ctx->cleanup.resource_count].type = RESOURCE_MEM;
+        ctx->cleanup.resources[ctx->cleanup.resource_count].resource = buffer;
+        ctx->cleanup.resource_count++;
+    }
+    pthread_mutex_unlock(&ctx->cleanup.cleanup_mutex);
+    
+    // Update context with new modem buffer
+    ctx->modem.modem_shared_buffer = buffer;
+    
+    return buffer;
+}
+
+// Modem power management with DVFS for Tiger T618
+cl_int isp_update_modem_power(isp_opencl_ctx* ctx, cl_uint workload_percent, cl_uint temperature) {
+    pthread_mutex_lock(&ctx->modem.modem_mutex);
+    
+    // Store temperature for thermal management
+    ctx->modem.modem_temperature = temperature;
+    
+    // Thermal throttling takes precedence
+    if (temperature > 85) { // 85°C critical threshold
+        ctx->modem.thermal_throttling = CL_TRUE;
+        ctx->modem.modem_clock_current = ctx->modem.modem_clock_min;
+        log("Critical temperature reached (%u°C), throttling modem to %u MHz", 
+            temperature, ctx->modem.modem_clock_current / 1000000);
+    }
+    else if (temperature > 75) { // 75°C warning threshold
+        ctx->modem.thermal_throttling = CL_TRUE;
+        // Scale between min and 60% of max
+        cl_uint max_throttled = ctx->modem.modem_clock_min + 
+                               (ctx->modem.modem_clock_max - ctx->modem.modem_clock_min) * 0.6;
+        ctx->modem.modem_clock_current = max_throttled;
+        log("High temperature (%u°C), limiting modem to %u MHz", 
+            temperature, ctx->modem.modem_clock_current / 1000000);
+    }
+    else {
+        ctx->modem.thermal_throttling = CL_FALSE;
+        
+        // Set clock based on workload with hysteresis to avoid thrashing
+        cl_uint target_clock;
+        
+        if (workload_percent > 80) {
+            target_clock = ctx->modem.modem_clock_max;
+        }
+        else if (workload_percent > 60) {
+            target_clock = ctx->modem.modem_clock_min + 
+                          (ctx->modem.modem_clock_max - ctx->modem.modem_clock_min) * 0.8;
+        }
+        else if (workload_percent > 40) {
+            target_clock = ctx->modem.modem_clock_min + 
+                          (ctx->modem.modem_clock_max - ctx->modem.modem_clock_min) * 0.6;
+        }
+        else if (workload_percent > 20) {
+            target_clock = ctx->modem.modem_clock_min + 
+                          (ctx->modem.modem_clock_max - ctx->modem.modem_clock_min) * 0.4;
+        }
+        else {
+            target_clock = ctx->modem.modem_clock_min;
+        }
+        
+        // Only change clock if difference is significant (>10%)
+        if (abs(target_clock - ctx->modem.modem_clock_current) > (ctx->modem.modem_clock_max / 10)) {
+            ctx->modem.modem_clock_current = target_clock;
+            log("Adjusting modem clock to %u MHz (workload: %u%%)", 
+                target_clock / 1000000, workload_percent);
+        }
+    }
+
+    // Set modem clock frequency with DVFS integration
+    static cl_int modem_set_clock(isp_opencl_ctx* ctx, cl_uint freq_mhz) {
+        pthread_mutex_lock(&ctx->modem.modem_mutex);
+        
+        // Apply frequency limits
+        freq_mhz = (freq_mhz < ctx->modem.modem_clock_min) ? 
+                    ctx->modem.modem_clock_min : 
+                    ((freq_mhz > ctx->modem.modem_clock_max) ? 
+                    ctx->modem.modem_clock_max : freq_mhz);
+        
+        // Apply new frequency with RCpc atomics for safe concurrent updates
+        if (ctx->modem.rcpc_enabled) {
+            __atomic_store_n(&ctx->modem.modem_clock_current, freq_mhz, __ATOMIC_RELAXED);
+        } else {
+            ctx->modem.modem_clock_current = freq_mhz;
+        }
+        
+        // Write to sysfs interface
+        char freq_str[16];
+        snprintf(freq_str, sizeof(freq_str), "%u", freq_mhz * 1000000);
+        
+        int fd = open("/sys/devices/platform/modem_dvfs/scaling_setspeed", O_WRONLY);
+        if (fd >= 0) {
+            write(fd, freq_str, strlen(freq_str));
+            close(fd);
+        }
+        
+        // Coordinate with GPU/VDSP DVFS
+        if (freq_mhz > 800) {
+            // High modem frequency - reduce GPU frequency if thermal throttling active
+            if (ctx->modem.thermal_throttling && ctx->dvfs.current_level > DVFS_LEVEL_MEDIUM) {
+                set_dvfs_level(ctx, DVFS_LEVEL_MEDIUM);
+            }
+        }
+        
+        pthread_mutex_unlock(&ctx->modem.modem_mutex);
+        return CL_SUCCESS;
+    }
+    
+    // Apply the new frequency through sysfs
+    int fd = open("/sys/devices/platform/modem_dvfs/scaling_setspeed", O_WRONLY);
+    if (fd >= 0) {
+        char freq_str[16];
+        snprintf(freq_str, sizeof(freq_str), "%u", ctx->modem.modem_clock_current);
+        write(fd, freq_str, strlen(freq_str));
+        close(fd);
+    }
+    
+    pthread_mutex_unlock(&ctx->modem.modem_mutex);
+    return CL_SUCCESS;
+}
+
+// HDMI configuration structure
+typedef struct {
+    int width;
+    int height;
+    int refresh_rate;
+    cl_bool is_extended;
+    cl_bool is_hdr_enabled;
+    cl_bool is_vrr_enabled;
+    cl_bool is_llm_enabled;    // Low Latency Mode
+    cl_bool is_qms_enabled;    // Quick Media Switching
+    cl_bool is_qft_enabled;    // Quick Frame Transport
+    cl_bool is_hec_enabled;    // HDMI Ethernet Channel
+    cl_uint color_depth;       // 8, 10, 12, 16
+    cl_uint color_format;      // 0=RGB, 1=YCbCr422, 2=YCbCr444, 3=YCbCr420
+} isp_hdmi_config;
+
+// Initialize HDMI with basic settings
+cl_int isp_init_hdmi(isp_opencl_ctx* ctx) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    // Log initialization
+    log("Initializing HDMI with basic settings");
+    
+    // Check if HDMI is connected
+    int hdmi_fd = open("/sys/class/drm/card0-HDMI-A-1/status", O_RDONLY);
+    if (hdmi_fd < 0) {
+        log("HDMI not available");
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    char buffer[16];
+    int ret = read(hdmi_fd, buffer, sizeof(buffer) - 1);
+    close(hdmi_fd);
+    
+    if (ret <= 0 || strncmp(buffer, "connected", 9) != 0) {
+        log("HDMI is not connected");
+        return CL_DEVICE_NOT_AVAILABLE;
+    }
+    
+    // Initialize default configuration
+    ctx->hdmi_config.width = 1336;
+    ctx->hdmi_config.height = 752;
+    ctx->hdmi_config.refresh_rate = 60;
+    ctx->hdmi_config.is_extended = CL_FALSE;
+    ctx->hdmi_config.is_hdr_enabled = CL_FALSE;
+    ctx->hdmi_config.is_vrr_enabled = CL_FALSE;
+    ctx->hdmi_config.is_llm_enabled = CL_FALSE;
+    ctx->hdmi_config.is_qms_enabled = CL_FALSE;
+    ctx->hdmi_config.is_qft_enabled = CL_FALSE;
+    ctx->hdmi_config.is_hec_enabled = CL_FALSE;
+    ctx->hdmi_config.color_depth = 8;
+    ctx->hdmi_config.color_format = 0; // RGB
+    
+    // Try to detect preferred mode
+    fd = open("/sys/class/drm/card0-HDMI-A-1/edid", O_RDONLY);
+    if (fd >= 0) {
+        // We have EDID data - could parse it here for preferred mode
+        // For simplicity, we're using external tools in the scripts
+        close(fd);
+    }
+    
+    // Set initial HDMI configuration
+    fd = open("/sys/class/drm/card0-HDMI-A-1/mode", O_WRONLY);
+    if (fd >= 0) {
+        char mode_str[32];
+        sprintf(mode_str, "%dx%d", ctx->hdmi_config.width, ctx->hdmi_config.height);
+        write(fd, mode_str, strlen(mode_str));
+        close(fd);
+    }
+    
+    // Initialize shared memory for HDMI configuration
+    mkdir("/var/run/display", 0755);
+    
+    // Save initial settings
+    fd = open("/var/run/display/resolution", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char res_str[32];
+        sprintf(res_str, "%d %d", ctx->hdmi_config.width, ctx->hdmi_config.height);
+        write(fd, res_str, strlen(res_str));
+        close(fd);
+    }
+    
+    log("HDMI initialized successfully");
+    return CL_SUCCESS;
+}
+
+// Initialize HDMI with advanced features
+cl_int isp_init_hdmi_advanced(isp_opencl_ctx* ctx) {
+    cl_int status = isp_init_hdmi(ctx);
+    if (status != CL_SUCCESS) return status;
+    
+    log("Initializing advanced HDMI features");
+    
+    // Check HDR capability
+    bool hdr_capable = false;
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/edid", O_RDONLY);
+    if (fd >= 0) {
+        char edid_data[1024];
+        int bytes_read = read(fd, edid_data, sizeof(edid_data) - 1);
+        if (bytes_read > 0) {
+            edid_data[bytes_read] = '\0';
+            // Simple check for HDR metadata in EDID
+            if (strstr(edid_data, "HDR") || strstr(edid_data, "hdr")) {
+                hdr_capable = true;
+            }
+        }
+        close(fd);
+    }
+    
+    // Save HDR capability
+    fd = open("/var/run/display/hdr_capable", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = hdr_capable ? "yes" : "no";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Check VRR capability
+    bool vrr_capable = false;
+    fd = open("/sys/class/drm/card0-HDMI-A-1/vrr_capable", O_RDONLY);
+    if (fd >= 0) {
+        char buffer[16];
+        int ret = read(fd, buffer, sizeof(buffer) - 1);
+        if (ret > 0 && buffer[0] == '1') {
+            vrr_capable = true;
+        }
+        close(fd);
+    } else {
+        // Try checking EDID for VRR indicators
+        fd = open("/sys/class/drm/card0-HDMI-A-1/edid", O_RDONLY);
+        if (fd >= 0) {
+            char edid_data[1024];
+            int bytes_read = read(fd, edid_data, sizeof(edid_data) - 1);
+            if (bytes_read > 0) {
+                edid_data[bytes_read] = '\0';
+                if (strstr(edid_data, "Adaptive-Sync") || strstr(edid_data, "FreeSync")) {
+                    vrr_capable = true;
+                }
+            }
+            close(fd);
+        }
+    }
+    
+    // Save VRR capability
+    fd = open("/var/run/display/vrr_capable", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = vrr_capable ? "yes" : "no";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Check Low Latency Mode capability
+    bool llm_capable = false;
+    fd = open("/sys/class/drm/card0-HDMI-A-1/llm_capable", O_RDONLY);
+    if (fd >= 0) {
+        char buffer[16];
+        int ret = read(fd, buffer, sizeof(buffer) - 1);
+        if (ret > 0 && buffer[0] == '1') {
+            llm_capable = true;
+        }
+        close(fd);
+    } else {
+        // Check EDID for Game Mode indicators
+        fd = open("/sys/class/drm/card0-HDMI-A-1/edid", O_RDONLY);
+        if (fd >= 0) {
+            char edid_data[1024];
+            int bytes_read = read(fd, edid_data, sizeof(edid_data) - 1);
+            if (bytes_read > 0) {
+                edid_data[bytes_read] = '\0';
+                if (strstr(edid_data, "Game Mode") || strstr(edid_data, "Low Latency")) {
+                    llm_capable = true;
+                }
+            }
+            close(fd);
+        }
+    }
+    
+    // Save LLM capability
+    fd = open("/var/run/display/llm_capable", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = llm_capable ? "yes" : "no";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Initialize all settings to off
+    fd = open("/var/run/display/hdr", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    fd = open("/var/run/display/vrr", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    fd = open("/var/run/display/llm", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    log("Advanced HDMI features initialized");
+    return CL_SUCCESS;
+}
+
+// Set HDMI resolution
+cl_int isp_set_hdmi_resolution(isp_opencl_ctx* ctx, cl_uint width, cl_uint height) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting HDMI resolution to %ux%u", width, height);
+    
+    // Store in context
+    ctx->hdmi_config.width = width;
+    ctx->hdmi_config.height = height;
+    
+    // Set via DRM if available
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/mode", O_WRONLY);
+    if (fd >= 0) {
+        char mode_str[32];
+        sprintf(mode_str, "%ux%u", width, height);
+        write(fd, mode_str, strlen(mode_str));
+        close(fd);
+    }
+    
+    // Save resolution
+    fd = open("/var/run/display/resolution", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char res_str[32];
+        sprintf(res_str, "%u %u", width, height);
+        write(fd, res_str, strlen(res_str));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Set HDMI resolution with advanced options
+cl_int isp_set_hdmi_resolution_advanced(isp_opencl_ctx* ctx, cl_uint width, cl_uint height, 
+                                      cl_uint refresh_rate, cl_uint color_depth, cl_uint color_format) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting HDMI resolution to %ux%u@%uHz, color depth: %u, format: %u", 
+        width, height, refresh_rate, color_depth, color_format);
+    
+    // Store in context
+    ctx->hdmi_config.width = width;
+    ctx->hdmi_config.height = height;
+    ctx->hdmi_config.refresh_rate = refresh_rate;
+    ctx->hdmi_config.color_depth = color_depth;
+    ctx->hdmi_config.color_format = color_format;
+    
+    // Set via DRM if available
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/mode", O_WRONLY);
+    if (fd >= 0) {
+        char mode_str[64];
+        sprintf(mode_str, "%ux%u@%u", width, height, refresh_rate);
+        write(fd, mode_str, strlen(mode_str));
+        close(fd);
+    }
+    
+    // Set color depth if supported
+    fd = open("/sys/class/drm/card0-HDMI-A-1/output_depth", O_WRONLY);
+    if (fd >= 0) {
+        char depth_str[8];
+        sprintf(depth_str, "%u", color_depth);
+        write(fd, depth_str, strlen(depth_str));
+        close(fd);
+    }
+    
+    // Set color format if supported
+    fd = open("/sys/class/drm/card0-HDMI-A-1/output_format", O_WRONLY);
+    if (fd >= 0) {
+        char format_str[8];
+        sprintf(format_str, "%u", color_format);
+        write(fd, format_str, strlen(format_str));
+        close(fd);
+    }
+    
+    // Save settings
+    fd = open("/var/run/display/resolution", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char res_str[64];
+        sprintf(res_str, "%u %u %u", width, height, refresh_rate);
+        write(fd, res_str, strlen(res_str));
+        close(fd);
+    }
+    
+    fd = open("/var/run/display/color_depth", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char depth_str[8];
+        sprintf(depth_str, "%u", color_depth);
+        write(fd, depth_str, strlen(depth_str));
+        close(fd);
+    }
+    
+    fd = open("/var/run/display/color_format", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char format_str[8];
+        sprintf(format_str, "%u", color_format);
+        write(fd, format_str, strlen(format_str));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle HDR mode
+cl_int isp_toggle_hdr(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting HDR mode: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_hdr_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/hdr_output_metadata", O_WRONLY);
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/hdr", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle VRR (Variable Refresh Rate) mode
+cl_int isp_toggle_vrr(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting VRR mode: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_vrr_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/vrr_enabled", O_WRONLY);
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/vrr", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle Low Latency Mode
+cl_int isp_toggle_llm(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting Low Latency Mode: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_llm_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = -1;
+    if (access("/sys/class/drm/card0-HDMI-A-1/llm_enabled", F_OK) == 0) {
+        fd = open("/sys/class/drm/card0-HDMI-A-1/llm_enabled", O_WRONLY);
+    } else if (access("/sys/class/drm/card0-HDMI-A-1/gaming_mode_enabled", F_OK) == 0) {
+        fd = open("/sys/class/drm/card0-HDMI-A-1/gaming_mode_enabled", O_WRONLY);
+    }
+    
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/llm", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle Quick Media Switching
+cl_int isp_toggle_qms(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting Quick Media Switching: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_qms_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/qms_enabled", O_WRONLY);
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/qms", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle Quick Frame Transport
+cl_int isp_toggle_qft(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting Quick Frame Transport: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_qft_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/qft_enabled", O_WRONLY);
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/qft", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Toggle HDMI Ethernet Channel
+cl_int isp_toggle_hec(isp_opencl_ctx* ctx, cl_bool enable) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting HDMI Ethernet Channel: %s", enable ? "ON" : "OFF");
+    
+    // Store in context
+    ctx->hdmi_config.is_hec_enabled = enable;
+    
+    // Try using the appropriate sysfs interface
+    int fd = open("/sys/class/drm/card0-HDMI-A-1/hec_enabled", O_WRONLY);
+    if (fd >= 0) {
+        const char* value = enable ? "1" : "0";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    // Save setting
+    fd = open("/var/run/display/hec", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = enable ? "on" : "off";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return CL_SUCCESS;
+}
+
+// Set HDMI using xrandr
+cl_int isp_set_hdmi_using_xrandr(isp_opencl_ctx* ctx, cl_uint width, cl_uint height, cl_bool is_extended) {
+    if (!ctx) return CL_INVALID_VALUE;
+    
+    log("Setting HDMI using xrandr: %ux%u, %s", width, height, is_extended ? "extended" : "mirrored");
+    
+    // Store settings in context
+    ctx->hdmi_config.width = width;
+    ctx->hdmi_config.height = height;
+    ctx->hdmi_config.is_extended = is_extended;
+    
+    // Execute xrandr command through system shell
+    char command[256];
+    
+    // Detect outputs
+    FILE* pipe = popen("xrandr | grep ' connected' | awk '{print $1}'", "r");
+    if (!pipe) return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
+    
+    char outputs[2][32] = {{0}};
+    int output_count = 0;
+    
+    while (output_count < 2 && fgets(outputs[output_count], sizeof(outputs[0]), pipe) != NULL) {
+        // Remove newline
+        char* newline = strchr(outputs[output_count], '\n');
+        if (newline) *newline = '\0';
+        
+        // If valid output name, increment counter
+        if (strlen(outputs[output_count]) > 0) {
+            output_count++;
+        }
+    }
+    pclose(pipe);
+    
+    if (output_count < 2) {
+        log("Not enough displays detected for xrandr configuration");
+        return CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
+    }
+    
+    // Construct xrandr command based on mode
+    if (is_extended) {
+        sprintf(command, "xrandr --output %s --auto --output %s --mode %ux%u --right-of %s",
+                outputs[0], outputs[1], width, height, outputs[0]);
+    } else {
+        sprintf(command, "xrandr --output %s --auto --output %s --mode %ux%u --same-as %s",
+                outputs[0], outputs[1], width, height, outputs[0]);
+    }
+    
+    // Execute command
+    log("Executing: %s", command);
+    int result = system(command);
+    
+    // Save settings
+    int fd = open("/var/run/display/resolution", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        char res_str[32];
+        sprintf(res_str, "%u %u", width, height);
+        write(fd, res_str, strlen(res_str));
+        close(fd);
+    }
+    
+    fd = open("/var/run/display/mode", O_WRONLY | O_CREAT, 0644);
+    if (fd >= 0) {
+        const char* value = is_extended ? "extend" : "duplicate";
+        write(fd, value, strlen(value));
+        close(fd);
+    }
+    
+    return (result == 0) ? CL_SUCCESS : CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST;
+}

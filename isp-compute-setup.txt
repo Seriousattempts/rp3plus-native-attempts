@@ -1,0 +1,2052 @@
+#!/bin/sh
+# Enhanced ISP/VDSP Computational Framework v4.2
+# Location: /usr/local/bin/isp-compute-setup.sh
+
+set -eo pipefail
+
+# Hardware Configuration
+VDSP_CTL="/sys/class/vdsp/vdsp0"
+ISP_CTL="/dev/video0"
+GPU_CTL="/sys/class/devfreq/mali0"
+DMA_CTL="/sys/kernel/debug/dma_buf"
+CRYPTO_CTL="/sys/class/crypto/vdsp_crypto"
+LDSP_CTL="/sys/kernel/dsp/ldsp"
+
+# Dynamic Configuration Paths
+DYNAMIC_PROFILES="/var/run/compute-profiles"
+mkdir -p $DYNAMIC_PROFILES
+
+echo "interactive" > /sys/class/devfreq/mali0/governor
+echo "200000000" > /sys/class/devfreq/mali0/min_freq
+echo "950000000" > /sys/class/devfreq/mali0/max_freq
+
+check_dependencies() {
+    MISSING_TOOLS=0
+    
+    for tool in edid-decode v4l2-ctl media-ctl; do
+        if ! command -v $tool >/dev/null 2>&1; then
+            log "WARNING: $tool not found. Some features may not work correctly."
+            MISSING_TOOLS=1
+        fi
+    done
+    
+    if [ $MISSING_TOOLS -eq 1 ]; then
+        log "Consider installing the missing tools: apt-get install v4l-utils edid-decode"
+    fi
+    
+    # Check for required modules
+    MODULES_MISSING=0
+    for module in v4l2-mem2mem sprd_isp sprd_vdsp sprd_cpp sprd_img vdsp_crypto; do
+        if ! modprobe -n $module 2>/dev/null; then
+            log "WARNING: Kernel module $module not available"
+            MODULES_MISSING=1
+        fi
+    done
+    
+    if [ $MODULES_MISSING -eq 1 ]; then
+        log "Some required kernel modules are missing. Full functionality may not be available."
+    fi
+}
+
+handle_error() { 
+    echo "CRITICAL: $1" | tee >(logger -t isp-compute)
+    exit 1
+}
+
+log() {
+    local timestamp=$(date +'%Y-%m-%d %H:%M:%S.%3N')
+    echo "$timestamp - $1"
+    logger -t isp-compute "$timestamp - $1" 2>/dev/null || true
+}
+
+# Standardize resolution format across different functions
+standardize_resolution() {
+    local res="$1"
+    # Handle space-separated values
+    if [[ "$res" == *" "* ]]; then
+        echo "${res/ /x}"
+    # Handle other format issues
+    elif [[ "$res" != *"x"* ]]; then
+        echo "1336x752"  # Fallback to default
+    else
+        echo "$res"
+    fi
+}
+
+# Update the existing sensor workload monitoring system
+update_sensor_workload() {
+    local load_1min=$(awk '{print $1}' /proc/loadavg)
+    local cpu_cores=$(nproc)
+    local load_percent=$(echo "scale=2; $load_1min * 100 / $cpu_cores" | bc)
+    
+    # Categorize workload levels
+    if (( $(echo "$load_percent < 25" | bc -l) )); then
+        workload_level=25
+    elif (( $(echo "$load_percent < 50" | bc -l) )); then
+        workload_level=50
+    elif (( $(echo "$load_percent < 75" | bc -l) )); then
+        workload_level=75
+    else
+        workload_level=100
+    fi
+    
+    # Send workload update to the existing sensor monitoring system
+    if [ -e /var/run/sensor_control/workload_fifo ]; then
+        echo $workload_level > /var/run/sensor_control/workload_fifo
+        log "Sent sensor workload update: ${workload_level}% (system load: ${load_percent}%)"
+    else
+        log "Sensor control pipe not found, creating direct update"
+        # Fallback to direct updates if pipe doesn't exist
+        for sensor in /sys/class/sensors/*; do
+            if [ -e "$sensor/sampling_frequency" ]; then
+                max_freq=$(cat "$sensor/max_sampling_freq")
+                target_freq=$((max_freq * workload_level / 100))
+                echo $target_freq > "$sensor/sampling_frequency" 2>/dev/null
+            fi
+        done
+	log "Adjusted sensor frequencies to ${workload_level}% of maximum (system load: ${load_percent}%)"
+    fi
+}
+
+# Initialize sensors from the DTB (Device Tree Blob) files using grep -r "accelerometer\|gyroscope\|magnetometer\|sensor" *.dts
+init_isp_sensors() {
+    if [ ! -e /var/run/sensor_control/initialized ]; then
+        init_sensors
+        touch /var/run/sensor_control/initialized
+    fi
+
+    log "Initializing sensors from in grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts..."
+    
+    # Check for thermal sensor
+    if [ -e /sys/class/thermal/thermal_zone0 ]; then
+        log "Found thermal sensor, configuring..."
+        echo "enabled" > /sys/class/thermal/thermal_zone0/mode 2>/dev/null || log "Failed to enable thermal sensor"
+    fi
+    
+    # Configure camera/imaging sensors from the DTB (Device Tree Blob) files using grep -r "accelerometer\|gyroscope\|magnetometer\|sensor" *.dts
+    for sensor in "main:0x20" "sub:0x5a" "main2:0x20" "sub2:0x6e" "main3:0x6c"; do
+        sensor_name=${sensor%:*}
+        sensor_addr=${sensor#*:}
+        
+        if [ -e /sys/class/i2c-dev/i2c-0/device/$sensor_addr ]; then
+            log "Found sensor-$sensor_name at address $sensor_addr, initializing..."
+            # Enable sensor
+            echo 1 > /sys/class/i2c-dev/i2c-0/device/$sensor_addr/enable 2>/dev/null || log "Failed to enable sensor-$sensor_name"
+        else
+            log "Sensor-$sensor_name at $sensor_addr not found"
+        fi
+    done
+    
+    # Configure sensor power supplies as defined in the DTB (Device Tree Blob) files using grep -r "accelerometer\|gyroscope\|magnetometer\|sensor" *.dts
+    for supply in vddcamio vddcama0 vddcamd0 vddcammot vddcama1 vddcamd1; do
+        if [ -e /sys/class/regulator/$supply ]; then
+            log "Enabling $supply for sensors..."
+            echo 1 > /sys/class/regulator/$supply/enable 2>/dev/null || log "Failed to enable $supply"
+        fi
+    done
+    
+    # Enhanced detection for specific sensor models
+    for sensor_path in /sys/class/input/event*; do
+        if [ -e "$sensor_path/device/name" ]; then
+            sensor_name=$(cat "$sensor_path/device/name")
+            case "$sensor_name" in
+                *accel*|*Accel*|*ACCEL*|*lsm303d*|*LSM303D*)
+                    log "Found accelerometer: $sensor_name (compatible with LSM303D)"
+                    # Ensure 100Hz sampling frequency for accelerometer
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 100 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable accelerometer"
+                    ;;
+                *gyro*|*Gyro*|*GYRO*)
+                    log "Found gyroscope: $sensor_name"
+                    # Ensure 100Hz sampling frequency for gyroscope
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 100 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable gyroscope"
+                    ;;
+                *mag*|*Mag*|*MAG*|*lsm303d*|*LSM303D*)
+                    log "Found magnetometer: $sensor_name (compatible with LSM303D)"
+                    # Ensure 100Hz sampling frequency for magnetometer
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 100 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable magnetometer"
+                    ;;
+                *light*|*Light*|*LIGHT*|*tcs3472*|*TCS3472*)
+                    log "Found light sensor: $sensor_name (compatible with TCS3472)"
+                    # Ensure 200ms integration time for light sensor
+                    [ -e "$sensor_path/device/integration_time" ] && echo 200 > "$sensor_path/device/integration_time" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable light sensor"
+                    ;;
+                *hall*|*Hall*|*HALL*|*sng-sprd*|*SNG-SPRD*)
+                    log "Found hall effect sensor: $sensor_name (compatible with SNG-SPRD-004)"
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable hall effect sensor"
+                    ;;
+                *proximity*|*Proximity*|*PROXIMITY*|*prox*|*Prox*|*PROX*)
+                    log "Found proximity sensor: $sensor_name"
+                    # Ensure 10Hz sampling frequency for proximity sensor
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 10 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable proximity sensor"
+                    ;;
+            esac
+        fi
+    done
+    
+    # Additional I2C bus scanning for specific models
+    for i2c_dev in /sys/bus/i2c/devices/*; do
+        if [ -e "$i2c_dev/name" ]; then
+            dev_name=$(cat "$i2c_dev/name")
+            
+            # LSM303D accelerometer/magnetometer
+            if echo "$dev_name" | grep -qi "lsm303d"; then
+                log "Found LSM303D via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+                [ -e "$i2c_dev/sampling_frequency" ] && echo 100 > "$i2c_dev/sampling_frequency" 2>/dev/null
+            fi
+            
+            # TCS3472 light sensor
+            if echo "$dev_name" | grep -qi "tcs3472"; then
+                log "Found TCS3472 via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+                [ -e "$i2c_dev/integration_time" ] && echo 200 > "$i2c_dev/integration_time" 2>/dev/null
+            fi
+            
+            # SNG-SPRD-004 hall effect sensor
+            if echo "$dev_name" | grep -qi "sng-hall"; then
+                log "Found SNG-SPRD-004 via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+            fi
+            
+            # Proximity sensor
+            if echo "$dev_name" | grep -qi "proximity"; then
+                log "Found proximity sensor via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+                [ -e "$i2c_dev/sampling_frequency" ] && echo 10 > "$i2c_dev/sampling_frequency" 2>/dev/null
+            fi
+        fi
+    done
+    
+    log "Sensor initialization complete"
+}
+
+# Enhanced Resolution Auto-Detection with EDID Fallback and Mode Support
+detect_display_config() {
+    # Default resolution for this device
+    DEFAULT_WIDTH=1336
+    DEFAULT_HEIGHT=752
+    DISPLAY_MODE="duplicate"
+    FRAMEBUFFER_ENABLED="yes"
+    PRIMARY_DISPLAY="device"
+    
+    # Create runtime directory
+    mkdir -p /var/run/display
+    
+    # Load previous configuration if available
+    if [ -f /var/lib/display/hdmi_config ]; then
+        . /var/lib/display/hdmi_config
+    fi
+    
+    # Check for connected HDMI displays
+    HDMI_CONNECTED=0
+    for card in /sys/class/drm/card*-HDMI-A-*; do
+        if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+            HDMI_CONNECTED=1
+            HDMI_CARD="$card"
+            break
+        fi
+    done
+    
+    # Store HDMI connection status
+    echo $HDMI_CONNECTED > /var/run/display/hdmi_connected
+    
+    if [ $HDMI_CONNECTED -eq 1 ]; then
+        log "Detected connected HDMI display on $HDMI_CARD"
+        
+        # Get EDID information
+        if [ -e "$HDMI_CARD/edid" ]; then
+            mkdir -p /var/run/display/edid
+            cp "$HDMI_CARD/edid" /var/run/display/edid/raw_edid
+            
+            # Parse EDID with edid-decode
+            if command -v edid-decode >/dev/null 2>&1; then
+                edid_info=$(edid-decode < "$HDMI_CARD/edid" 2>/dev/null)
+                echo "$edid_info" > /var/run/display/edid/decoded_edid
+                
+                # Get display name
+                display_name=$(echo "$edid_info" | grep -m1 "Display Product Name" | cut -d: -f2- | xargs)
+                [ -n "$display_name" ] && echo "$display_name" > /var/run/display/edid/display_name
+                
+                # Extract preferred resolution
+                preferred_mode=$(echo "$edid_info" | grep -m1 "Detailed mode:" | sed -E 's/.*pixclk [0-9]+ MHz, ([0-9]+)x([0-9]+).*/\1x\2/')
+                [ -n "$preferred_mode" ] && echo "$preferred_mode" > /var/run/display/edid/preferred_mode
+                
+                # Extract all supported resolutions
+                echo "$edid_info" | grep -E "DTD|Detailed mode" | \
+                  sed -E 's/.*pixclk [0-9]+ MHz, ([0-9]+)x([0-9]+).*/\1x\2/' | sort -u > /var/run/display/edid/all_resolutions
+                
+                # Check for HDR support
+                if echo "$edid_info" | grep -q "HDR"; then
+                    echo 1 > /var/run/display/edid/hdr_support
+                    log "Display supports HDR"
+                else
+                    echo 0 > /var/run/display/edid/hdr_support
+                fi
+                
+                # Check HDMI version
+                hdmi_version=$(echo "$edid_info" | grep -i "HDMI version" | sed -E 's/.*HDMI version ([0-9]+\.[0-9]+).*/\1/')
+                [ -n "$hdmi_version" ] && echo "$hdmi_version" > /var/run/display/edid/hdmi_version
+                
+                # Determine resolution based on configuration
+                if [ "$HDMI_RESOLUTION" = "auto" ] && [ -n "$preferred_mode" ]; then
+                    DISPLAY_RES="$preferred_mode"
+                    log "Using display preferred resolution: $DISPLAY_RES"
+                elif [ "$HDMI_RESOLUTION" = "native" ]; then
+                    DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+                    log "Using device native resolution: $DISPLAY_RES"
+                elif [ -n "$HDMI_RESOLUTION" ] && [ "$HDMI_RESOLUTION" != "auto" ]; then
+                    # Check if specified resolution is supported
+                    if grep -q "^$HDMI_RESOLUTION$" /var/run/display/edid/all_resolutions 2>/dev/null; then
+                        DISPLAY_RES="$HDMI_RESOLUTION"
+                        log "Using specified resolution: $DISPLAY_RES"
+                    else
+                        # Find closest match
+                        width=${HDMI_RESOLUTION%x*}
+                        height=${HDMI_RESOLUTION#*x}
+                        
+                        closest_diff=1000000
+                        closest_res=""
+                        
+                        while read -r res; do
+                            res_width=${res%x*}
+                            res_height=${res#*x}
+                            
+                            diff=$((${res_width:-0} - ${width:-0}))
+                            diff=$((diff < 0 ? -diff : diff))
+                            diff=$((diff + (${res_height:-0} - ${height:-0}) < 0 ? -(${res_height:-0} - ${height:-0}) : (${res_height:-0} - ${height:-0})))
+                            
+                            if [ $diff -lt $closest_diff ]; then
+                                closest_diff=$diff
+                                closest_res="$res"
+                            fi
+                        done < /var/run/display/edid/all_resolutions
+                        
+                        if [ -n "$closest_res" ]; then
+                            DISPLAY_RES="$closest_res"
+                            log "Specified resolution not supported, using closest match: $DISPLAY_RES"
+                        else
+                            DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+                            log "No suitable resolution found, using device native resolution: $DISPLAY_RES"
+                        fi
+                    fi
+                else
+                    DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+                    log "Using device native resolution: $DISPLAY_RES"
+                fi
+            else
+                log "edid-decode not available, attempting basic EDID parsing"
+                # Basic EDID parse
+                xxd -p "$HDMI_CARD/edid" | tr -d '\n' > /var/run/display/edid/raw_edid_hex
+                # Extract preferred mode from first detailed timing descriptor
+                # This is a simplified approach that may not work for all displays
+                edid_hex=$(cat /var/run/display/edid/raw_edid_hex)
+                dtd_offset="36"  # First detailed timing starts at byte 54 (hex 36)
+                
+                # Extract width and height from DTD
+                width_hex=${edid_hex:$((16#$dtd_offset + 4)):2}${edid_hex:$((16#$dtd_offset + 2)):1}
+                width=$((16#${width_hex}))
+                
+                height_hex=${edid_hex:$((16#$dtd_offset + 7)):2}${edid_hex:$((16#$dtd_offset + 5)):1}
+                height=$((16#${height_hex}))
+                
+                if [ $width -gt 0 ] && [ $height -gt 0 ]; then
+                    DISPLAY_RES="${width}x${height}"
+                    echo "$DISPLAY_RES" > /var/run/display/edid/preferred_mode
+                    log "Basic EDID parsing found resolution: $DISPLAY_RES"
+                else
+                    # Fall back to v4l2-ctl
+                    DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+                    log "Basic EDID parsing failed, using default resolution: $DISPLAY_RES"
+                fi
+            fi
+        else
+            log "No EDID information available"
+            DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+        fi
+    else
+        log "No HDMI display connected, using device resolution"
+        DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+    fi
+    
+    # If v4l2-ctl is available, verify resolution compatibility with ISP
+    if command -v v4l2-ctl >/dev/null 2>&1; then
+        log "Verifying resolution compatibility with ISP"
+        v4l2_info=$(v4l2-ctl -d $ISP_CTL --list-formats-ext 2>/dev/null)
+        
+        # Extract width and height
+        WIDTH=${DISPLAY_RES%x*}
+        HEIGHT=${DISPLAY_RES#*x}
+        
+        # Check if ISP supports this resolution
+        isp_supports_res=0
+        echo "$v4l2_info" | grep -A2 "Size: Discrete" | while read -r line; do
+            if echo "$line" | grep -q "Width/Height"; then
+                res=$(echo "$line" | sed -E 's/.*Width\/Height.*: ([0-9]+)\/([0-9]+).*/\1x\2/')
+                if [ "$res" = "$DISPLAY_RES" ]; then
+                    isp_supports_res=1
+                    break
+                fi
+            fi
+        done
+        
+        if [ $isp_supports_res -eq 0 ]; then
+            log "ISP does not directly support $DISPLAY_RES, checking for scaling capability"
+            
+            # Check if we can scale to this resolution
+            isp_max_width=0
+            isp_max_height=0
+            
+            echo "$v4l2_info" | grep -A2 "Size: Discrete" | while read -r line; do
+                if echo "$line" | grep -q "Width/Height"; then
+                    w=$(echo "$line" | sed -E 's/.*Width\/Height.*: ([0-9]+)\/.*/\1/')
+                    h=$(echo "$line" | sed -E 's/.*Width\/Height.*: [0-9]+\/([0-9]+).*/\1/')
+                    
+                    if [ $w -gt $isp_max_width ]; then
+                        isp_max_width=$w
+                    fi
+                    
+                    if [ $h -gt $isp_max_height ]; then
+                        isp_max_height=$h
+                    fi
+                fi
+            done
+            
+            if [ $WIDTH -le $isp_max_width ] && [ $HEIGHT -le $isp_max_height ]; then
+                log "Resolution within scaling capability of ISP"
+            else
+                log "Resolution exceeds ISP scaling capability, falling back to device resolution"
+                DISPLAY_RES="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+                WIDTH=$DEFAULT_WIDTH
+                HEIGHT=$DEFAULT_HEIGHT
+            fi
+        fi
+    else
+        # Extract width and height
+        WIDTH=${DISPLAY_RES%x*}
+        HEIGHT=${DISPLAY_RES#*x}
+    fi
+    
+    log "Setting up resolution: ${WIDTH}x${HEIGHT}"
+    
+    # Save resolution for other processes
+    mkdir -p /var/run/display
+    echo "$WIDTH $HEIGHT" > /var/run/display/resolution
+    echo "$DISPLAY_RES" > /var/run/display/current_resolution
+    echo "$DISPLAY_MODE" > /var/run/display/display_mode
+    echo "$FRAMEBUFFER_ENABLED" > /var/run/display/fb_console_enabled
+    echo "$PRIMARY_DISPLAY" > /var/run/display/primary_display
+    
+    # Configure framebuffer if enabled
+    if [ "$FRAMEBUFFER_ENABLED" = "yes" ] && [ -e /dev/fb0 ]; then
+        log "Setting up framebuffer console"
+        echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null
+        
+        # Set framebuffer resolution if possible
+        if [ -e /sys/class/graphics/fb0/virtual_size ]; then
+            echo "${WIDTH},${HEIGHT}" > /sys/class/graphics/fb0/virtual_size 2>/dev/null
+            log "Set framebuffer resolution to ${WIDTH}x${HEIGHT}"
+        fi
+    fi
+    
+    # Configure display mode (duplicate or extend)
+    if [ $HDMI_CONNECTED -eq 1 ]; then
+        log "Configuring display mode: $DISPLAY_MODE, primary: $PRIMARY_DISPLAY"
+        
+        # Use xrandr when available
+        if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+            # Get display names
+            internal=$(xrandr | grep -E "^[[:alnum:]]+-[0-9]+ connected primary" | awk '{print $1}')
+            external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+            
+            if [ -n "$internal" ] && [ -n "$external" ]; then
+                if [ "$DISPLAY_MODE" = "duplicate" ]; then
+                    xrandr --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" --output "$external" --mode "${WIDTH}x${HEIGHT}" --same-as "$internal"
+                elif [ "$DISPLAY_MODE" = "extend" ]; then
+                    if [ "$PRIMARY_DISPLAY" = "device" ]; then
+                        xrandr --output "$internal" --primary --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" --output "$external" --mode "${WIDTH}x${HEIGHT}" --right-of "$internal"
+                    else
+                        xrandr --output "$external" --primary --mode "${WIDTH}x${HEIGHT}" --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" --right-of "$external"
+                    fi
+                fi
+                log "Configured display using xrandr"
+            fi
+        else
+            # Direct sysfs configuration
+            echo "$DISPLAY_MODE" > /sys/class/drm/card0/display_mode 2>/dev/null
+            echo "$PRIMARY_DISPLAY" > /sys/class/drm/card0/primary_display 2>/dev/null
+            log "Configured display mode using sysfs"
+        fi
+    fi
+
+    # Try tvservice as fallback when xrandr is not available
+    if ! command -v xrandr >/dev/null 2>&1 && [ -z "$DISPLAY" ] && command -v tvservice >/dev/null 2>&1; then
+    log "Configuring display using tvservice (xrandr not available)"
+    
+    # Get HDMI state
+    hdmi_state=$(tvservice -s)
+    
+    if echo "$hdmi_state" | grep -q "HDMI"; then
+        # Get preferred mode
+        preferred_mode=$(tvservice -d /tmp/edid && edidparser /tmp/edid | grep "preferred mode" | head -1 | sed -E 's/.*([0-9]+x[0-9]+)@.*/\1/')
+        
+        if [ -n "$preferred_mode" ]; then
+            # Set display mode
+            if [ "$DISPLAY_MODE" = "duplicate" ]; then
+                tvservice -e "CEA ${preferred_mode}"
+            else
+                # Extension mode - first HDMI then internal
+                tvservice -e "CEA ${preferred_mode}"
+                # For extension mode, we'd need to use additional tools
+                # to configure the framebuffer layout
+            fi
+            log "Applied display mode using tvservice: $DISPLAY_MODE"
+        fi
+    fi
+fi
+
+    # Enhanced EDID parsing for new features
+    if [ -e "/sys/class/drm/card0-HDMI-A-1/edid" ]; then
+        # Check for HDR support
+        if edid-decode /sys/class/drm/card0-HDMI-A-1/edid | grep -q "HDR Static Metadata"; then
+            echo 1 > /var/run/display/edid/hdr_support
+            log "Display supports HDR10"
+        fi
+        
+        # Check for VRR support
+        if edid-decode /sys/class/drm/card0-HDMI-A-1/edid | grep -q "Variable Refresh Rate"; then
+            echo 1 > /var/run/display/edid/vrr_support
+            log "Display supports VRR"
+        fi
+        
+        # Extract max audio capabilities
+        MAX_AUDIO_CH=$(edid-decode /sys/class/drm/card0-HDMI-A-1/edid | awk '/Audio Data Block/ {print $6}')
+        echo $MAX_AUDIO_CH > /var/run/display/audio_channels
+        
+        # Check for eARC support
+        if edid-decode /sys/class/drm/card0-HDMI-A-1/edid | grep -q "eARC"; then
+            echo 1 > /var/run/display/earc_support
+        fi
+    fi
+    
+    # Configure HDR if supported
+    if [ -e /var/run/display/edid/hdr_support ]; then
+        echo "Enabling HDR with PQ EOTF"
+        echo 1 > /sys/class/drm/card0-HDMI-A-1/hdr_output
+        echo "pq" > /sys/class/drm/card0-HDMI-A-1/hdr_eotf
+    fi
+    
+    # Set up variable refresh rate
+    if [ -e /var/run/display/edid/vrr_support ]; then
+        echo "Enabling VRR"
+        echo 1 > /sys/class/drm/card0-HDMI-A-1/vrr_enabled
+    fi
+    
+    # Configure audio pipeline
+    if [ -e /var/run/display/audio_channels ]; then
+        MAX_CH=$(cat /var/run/display/audio_channels)
+        log "Configuring HDMI audio for $MAX_CH channels"
+        echo $MAX_CH > /sys/class/sound/hdmi0/channels
+    fi
+    
+    # Enable CEC if available
+    if [ -e /dev/cec0 ]; then
+        log "Initializing HDMI-CEC"
+        echo 1 > /sys/class/cec/cec0/enable
+        cec-ctl --scan
+    fi
+}
+
+# Modem subsystem initialization & coordination with ARM GPU/VDSP
+setup_modem_dvfs() {
+    log "Setting up modem DVFS for Tiger T618..."
+    
+    # Check if modem device exists
+    if [ ! -e /dev/l_modem ]; then
+        log "Modem device not found, attempting to load firmware..."
+        # Load l_modem.img firmware if needed
+        if [ -e /vendor/firmware/l_modem.img ]; then
+            modprobe sprd_modem
+            dd if=/vendor/firmware/l_modem.img of=/dev/l_modem bs=4k 2>/dev/null
+            log "Loaded modem firmware"
+        else
+            log "ERROR: Modem firmware not found at /vendor/firmware/l_modem.img"
+            return 1
+        fi
+    fi
+    
+    # Create modem DVFS control interface
+    mkdir -p /sys/devices/platform/modem_dvfs 2>/dev/null || true
+    
+    # Set up available frequencies (400MHz-1.5GHz)
+    echo "400000000 600000000 800000000 1000000000 1200000000 1500000000" > \
+        /sys/devices/platform/modem_dvfs/scaling_available_frequencies
+    
+    # Set initial governor and frequency
+    echo "ondemand" > /sys/devices/platform/modem_dvfs/scaling_governor
+    echo "800000000" > /sys/devices/platform/modem_dvfs/scaling_setspeed
+
+    # Configure CPU affinity for modem threads - utilize little cores
+    echo "0-5" > /sys/class/modem/modem0/cpu_affinity
+    # Reserve big cores for GPU/ISP coordination
+    echo "6-7" > /sys/class/gpu/gpu0/cpu_affinity
+
+    GPU_FREQ=$(cat /sys/class/devfreq/mali0/cur_freq)
+    MODEM_FREQ=$(( GPU_FREQ * 110 / 100 )) # Keep modem 10% above GPU
+    echo $MODEM_FREQ > /sys/devices/platform/modem_dvfs/scaling_setspeed
+
+    # Set up thermal zones for modem - enhanced thermal policy
+    if [ -e /sys/class/thermal/thermal_zone0 ]; then
+        mkdir -p /etc/thermal
+        cat > /etc/thermal/modem-thermal.conf <<EOF
+[thermal_zone0]
+trip_point_0_temp=65000
+trip_point_0_type=passive
+trip_point_1_temp=75000
+trip_point_1_type=passive
+trip_point_2_temp=85000
+trip_point_2_type=critical
+trip_point_0_hyst=5000
+trip_point_1_hyst=5000
+trip_point_2_hyst=5000
+cdev0=modem-cooling
+cdev0_upper_limit=6
+cdev0_lower_limit=2
+EOF
+        log "Set up enhanced thermal management for modem"
+        
+        # Register modem cooling device
+        echo "modem" > /sys/class/thermal/cooling_device0/type 2>/dev/null || true
+    fi
+    
+    # Configure ZRAM for CSI datasets - optimize for 4GB system
+    if [ -e /sys/block/zram0 ]; then
+        # Use LZ4 compression for better performance
+        echo "lz4" > /sys/block/zram0/comp_algorithm
+        
+        # Calculate ZRAM size based on available memory (25-50% of RAM)
+        total_mem=$(awk '/MemTotal/{print $2}' /proc/meminfo)
+        zram_size=$(echo "scale=0; $total_mem * 0.25" | bc)  # 25% of RAM
+        zram_size=$(echo "$zram_size < 2097152 ? $zram_size : 2097152" | bc)  # Cap at 2GB
+        echo $zram_size > /sys/block/zram0/disksize
+        
+        mkswap /dev/zram0
+        swapon -p 5 /dev/zram0  # Priority 5 for modem CSI data
+        log "Configured dynamic ZRAM ($(($zram_size/1024/1024))MB) with LZ4 for CSI datasets"
+    fi
+    
+    # ARMv8.2-A RCpc optimization for atomic modem state updates
+    echo 1 > /proc/sys/arm/rcpc_enabled 2>/dev/null || true
+    log "Enabled RCpc optimization for modem state updates"
+    
+    # Enable ARMv8.2-A BF16 support for signal processing
+    if [ -e /sys/module/sprd_modem/parameters/bf16_enabled ]; then
+        echo 1 > /sys/module/sprd_modem/parameters/bf16_enabled
+        log "Enabled BF16 support for modem signal processing"
+    fi
+    
+    # Enable CRC32 acceleration for error checking
+    if [ -e /sys/module/sprd_modem/parameters/crc32_accel ]; then
+        echo 1 > /sys/module/sprd_modem/parameters/crc32_accel
+        log "Enabled CRC32 acceleration for modem error checking"
+    fi
+    
+    # Create modem state monitor pipe for dynamic frequency control
+    mkdir -p /var/run/modem_control
+    mkfifo /var/run/modem_control/state_pipe 2>/dev/null || true
+    
+    # Launch background monitor for modem state
+    {
+        # Map modem states to appropriate frequencies
+        while read -r state_info; do
+            state=$(echo "$state_info" | cut -d: -f1)
+            
+            case "$state" in
+                IDLE)      freq=400000000 ;;
+                SCANNING)  freq=800000000 ;;
+                CONNECTED) freq=1200000000 ;;
+                DATA_XFER) freq=1500000000 ;;
+                *)         freq=800000000 ;;  # Default
+            esac
+            
+            # Apply frequency with thermal awareness
+            if [ -e /sys/class/thermal/thermal_zone0/temp ]; then
+                temp=$(cat /sys/class/thermal/thermal_zone0/temp)
+                temp_c=$((temp/1000))
+                
+                # Apply thermal throttling
+                if [ $temp_c -gt 85 ]; then
+                    freq=400000000  # Force minimum at critical temp
+                elif [ $temp_c -gt 75 ]; then
+                    # Cap at 800MHz at high temp
+                    [ $freq -gt 800000000 ] && freq=800000000
+                elif [ $temp_c -gt 65 ]; then
+                    # Cap at 1.5GHz at elevated temp
+                    [ $freq -gt 1500000000 ] && freq=1500000000
+                fi
+            fi
+            
+            # Apply frequency
+            echo $freq > /sys/devices/platform/modem_dvfs/scaling_setspeed
+            
+            # Update modem status file for coordination with GPU/VDSP
+            echo "$state:$freq" > /var/run/modem_control/current_state
+            
+        done < /var/run/modem_control/state_pipe
+    } &
+    
+    log "Modem DVFS setup complete with ARMv8.2-A optimizations"
+}
+
+setup_csi_sharing() {
+    log "Setting up CSI sharing for Tiger T618..."
+    
+    # Create explicit 2MB shared DMA buffer for CSI data
+    mkdir -p /sys/kernel/debug/dma_buf 2>/dev/null || true
+    
+    # Use dma-buf allocation API if available
+    if command -v dmabuf_alloc >/dev/null 2>&1; then
+        # Allocate 2MB buffer with proper alignment for Mali-G52
+        dmabuf_alloc -s $((2*1024*1024)) -a 64 -n "modem_csi_buffer" > /dev/run/modem_csi_bufid
+        log "Allocated 2MB DMA buffer for modem CSI data using dmabuf_alloc"
+    else
+        # Fallback to file-backed allocation
+        dd if=/dev/zero of=/var/run/modem_csi_buffer.bin bs=1M count=2 2>/dev/null
+        log "Created 2MB file-backed buffer for modem CSI data"
+    fi
+    
+    # Enable ASTC compression for CSI data storage
+    if [ -e /sys/module/mali_kbase/parameters/mali_astc_enabled ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_astc_enabled
+        log "Enabled ASTC compression for CSI data storage"
+    fi
+    
+    # Enable AFBC for antenna pattern buffers
+    if [ -e /sys/module/mali_kbase/parameters/mali_afbc_enabled ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_afbc_enabled
+        log "Enabled AFBC for antenna pattern buffers"
+    fi
+    
+    # Configure L2 cache partitioning for Tiger T618 - exactly 64KB for modem
+    if [ -e /sys/kernel/debug/dsu_pmu/l3_partition ]; then
+        echo "compute=896K,graphics=640K,modem=64K,system=384K,other=64K" > \
+            /sys/kernel/debug/dsu_pmu/l3_partition
+        log "Configured L2 cache partitioning with 64KB for modem"
+    fi
+    
+    # Configure CSI data routing
+    if [ -e /sys/class/modem/csi_routing ]; then
+        echo "wlan0" > /sys/class/modem/csi_routing
+        log "Configured CSI data routing from WLAN"
+    fi
+    
+    # Configure shared virtual memory for modem
+    if [ -e /sys/module/mali_kbase/parameters/mali_use_svm ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_use_svm
+        log "Enabled shared virtual memory for modem-GPU communication"
+    fi
+
+    # Enable shared virtual memory for modem
+    if [ -e /sys/module/mali_kbase/parameters/mali_use_svm ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_use_svm
+        log "Enabled shared virtual memory for modem-GPU communication"
+    fi
+    
+    log "CSI sharing setup complete with Mali-G52 optimizations"
+}
+
+setup_wifi_bt_modem_coordination() {
+    log "Setting up WiFi/BT/Modem coordination..."
+    
+    # Create coordination pipe for inter-subsystem communication
+    mkdir -p /var/run/modem_coordination
+    mkfifo /var/run/modem_coordination/wifi_modem_pipe 2>/dev/null || true
+    
+    # Set up shared memory region for coordination
+    if [ -e /sys/kernel/debug/dma_buf/wifi_bt_shared ]; then
+        chmod 666 /sys/kernel/debug/dma_buf/wifi_bt_shared
+        log "Enabled shared memory for WiFi/BT/Modem coordination"
+    fi
+    
+    # Set up coexistence management
+    if [ -e /sys/devices/platform/wcn_coex ]; then
+        echo 1 > /sys/devices/platform/wcn_coex/enable
+        echo 1 > /sys/devices/platform/wcn_coex/dynamic_priority
+        log "Enabled dynamic prioritization for coexistence management"
+    fi
+    
+    # Start background monitor daemon for coordination
+    {
+        while true; do
+            # Monitor cellular modem temperature and adjust accordingly
+            if [ -e /sys/class/thermal/thermal_zone0/temp ]; then
+                TEMP=$(cat /sys/class/thermal/thermal_zone0/temp)
+                TEMP_C=$((TEMP/1000))
+                
+                # Check critical temperature (>85°C)
+                if [ $TEMP_C -gt 85 ]; then
+                    log "CRITICAL: Modem temperature at ${TEMP_C}°C, reducing cellular priority"
+                    echo "priority=low" > /var/run/modem_coordination/wifi_modem_pipe
+                    echo 400000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+                    sleep 5
+                # Check high temperature (>75°C)
+                elif [ $TEMP_C -gt 75 ]; then
+                    log "WARNING: Modem temperature at ${TEMP_C}°C, adjusting cellular settings"
+                    echo "priority=balanced" > /var/run/modem_coordination/wifi_modem_pipe
+                    echo 800000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+                    sleep 3
+                # Normal operation
+                else
+                    # Get system load to determine if we need max performance
+                    LOAD=$(awk '{print $1}' /proc/loadavg)
+                    if [ $(echo "$LOAD > 2.0" | bc) -eq 1 ]; then
+                        echo "priority=high" > /var/run/modem_coordination/wifi_modem_pipe
+                        echo 1500000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+                    else
+                        echo "priority=normal" > /var/run/modem_coordination/wifi_modem_pipe
+                        echo 1000000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+                    fi
+                    sleep 2
+                fi
+            fi
+            
+            # Check for GPU contention and adjust modem accordingly
+            if [ -e /sys/class/devfreq/mali0/cur_freq ]; then
+                GPU_FREQ=$(cat /sys/class/devfreq/mali0/cur_freq)
+                # If GPU at max frequency, reduce modem frequency to avoid thermal issues
+                if [ $GPU_FREQ -gt 800000000 ]; then
+                    echo 800000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+                fi
+            fi
+
+            # GPU Modem coordination
+            GPU_FREQ=$(cat /sys/class/devfreq/mali0/cur_freq)
+            MODEM_FREQ=$(( GPU_FREQ * 110 / 100 )) # Keep modem 10% above GPU
+            echo $MODEM_FREQ > /sys/devices/platform/modem_dvfs/scaling_setspeed
+            
+            sleep 1
+        done
+    } &
+
+    # Thermal-aware frequency scaling
+    if [ -e /sys/class/thermal/thermal_zone0/temp ]; then
+        TEMP=$(cat /sys/class/thermal/thermal_zone0/temp)
+        TEMP_C=$((TEMP/1000))
+        
+        # Critical temperature (>85°C)
+        if [ $TEMP_C -gt 85 ]; then
+            log "CRITICAL: Thermal throttling activated, reducing modem frequency"
+            echo 400000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+        # High temperature (>75°C)
+        elif [ $TEMP_C -gt 75 ]; then
+            log "WARNING: High temperature, limiting modem frequency"
+            echo 800000000 > /sys/devices/platform/modem_dvfs/scaling_setspeed
+        fi
+    fi
+    
+    log "WiFi/BT/Modem coordination setup complete"
+}
+
+check_modem_integration() {
+    log "Checking modem integration..."
+    
+    # Verify firmware loading
+    if [ ! -e /dev/l_modem ] || [ ! -e /dev/spipe_lte0 ]; then
+        log "ERROR: Modem device nodes not found, firmware may not be loaded"
+        return 1
+    fi
+    
+    # Check if firmware is responding
+    if command -v sprd_modem_tool >/dev/null 2>&1; then
+        if ! sprd_modem_tool --check_status >/dev/null 2>&1; then
+            log "WARNING: Modem firmware not responding, attempting reset"
+            # Attempt recovery
+            echo 1 > /sys/devices/platform/modem/reset 2>/dev/null || true
+            sleep 2
+        fi
+    fi
+    
+    # Verify firmware version matches expected for Tiger T618
+    if [ -e /sys/devices/platform/modem/firmware_version ]; then
+        fw_version=$(cat /sys/devices/platform/modem/firmware_version)
+        log "Modem firmware version: $fw_version"
+        
+        # Extract version number and check compatibility
+        fw_major=$(echo "$fw_version" | cut -d. -f1)
+        fw_minor=$(echo "$fw_version" | cut -d. -f2)
+        
+        if [ "$fw_major" -lt 3 ] || ([ "$fw_major" -eq 3 ] && [ "$fw_minor" -lt 5 ]); then
+            log "WARNING: Modem firmware version $fw_version may not support all features"
+        fi
+    fi
+    
+    # Check memory allocation for modem - verify exact requirements
+    log "Memory allocation for modem:"
+    if [ -e /var/run/modem_csi_bufid ]; then
+        csi_buf_size=$(dmabuf_info $(cat /var/run/modem_csi_bufid) | grep size | awk '{print $2}')
+        log "- DMA buffer: $csi_buf_size bytes"
+        if [ "$csi_buf_size" != "$((2*1024*1024))" ]; then
+            log "WARNING: DMA buffer size doesn't match expected 2MB"
+        fi
+    else
+        log "- 2MB shared DMA buffer (status unverified)"
+    fi
+    
+    # Check L2 cache partition
+    if [ -e /sys/kernel/debug/dsu_pmu/l3_partition ]; then
+        l3_config=$(cat /sys/kernel/debug/dsu_pmu/l3_partition)
+        if echo "$l3_config" | grep -q "modem=64K"; then
+            log "- L2/L3 cache: 64KB partition verified"
+        else
+            log "WARNING: L2/L3 cache partition doesn't match expected configuration"
+            log "  Current: $l3_config"
+            log "  Expected: compute=896K,graphics=640K,modem=64K,system=384K,other=64K"
+        fi
+    else
+        log "- 64KB L2 cache partition (status unverified)"
+    fi
+    
+    # Check ZRAM configuration
+    if [ -e /sys/block/zram0/disksize ]; then
+        zram_size=$(cat /sys/block/zram0/disksize)
+        if [ "$zram_size" = "$((2*1024*1024*1024))" ]; then
+            log "- ZRAM: 2GB confirmed for CSI datasets"
+        else
+            log "WARNING: ZRAM size doesn't match expected 2GB, found: $((zram_size/1024/1024/1024))GB"
+        fi
+    else
+        log "- ZRAM not configured for CSI datasets"
+    fi
+    
+    # Check hardware acceleration features
+    if [ -e /proc/cpuinfo ]; then
+        # ARMv8.2-A acceleration features for modem
+        features=""
+        grep -q "asimd" /proc/cpuinfo && features="$features NEON"
+        grep -q "crc32" /proc/cpuinfo && features="$features CRC32"
+        grep -q "bf16" /proc/cpuinfo && features="$features BF16"
+        grep -q "dotprod" /proc/cpuinfo && features="$features DotProd"
+        
+        if [ -n "$features" ]; then
+            log "ARMv8.2-A acceleration features available: $features"
+        else
+            log "WARNING: No ARMv8.2-A acceleration features detected"
+        fi
+        
+        # Check RCpc extension
+        if [ -e /proc/sys/arm/rcpc_enabled ] && [ "$(cat /proc/sys/arm/rcpc_enabled)" = "1" ]; then
+            log "- RCpc extension enabled for atomic modem state updates"
+        else
+            log "WARNING: RCpc extension not enabled"
+        fi
+        if ! grep -q "rcpc" /proc/cpuinfo; then
+            log "WARNING: RCpc extension not active, modem atomic operations will be slower"
+            echo 0 > /proc/sys/arm/rcpc_enabled 2>/dev/null || true
+        fi
+    fi
+    
+    # Check Mali-G52 integration
+    if [ -e /sys/class/mali/mali0/device/gpuinfo ]; then
+        GPU_INFO=$(cat /sys/class/mali/mali0/device/gpuinfo)
+        if echo "$GPU_INFO" | grep -q "Mali-G52"; then
+            log "Mali-G52 GPU detected for channel coding acceleration"
+            
+            # Verify texture compression features
+            if [ -e /sys/module/mali_kbase/parameters/mali_astc_enabled ] && 
+               [ "$(cat /sys/module/mali_kbase/parameters/mali_astc_enabled)" = "1" ]; then
+                log "- ASTC compression enabled for CSI data"
+            else
+                log "WARNING: ASTC compression not enabled"
+            fi
+            
+            if [ -e /sys/module/mali_kbase/parameters/mali_afbc_enabled ] && 
+               [ "$(cat /sys/module/mali_kbase/parameters/mali_afbc_enabled)" = "1" ]; then
+                log "- AFBC compression enabled for antenna patterns"
+            else
+                log "WARNING: AFBC compression not enabled"
+            fi
+        else
+            log "WARNING: Expected Mali-G52 GPU not found, channel coding acceleration unavailable"
+        fi
+    fi
+    
+    log "Modem integration check complete"
+}
+
+# Command-line HDMI configuration utility
+hdmi_cli() {
+    log "HDMI CLI utility starting..."
+    
+    # Process command line arguments for HDMI
+    if [ $# -lt 1 ]; then
+        echo "Usage: isp-compute-setup.sh hdmi [OPTION]"
+        echo "Options:"
+        echo "  resolution WIDTHxHEIGHT  Set specific resolution"
+        echo "  device-res               Set to device native resolution (1336x752)"
+        echo "  display-res              Set to connected display's preferred resolution"
+        echo "  extend                   Extend screen to HDMI output"
+        echo "  duplicate                Duplicate screen to HDMI output"
+        echo "  hdr on|off|auto          Set HDR mode"
+        echo "  vrr on|off|auto          Set Variable Refresh Rate mode"
+        echo "  llm on|off|auto          Set Low Latency Mode"
+        echo "  list-res                 List available resolutions"
+        echo "  status                   Show current HDMI configuration"
+        echo "  info                     Display detailed information about connected display"
+        return 1
+    fi
+    
+    ACTION=$1
+    shift
+    
+    # Handle different actions
+    case $ACTION in
+        resolution)
+            if [ -n "$1" ]; then
+                WIDTH=${1%x*}
+                HEIGHT=${1#*x}
+                log "Setting resolution to ${WIDTH}x${HEIGHT}"
+                
+                # Try to set with v4l2-ctl if available
+                if command -v v4l2-ctl >/dev/null 2>&1; then
+                    v4l2-ctl -d $ISP_CTL --set-fmt-video=width=$WIDTH,height=$HEIGHT
+                fi
+                
+                # Set resolution via xrandr if X is running
+                if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                    HDMI_OUTPUT=$(xrandr --query | grep "HDMI" | cut -d " " -f 1)
+                    [ -n "$HDMI_OUTPUT" ] && xrandr --output $HDMI_OUTPUT --mode ${WIDTH}x${HEIGHT}
+                fi
+                
+                # Set via DRM if available
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                        [ -e "$card/mode" ] && echo "${WIDTH}x${HEIGHT}" > "$card/mode" 2>/dev/null
+                    fi
+                done
+                
+                # Save resolution for other processes
+                echo "$WIDTH $HEIGHT" > /var/run/display/resolution
+                log "Resolution set to ${WIDTH}x${HEIGHT}"
+            else
+                log "Missing resolution parameter"
+            fi
+            ;;
+        device-res)
+            log "Setting resolution to device native (1336x752)"
+            
+            # Same implementation as resolution but with fixed values
+            WIDTH=1336
+            HEIGHT=752
+            
+            # Try to set with v4l2-ctl if available
+            if command -v v4l2-ctl >/dev/null 2>&1; then
+                v4l2-ctl -d $ISP_CTL --set-fmt-video=width=$WIDTH,height=$HEIGHT
+            fi
+            
+            # Set resolution via xrandr if X is running
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                HDMI_OUTPUT=$(xrandr --query | grep "HDMI" | cut -d " " -f 1)
+                [ -n "$HDMI_OUTPUT" ] && xrandr --output $HDMI_OUTPUT --mode ${WIDTH}x${HEIGHT}
+            fi
+            
+            # Set via DRM if available
+            for card in /sys/class/drm/card*-HDMI-A-*; do
+                if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                    [ -e "$card/mode" ] && echo "${WIDTH}x${HEIGHT}" > "$card/mode" 2>/dev/null
+                fi
+            done
+            
+            # Save resolution for other processes
+            echo "$WIDTH $HEIGHT" > /var/run/display/resolution
+            log "Resolution set to ${WIDTH}x${HEIGHT}"
+            ;;
+        display-res)
+            log "Setting resolution to display's preferred mode"
+            
+            # Get preferred mode from EDID if available
+            PREFERRED_MODE=""
+            if command -v edid-decode >/dev/null 2>&1; then
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ] && [ -e "$card/edid" ]; then
+                        PREFERRED_MODE=$(edid-decode < "$card/edid" | grep -m1 "Detailed mode" | awk -F: '{print $3"x"$5}')
+
+                        break
+                    fi
+                done
+            fi
+            
+            # If no preferred mode found, use device resolution
+            if [ -z "$PREFERRED_MODE" ]; then
+                log "No preferred mode found, using device resolution (1336x752)"
+                PREFERRED_MODE="1336x752"
+            fi
+            
+            WIDTH=${PREFERRED_MODE%x*}
+            HEIGHT=${PREFERRED_MODE#*x}
+            
+            # Try to set with v4l2-ctl if available
+            if command -v v4l2-ctl >/dev/null 2>&1; then
+                v4l2-ctl -d $ISP_CTL --set-fmt-video=width=$WIDTH,height=$HEIGHT
+            fi
+            
+            # Set resolution via xrandr if X is running
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                HDMI_OUTPUT=$(xrandr --query | grep "HDMI" | cut -d " " -f 1)
+                [ -n "$HDMI_OUTPUT" ] && xrandr --output $HDMI_OUTPUT --mode ${WIDTH}x${HEIGHT}
+            fi
+            
+            # Set via DRM if available
+            for card in /sys/class/drm/card*-HDMI-A-*; do
+                if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                    [ -e "$card/mode" ] && echo "${WIDTH}x${HEIGHT}" > "$card/mode" 2>/dev/null
+                fi
+            done
+            
+            # Save resolution for other processes
+            echo "$WIDTH $HEIGHT" > /var/run/display/resolution
+            log "Resolution set to ${WIDTH}x${HEIGHT}"
+            ;;
+        extend|duplicate)
+            log "Setting screen mode to $ACTION"
+            
+            MODE=$ACTION
+            
+            # Set via xrandr if X is running
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                INTERNAL_OUTPUT=$(xrandr --query | grep "connected" | grep -v "HDMI" | head -1 | cut -d " " -f 1)
+                HDMI_OUTPUT=$(xrandr --query | grep "HDMI" | grep "connected" | cut -d " " -f 1)
+                
+                if [ -n "$INTERNAL_OUTPUT" ] && [ -n "$HDMI_OUTPUT" ]; then
+                    if [ "$MODE" = "extend" ]; then
+                        xrandr --output $INTERNAL_OUTPUT --auto --output $HDMI_OUTPUT --auto --right-of $INTERNAL_OUTPUT
+                    else
+                        xrandr --output $INTERNAL_OUTPUT --auto --output $HDMI_OUTPUT --auto --same-as $INTERNAL_OUTPUT
+                    fi
+                fi
+            fi
+            
+            # Set via DRM if available
+            if [ -d /sys/class/graphics/fb0 ] && [ -d /sys/class/graphics/fb1 ]; then
+                if [ "$MODE" = "extend" ]; then
+                    echo 1 > /sys/class/graphics/fb1/blank
+                    echo 0 > /sys/class/graphics/fb1/blank
+                    echo 1 > /sys/class/graphics/fb0/fsl_disp_property/mode 2>/dev/null
+                else
+                    echo 1 > /sys/class/graphics/fb1/blank
+                    echo 0 > /sys/class/graphics/fb0/blank
+                    echo 0 > /sys/class/graphics/fb0/fsl_disp_property/mode 2>/dev/null
+                fi
+            fi
+            
+            # Save mode for other processes
+            mkdir -p /var/run/display
+            echo "$MODE" > /var/run/display/mode
+            log "Screen mode set to $MODE"
+            ;;
+        hdr)
+            if [ -n "$1" ] && ([ "$1" = "on" ] || [ "$1" = "off" ] || [ "$1" = "auto" ]); then
+                log "Setting HDR mode to $1"
+                
+                # Try using Mali HDMI driver interface
+                if [ -d /sys/class/mali-hdr ]; then
+                    case "$1" in
+                        on) echo 1 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null ;;
+                        off) echo 0 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null ;;
+                        auto) echo 2 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null ;;
+                    esac
+                fi
+                
+                # Try using DRM interface for HDR
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                        if [ -e "$card/hdr_metadata_type1" ]; then
+                            case "$1" in
+                                on) echo 1 > "$card/hdr_output_metadata" 2>/dev/null ;;
+                                off) echo 0 > "$card/hdr_output_metadata" 2>/dev/null ;;
+                                auto) echo 2 > "$card/hdr_output_metadata" 2>/dev/null ;;
+                            esac
+                        fi
+                    fi
+                done
+                
+                # Save setting for other processes
+                mkdir -p /var/run/display
+                echo "$1" > /var/run/display/hdr
+                log "HDR mode set to $1"
+            else
+                log "Invalid HDR mode. Use 'on', 'off', or 'auto'."
+            fi
+            ;;
+        vrr)
+            if [ -n "$1" ] && ([ "$1" = "on" ] || [ "$1" = "off" ] || [ "$1" = "auto" ]); then
+                log "Setting VRR mode to $1"
+                
+                # Try using the appropriate sysfs interface
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                        if [ -e "$card/vrr_enabled" ]; then
+                            case "$1" in
+                                on) echo 1 > "$card/vrr_enabled" 2>/dev/null ;;
+                                off) echo 0 > "$card/vrr_enabled" 2>/dev/null ;;
+                                auto) echo 2 > "$card/vrr_enabled" 2>/dev/null ;;
+                            esac
+                        fi
+                    fi
+                done
+                
+                # Save setting for other processes
+                mkdir -p /var/run/display
+                echo "$1" > /var/run/display/vrr
+                log "VRR mode set to $1"
+            else
+                log "Invalid VRR mode. Use 'on', 'off', or 'auto'."
+            fi
+            ;;
+        llm)
+            if [ -n "$1" ] && ([ "$1" = "on" ] || [ "$1" = "off" ] || [ "$1" = "auto" ]); then
+                log "Setting Low Latency Mode to $1"
+                
+                # Try using the appropriate sysfs interface
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                        if [ -e "$card/llm_enabled" ] || [ -e "$card/gaming_mode_enabled" ]; then
+                            local llm_file="$card/llm_enabled"
+                            [ ! -e "$llm_file" ] && llm_file="$card/gaming_mode_enabled"
+                            
+                            case "$1" in
+                                on) echo 1 > "$llm_file" 2>/dev/null ;;
+                                off) echo 0 > "$llm_file" 2>/dev/null ;;
+                                auto) echo 2 > "$llm_file" 2>/dev/null ;;
+                            esac
+                        fi
+                    fi
+                done
+                
+                # Save setting for other processes
+                mkdir -p /var/run/display
+                echo "$1" > /var/run/display/llm
+                log "Low Latency Mode set to $1"
+            else
+                log "Invalid Low Latency Mode. Use 'on', 'off', or 'auto'."
+            fi
+            ;;
+        list-res)
+            echo "Available Resolutions:"
+            echo "---------------------"
+            
+            # Try using xrandr if available
+            if command -v xrandr >/dev/null 2>&1; then
+                xrandr --query | grep -v Screen | grep -v connected | grep "^ " | awk '{print $1}'
+            else
+                # Try using edid-decode
+                if command -v edid-decode >/dev/null 2>&1; then
+                    for card in /sys/class/drm/card*-HDMI-A-*; do
+                        if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ] && [ -e "$card/edid" ]; then
+                            edid-decode < "$card/edid" | grep "Detailed mode:" | awk -F: '{print $3"x"$5}'
+                            break
+                        fi
+                    done
+                else
+                    # Fallback to common resolutions supported by Mali-G52
+                    echo "3840x2160 (4K UHD)"
+                    echo "2560x1440 (QHD)"
+                    echo "1920x1080 (Full HD)"
+                    echo "1680x1050"
+                    echo "1600x900"
+                    echo "1440x900"
+                    echo "1366x768"
+                    echo "1336x752 (Device Native)"
+                    echo "1280x720 (HD)"
+                    echo "1024x768 (XGA)"
+                    echo "800x600 (SVGA)"
+                    echo "720x480 (SD)"
+                    echo "640x480 (VGA)"
+                fi
+            fi
+            ;;
+        status)
+            echo "Current HDMI Configuration:"
+            echo "------------------------"
+            
+            # Resolution
+            if [ -f "/var/run/display/resolution" ]; then
+                RESOLUTION=$(cat /var/run/display/resolution)
+                echo "Resolution: ${RESOLUTION}"
+            else
+                echo "Resolution: Unknown"
+            fi
+            
+            # Mode (extend/duplicate)
+            if [ -f "/var/run/display/mode" ]; then
+                MODE=$(cat /var/run/display/mode)
+                echo "Screen Mode: ${MODE}"
+            else
+                echo "Screen Mode: Unknown"
+            fi
+            
+            # HDR status
+            if [ -f "/var/run/display/hdr" ]; then
+                HDR=$(cat /var/run/display/hdr)
+                echo "HDR: ${HDR}"
+            else
+                echo "HDR: off"
+            fi
+            
+            # VRR status
+            if [ -f "/var/run/display/vrr" ]; then
+                VRR=$(cat /var/run/display/vrr)
+                echo "Variable Refresh Rate: ${VRR}"
+            else
+                echo "Variable Refresh Rate: off"
+            fi
+            
+            # LLM status
+            if [ -f "/var/run/display/llm" ]; then
+                LLM=$(cat /var/run/display/llm)
+                echo "Low Latency Mode: ${LLM}"
+            else
+                echo "Low Latency Mode: off"
+            fi
+            
+            # Show connected display information if available
+            if [ -e "/var/run/display/connected" ] && [ "$(cat /var/run/display/connected)" = "yes" ]; then
+                echo ""
+                echo "Connected Display:"
+                echo "-----------------"
+                [ -e "/var/run/display/display_name" ] && echo "Name: $(cat /var/run/display/display_name)"
+                [ -e "/var/run/display/preferred_mode" ] && echo "Preferred Mode: $(cat /var/run/display/preferred_mode)"
+                [ -e "/var/run/display/hdr_capable" ] && echo "HDR Capable: $(cat /var/run/display/hdr_capable)"
+                [ -e "/var/run/display/vrr_capable" ] && echo "VRR Capable: $(cat /var/run/display/vrr_capable)"
+                [ -e "/var/run/display/llm_capable" ] && echo "LLM Capable: $(cat /var/run/display/llm_capable)"
+            else
+                echo ""
+                echo "No display connected."
+            fi
+            ;;
+        info)
+            echo "Display Information:"
+            echo "-------------------"
+            
+            # Try using edid-decode if available
+            if command -v edid-decode >/dev/null 2>&1; then
+                for card in /sys/class/drm/card*-HDMI-A-*; do
+                    if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ] && [ -e "$card/edid" ]; then
+                        echo "EDID Information:"
+                        edid-decode < "$card/edid" | grep -E "Manufacturer|Product|Serial|Made|Display|HDR|Native|Max Image|CTA|Variable|Gaming Mode"
+                        return 0
+                    fi
+                done
+            fi
+            
+            # Fallback to xrandr if available
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                echo "xrandr Display Information:"
+                xrandr --verbose | grep -E "connected|HDMI|Resolution|primary|Refresh|transform"
+                return 0
+            fi
+            
+            # Fallback to sysfs information
+            echo "Direct Hardware Information:"
+            for card in /sys/class/drm/card*-HDMI-A-*; do
+                if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                    echo "Card: $(basename $card)"
+                    echo "Status: $(cat $card/status)"
+                    [ -e "$card/enabled" ] && echo "Enabled: $(cat $card/enabled)"
+                    [ -e "$card/mode" ] && echo "Mode: $(cat $card/mode)"
+                    [ -e "$card/modes" ] && echo "Available Modes: $(cat $card/modes)"
+                    [ -e "$card/vrr_capable" ] && echo "VRR Capable: $(cat $card/vrr_capable)"
+                    [ -e "$card/hdr_metadata_type1" ] && echo "HDR Capable: Yes"
+                fi
+            done
+            ;;
+        *)
+            log "Unknown HDMI command: $ACTION"
+            echo "Use one of: resolution, device-res, display-res, extend, duplicate, hdr, vrr, llm, list-res, status, info"
+            return 1
+            ;;
+    esac
+    
+    return 0
+}
+
+log "Compute Framework Active (VDSP: $(cat $VDSP_CTL/clock 2>/dev/null || echo "unknown")Hz, GPU: $(cat $GPU_CTL/cur_freq 2>/dev/null || echo "unknown"))"
+
+# Advanced ISP Pipeline Configuration
+setup_isp_pipeline() {
+    # Load required modules as in init script
+    modprobe gpu-sched 2>/dev/null || log "GPU scheduler not loaded"
+    modprobe v4l2-mem2mem || handle_error "v4l2-mem2mem load failed"
+    modprobe sprd_isp sprd_vdsp sprd_cpp sprd_img || log "Some ISP modules failed to load"
+    
+    # Create device nodes if needed (from init script)
+    for i in $(seq 0 4); do
+        [ -e /dev/video$i ] || mknod /dev/video$i c 81 $i
+    done
+    
+    # Initialize media controller as in init script
+    if command -v media-ctl >/dev/null 2>&1; then
+        log "Configuring media pipeline for computational use"
+        media-ctl -d /dev/media0 -r
+        media-ctl -d /dev/media0 -l '"isp_input":0 -> "isp_processor":0'
+    fi
+    
+    # Dynamic Format Selection Matrix
+    local format_matrix="ABGR:300:YUV420 RGB4:400:RGBA8888 NV12:200:YUV420"
+    
+    for fmt in $format_matrix; do
+    name=$(echo "$fmt" | cut -d: -f1)
+    priority=$(echo "$fmt" | cut -d: -f2)
+    format=$(echo "$fmt" | cut -d: -f3)
+    if v4l2-ctl -d $ISP_CTL --set-fmt-video=width=$WIDTH,height=$HEIGHT,pixelformat=$name; then
+        echo $priority > /sys/module/sprd_isp/parameters/format_priority
+        log "Format $name set successfully with priority $priority"
+        break
+    else
+        log "Format $name failed, trying next"
+    fi
+done
+
+    # Enable computational mode (from init script)
+    if [ -e /sys/module/sprd_isp/parameters/enable_computational_mode ]; then
+        echo 1 > /sys/module/sprd_isp/parameters/enable_computational_mode
+    fi
+    
+    # Configure DMA for efficient memory transfers (from init script)
+    if [ -e /sys/class/dma/dma0chan0/buffer_size ]; then
+        echo 256 > /sys/class/dma/dma0chan0/buffer_size
+        echo 1 > /sys/class/dma/dma0chan0/enable_sg
+    fi
+    
+    # Multi-core ISP Configuration
+    echo "compute" > $VDSP_CTL/mode
+    echo "950000 550000 325000" > $VDSP_CTL/clock_levels
+    if [ -e /sys/module/sprd_isp/parameters/active_cores ]; then
+        echo 3 > /sys/module/sprd_isp/parameters/active_cores || log "Failed to set active cores"
+    else
+        log "ISP active_cores parameter not found"
+    fi
+
+    # Improve error handling in format selection
+    for fmt in $format_matrix; do
+        name=$(echo "$fmt" | cut -d: -f1)
+        priority=$(echo "$fmt" | cut -d: -f2)
+        format=$(echo "$fmt" | cut -d: -f3)
+        if v4l2-ctl -d $ISP_CTL --set-fmt-video=width=$WIDTH,height=$HEIGHT,pixelformat=$name; then
+            echo $priority > /sys/module/sprd_isp/parameters/format_priority
+            log "Format $name set successfully with priority $priority"
+            break
+        else
+            log "Format $name failed, trying next"
+        fi
+    done
+}
+
+setup_gpu_isp_integration() {
+    log "Setting up GPU-ISP shared memory interface..."
+    
+    # Create directory for device tree overlays (from init script)
+    mkdir -p /sys/kernel/config/device-tree/overlays/isp_compute 2>/dev/null || true
+    
+    # Configure DRM/KMS for shared dmabuf with ISP (from init script)
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*; do
+            if [ -e $card/device/driver ]; then
+                log "Configuring GPU card $(basename $card) for ISP integration"
+                echo Y > $card/device/enable_isp_offload 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Configure Mali GPU integration with ISP if available (from init script)
+    if [ -d /sys/class/mali ]; then
+        log "Configuring Mali GPU-ISP integration"
+        echo 1 > /sys/class/mali/mali0/oskmem_gralloc/enable_isp_integration 2>/dev/null || true
+    fi
+    
+    # DMA-BUF to OpenCL
+    echo "1" > /sys/module/mali/parameters/shareable 2>/dev/null || true
+    echo "256" > /sys/module/mali/parameters/memory_pool_size 2>/dev/null || true
+
+    # Enable AFBC (ARM Frame Buffer Compression) for Mali-G52
+    if [ -e /sys/module/mali_kbase/parameters/mali_afbc_enabled ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_afbc_enabled 2>/dev/null || log "Failed to enable AFBC"
+        log "Enabled AFBC for improved graphics performance"
+    fi
+
+    # Enable ASTC (Adaptive Scalable Texture Compression)
+    if [ -e /sys/module/mali_kbase/parameters/mali_astc_enabled ]; then
+        echo 1 > /sys/module/mali_kbase/parameters/mali_astc_enabled 2>/dev/null || log "Failed to enable ASTC"
+        log "Enabled ASTC for texture compression"
+    fi
+
+    setup_modem_dvfs() {
+    # Frequency mapping table
+    declare -A modem_state_map=(
+        [IDLE]="400000" [SCANNING]="800000" 
+        [CONNECTED]="1200000" [DATA_XFER]="1500000"
+    )
+    
+    # Create control pipe
+    mkfifo /var/run/modem_control 2>/dev/null || true
+    
+    # Background monitor
+    {
+        while read -r state; do
+            echo "${modem_state_map[$state]}" > /sys/devices/platform/modem_dvfs/scaling_setspeed
+        done < /var/run/modem_control
+    } &
+}
+
+setup_csi_sharing() {
+    echo 1 > /sys/class/net/wlan0/queues/tx-0/csi_enable
+    echo "wlan0" > /sys/class/modem/modem0/csi_source
+}
+
+setup_wifi_bt_modem_coordination() {
+    # Shared memory allocation (2MB)
+    dma_alloc -s $((2*1024*1024)) -n wifi_bt_shared > /sys/kernel/debug/dma_buf/alloc
+    
+    # NEON optimizations
+    echo "neon_accel=1" > /sys/module/wlan/parameters/optimizations
+    echo "bf16=1" > /sys/module/modem/parameters/float_accel
+    
+    # Real-time QoS
+    echo 99 > /sys/class/net/wlan0/queues/tx-0/xps_rxq
+    echo 1 > /sys/class/modem/modem0/qos
+}
+
+check_modem_integration() {
+    # Verify shared memory
+    if ! dma_buf_info | grep -q "wifi_bt_shared"; then
+        handle_error "Modem shared memory allocation failed"
+    fi
+    
+    # Check ARMv8.2 features
+    if ! grep -q "asimd" /proc/cpuinfo; then
+        handle_error "NEON acceleration unavailable"
+    fi
+}
+
+    echo "Enable AFBC/ASTC for modem data"
+    echo 1 > /sys/module/mali_kbase/parameters/mali_afbc_enabled
+    echo 1 > /sys/module/mali_kbase/parameters/mali_astc_enabled
+
+}
+
+# Crypto Engine Optimization
+setup_vdsp_crypto() {
+    modprobe vdsp_crypto
+    echo "aes-256-cbc sha256 sha512" > $CRYPTO_CTL/algorithms
+    echo 1 > $CRYPTO_CTL/aead_enable
+    echo 500 > $CRYPTO_CTL/queue_depth
+}
+
+# Configure Compute DSP for offloading tasks
+setup_cdsp() {
+    log "Setting up Compute DSP (CDSP) for offloading..."
+    
+    # Check if CDSP is available
+    if [ ! -e /sys/kernel/dsp/cdsp/status ]; then
+        log "CDSP not available, skipping configuration"
+        return 1
+    fi
+    
+    # Check if CDSP is active
+    if [ "$(cat /sys/kernel/dsp/cdsp/status)" != "active" ]; then
+        log "CDSP is not active, attempting to activate"
+        echo "1" > /sys/kernel/dsp/cdsp/enable 2>/dev/null
+        sleep 1
+        if [ "$(cat /sys/kernel/dsp/cdsp/status)" != "active" ]; then
+            log "Failed to activate CDSP"
+            return 1
+        fi
+    fi
+    
+    log "Configuring CDSP for compute operations"
+    
+    # Configure CDSP for compute mode (not camera)
+    echo "compute" > /sys/kernel/dsp/cdsp/mode
+    
+    # Enable ARMv8.2-A features with RCpc extension
+    echo "fp16=1 dotprod=1 neon=1 rcpc=1" > /sys/kernel/dsp/cdsp/features
+    
+    # Set optimal clock frequency for computation with DVFS-specific mapping
+    GPU_CUR_FREQ=$(cat /sys/class/devfreq/mali0/cur_freq)
+    case $GPU_CUR_FREQ in
+        200000000) CDSP_FREQ=170000000 ;;  # DVFS_LEVEL_POWER_SAVE
+        450000000) CDSP_FREQ=382500000 ;;  # DVFS_LEVEL_LOW
+        700000000) CDSP_FREQ=595000000 ;;  # DVFS_LEVEL_MEDIUM
+        850000000) CDSP_FREQ=722500000 ;;  # DVFS_LEVEL_HIGH
+        950000000) CDSP_FREQ=786250000 ;;  # DVFS_LEVEL_MAX
+    *) CDSP_FREQ=$(( (GPU_CUR_FREQ * 79) / 100 )) ;;  # Default 79%
+    esac
+
+    # Apply limits for T618 stability
+    MIN_CDSP_FREQ=325000000  # 325MHz
+    MAX_CDSP_FREQ=950000000  # 950MHz
+    CDSP_FREQ=$(( CDSP_FREQ < MIN_CDSP_FREQ ? MIN_CDSP_FREQ : CDSP_FREQ ))
+    CDSP_FREQ=$(( CDSP_FREQ > MAX_CDSP_FREQ ? MAX_CDSP_FREQ : CDSP_FREQ ))
+
+    log "Setting CDSP frequency to ${CDSP_FREQ}Hz (GPU: ${GPU_CUR_FREQ}Hz)"
+    echo $CDSP_FREQ > /sys/kernel/dsp/cdsp/clock
+
+    
+    # Enable memory coherency for GPU-DSP communication
+    echo "1" > /sys/kernel/dsp/cdsp/coherent
+    
+    # Configure NEON SIMD acceleration with BF16
+    echo "neon=1 bf16=1" > /sys/kernel/dsp/cdsp/simd
+    
+    # Set up ARM Compute Library integration
+    echo "arm_compute" > /sys/kernel/dsp/cdsp/compute_lib
+    
+    # Enable audio/video processing offload
+    echo "enable" > /sys/kernel/dsp/cdsp/av_processing
+    
+    # Configure workload balancing for 4GB system
+    echo "adaptive:4gb" > /sys/kernel/dsp/cdsp/workload_balance
+    
+    # Set power management optimized for 4GB RAM system
+    echo "balanced" > /sys/kernel/dsp/cdsp/power_policy
+    
+    log "CDSP configured for compute operations with GPU integration"
+    return 0
+}
+
+# LDSP Configuration for Sensor Processing
+setup_ldsp() {
+    log "Configuring LDSP for sensor processing..."
+    
+    # Configure LDSP for sensor processing
+    echo "powersave" > $LDSP_CTL/governor
+    echo "1" > $LDSP_CTL/low_power_mode
+    echo "250-400" > $LDSP_CTL/clock_range
+}
+
+# Dynamic Workload Management
+setup_dynamic_controls() {
+    mkfifo /tmp/isp_control 2>/dev/null || true
+    
+    {
+        while true; do
+            while read -r cmd; do
+                case $cmd in
+                    workload_boost=*)
+                        perc=${cmd#*=}
+                        # GPU Dynamic Scaling
+                        gpu_freq=$(bc <<< "scale=0; (250 + (950 - 250) * $perc / 100) * 1000000")
+                        echo $gpu_freq > $GPU_CTL/userspace/set_freq
+                        
+                        # VDSP Clock Scaling
+                        vdsp_freq=$(bc <<< "scale=0; (400 + (936 - 400) * $perc / 100) * 1000000")
+                        echo $vdsp_freq > $VDSP_CTL/clock
+                        
+                        # ISP Core Activation
+                        active_cores=$((1 + (3 * perc) / 100))
+                        echo $active_cores > /sys/module/sprd_isp/parameters/active_cores
+                        ;;
+                    memory_profile=*)
+                        profile=${cmd#*=}
+                        echo $profile > /sys/kernel/debug/dsu_pmu/l3_partition
+                        ;;
+                    crypto_load=*)
+                        load=${cmd#*=}
+                        echo $load > $CRYPTO_CTL/load_balance
+                        ;;
+                    "modem_load=*")
+                        load=${cmd#*=}
+                        echo $((950 - (950 * load / 100))) > /sys/class/devfreq/modem/target_freq
+                        ;;
+                    "ldsp_load=*")
+                        load=${cmd#*=}
+                        ldsp_freq=$(echo "400 + (936 - 400) * $load / 100" | bc)
+                        echo "${ldsp_freq}000000" > $LDSP_CTL/clock
+                        echo $load > $LDSP_CTL/workload
+                        ;;
+                esac
+            done < /tmp/isp_control
+        done
+    } &
+}
+
+# HDMI Terminal Management CLI
+hdmi_cli() {
+    case "$1" in
+        resolution)
+            if [ -n "$2" ] && [ -n "$3" ]; then
+                log "Setting HDMI resolution to ${2}x${3}"
+                echo "${2} ${3}" > /var/run/display/resolution
+                
+                # Apply with xrandr if available
+                if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                    external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+                    [ -n "$external" ] && xrandr --output "$external" --mode "${2}x${3}"
+                fi
+                # Apply with tvservice if available
+                elif command -v tvservice >/dev/null 2>&1; then
+                    # Find matching CEA or DMT mode
+                    modes=$(tvservice -m CEA && tvservice -m DMT)
+                    mode_id=$(echo "$modes" | grep -i "${2}x${3}" | head -1 | awk '{print $1}' | sed 's/(//')
+                    [ -n "$mode_id" ] && tvservice -e "$mode_id"
+                fi
+            else
+                echo "Usage: hdmi resolution WIDTH HEIGHT"
+            fi
+            ;;
+        native)
+            log "Setting HDMI to device native resolution (${DEFAULT_WIDTH}x${DEFAULT_HEIGHT})"
+            echo "${DEFAULT_WIDTH} ${DEFAULT_HEIGHT}" > /var/run/display/resolution
+            
+            # Apply with xrandr or tvservice
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+                [ -n "$external" ] && xrandr --output "$external" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+            elif command -v tvservice >/dev/null 2>&1; then
+                modes=$(tvservice -m CEA && tvservice -m DMT)
+                mode_id=$(echo "$modes" | grep -i "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" | head -1 | awk '{print $1}' | sed 's/(//')
+                [ -n "$mode_id" ] && tvservice -e "$mode_id"
+            fi
+            ;;
+        extend)
+            log "Setting HDMI to extend display"
+            echo "extend" > /var/run/display/display_mode
+            echo "$2" > /var/run/display/primary_display
+            
+            # Apply with xrandr
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                internal=$(xrandr | grep -E "^[[:alnum:]]+-[0-9]+ connected" | grep -v HDMI | head -1 | awk '{print $1}')
+                external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+                
+                if [ -n "$internal" ] && [ -n "$external" ]; then
+                    # Read current resolution
+                    read WIDTH HEIGHT < /var/run/display/resolution
+                    
+                    if [ "$2" = "device" ]; then
+                        xrandr --output "$internal" --primary --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" \
+                               --output "$external" --mode "${WIDTH}x${HEIGHT}" --right-of "$internal"
+                    else
+                        xrandr --output "$external" --primary --mode "${WIDTH}x${HEIGHT}" \
+                               --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" --right-of "$external"
+                    fi
+                fi
+            fi
+            ;;
+        duplicate)
+            log "Setting HDMI to duplicate display"
+            echo "duplicate" > /var/run/display/display_mode
+            
+            # Apply with xrandr
+            if command -v xrandr >/dev/null 2>&1 && [ -n "$DISPLAY" ]; then
+                internal=$(xrandr | grep -E "^[[:alnum:]]+-[0-9]+ connected" | grep -v HDMI | head -1 | awk '{print $1}')
+                external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+                
+                if [ -n "$internal" ] && [ -n "$external" ]; then
+                    # Read current resolution
+                    read WIDTH HEIGHT < /var/run/display/resolution
+                    
+                    xrandr --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" \
+                           --output "$external" --mode "${WIDTH}x${HEIGHT}" --same-as "$internal"
+                fi
+            elif command -v tvservice >/dev/null 2>&1; then
+                # For tvservice, we just set the resolution, duplication is implied
+                read WIDTH HEIGHT < /var/run/display/resolution
+                modes=$(tvservice -m CEA && tvservice -m DMT)
+                mode_id=$(echo "$modes" | grep -i "${WIDTH}x${HEIGHT}" | head -1 | awk '{print $1}' | sed 's/(//')
+                [ -n "$mode_id" ] && tvservice -e "$mode_id"
+            fi
+            ;;
+        hdr)
+            if [ -e /var/run/display/edid/hdr_support ] && [ "$(cat /var/run/display/edid/hdr_support)" = "1" ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/drm/card0-HDMI-A-1/hdr_output
+                    echo "pq" > /sys/class/drm/card0-HDMI-A-1/hdr_eotf
+                    log "HDR enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/drm/card0-HDMI-A-1/hdr_output
+                    log "HDR disabled"
+                else
+                    echo "Usage: hdmi hdr [on|off]"
+                fi
+            else
+                log "HDR not supported by connected display"
+            fi
+            ;;
+        vrr)
+            if [ -e /var/run/display/edid/vrr_support ] && [ "$(cat /var/run/display/edid/vrr_support)" = "1" ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/drm/card0-HDMI-A-1/vrr_enabled
+                    log "VRR enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/drm/card0-HDMI-A-1/vrr_enabled
+                    log "VRR disabled"
+                else
+                    echo "Usage: hdmi vrr [on|off]"
+                fi
+            else
+                log "VRR not supported by connected display"
+            fi
+            ;;
+        llm)
+            if [ -e /sys/class/drm/card0-HDMI-A-1/allm_capable ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/drm/card0-HDMI-A-1/allm_enabled
+                    log "Low Latency Mode enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/drm/card0-HDMI-A-1/allm_enabled
+                    log "Low Latency Mode disabled"
+                elif [ "$2" = "auto" ]; then
+                    echo 2 > /sys/class/drm/card0-HDMI-A-1/allm_enabled
+                    log "Low Latency Mode set to auto"
+                else
+                    echo "Usage: hdmi llm [on|off|auto]"
+                fi
+            else
+                log "Low Latency Mode not supported by connected display"
+            fi
+            ;;
+        qms)
+            if [ -e /sys/class/drm/card0-HDMI-A-1/qms_capable ] && [ "$(cat /sys/class/drm/card0-HDMI-A-1/qms_capable)" = "1" ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/drm/card0-HDMI-A-1/qms_enabled
+                    log "Quick Media Switching enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/drm/card0-HDMI-A-1/qms_enabled
+                    log "Quick Media Switching disabled"
+                else
+                    echo "Usage: hdmi qms [on|off]"
+                fi
+            else
+                log "Quick Media Switching not supported by connected display"
+            fi
+            ;;
+        qft)
+            if [ -e /sys/class/drm/card0-HDMI-A-1/qft_capable ] && [ "$(cat /sys/class/drm/card0-HDMI-A-1/qft_capable)" = "1" ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/drm/card0-HDMI-A-1/qft_enabled
+                    log "Quick Frame Transport enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/drm/card0-HDMI-A-1/qft_enabled
+                    log "Quick Frame Transport disabled"
+                else
+                    echo "Usage: hdmi qft [on|off]"
+                fi
+            else
+                log "Quick Frame Transport not supported by connected display"
+            fi
+            ;;
+        audio)
+            if [ -e /var/run/display/audio_channels ]; then
+                MAX_CH=$(cat /var/run/display/audio_channels)
+                if [ "$2" = "channels" ] && [ -n "$3" ] && [ "$3" -le "$MAX_CH" ]; then
+                    echo "$3" > /sys/class/sound/hdmi0/channels
+                    log "HDMI audio channels set to $3"
+                    
+                    # Configure PulseAudio if running
+                    if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                        # Find HDMI sink
+                        sink=$(pactl list sinks short | grep HDMI | cut -f1)
+                        if [ -n "$sink" ]; then
+                            pactl set-sink-channel-map "$sink" "front-left,front-right,center,lfe,rear-left,rear-right,side-left,side-right" | head -$3
+                            log "PulseAudio HDMI channels configured"
+                        fi
+                    fi
+                    
+                    # Configure PipeWire if running
+                    if command -v pw-cli >/dev/null 2>&1 && pw-cli info >/dev/null 2>&1; then
+                        # Find HDMI sink
+                        sink=$(pw-cli list-objects | grep -i hdmi | grep Sink | head -1 | awk '{print $1}')
+                        if [ -n "$sink" ]; then
+                            pw-cli set-param "$sink" Props "{audio.channels=$3}"
+                            log "PipeWire HDMI channels configured"
+                        fi
+                    fi
+                elif [ "$2" = "arc" ] && [ -e /var/run/display/earc_support ]; then
+                    if [ "$3" = "on" ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/earc_enabled
+                        log "eARC enabled"
+                    elif [ "$3" = "off" ]; then
+                        echo 0 > /sys/class/drm/card0-HDMI-A-1/earc_enabled
+                        log "eARC disabled"
+                    else
+                        echo "Usage: hdmi audio arc [on|off]"
+                    fi
+                else
+                    echo "Usage: hdmi audio channels [1-$MAX_CH] or hdmi audio arc [on|off]"
+                fi
+            else
+                log "HDMI audio configuration not available"
+            fi
+            ;;
+        cec)
+            if [ -e /dev/cec0 ]; then
+                if [ "$2" = "on" ]; then
+                    echo 1 > /sys/class/cec/cec0/enable
+                    log "HDMI-CEC enabled"
+                elif [ "$2" = "off" ]; then
+                    echo 0 > /sys/class/cec/cec0/enable
+                    log "HDMI-CEC disabled"
+                elif [ "$2" = "scan" ]; then
+                    cec-ctl --scan
+                    log "HDMI-CEC device scan completed"
+                else
+                    echo "Usage: hdmi cec [on|off|scan]"
+                fi
+            else
+                log "HDMI-CEC not available"
+            fi
+            ;;
+        info)
+            log "HDMI Display Information:"
+            if [ $HDMI_CONNECTED -eq 1 ]; then
+                echo "Status: Connected"
+                echo "Current Resolution: $(cat /var/run/display/current_resolution)"
+                echo "Display Mode: $(cat /var/run/display/display_mode)"
+                
+                if [ -e /var/run/display/edid/display_name ]; then
+                    echo "Display Name: $(cat /var/run/display/edid/display_name)"
+                fi
+                
+                if [ -e /var/run/display/edid/hdmi_version ]; then
+                    echo "HDMI Version: $(cat /var/run/display/edid/hdmi_version)"
+                fi
+                
+                if [ -e /var/run/display/edid/hdr_support ]; then
+                    if [ "$(cat /var/run/display/edid/hdr_support)" = "1" ]; then
+                        hdr_status=$([ -e /sys/class/drm/card0-HDMI-A-1/hdr_output ] && 
+                                   [ "$(cat /sys/class/drm/card0-HDMI-A-1/hdr_output)" = "1" ] && 
+                                   echo "Enabled" || echo "Disabled")
+                        echo "HDR: Supported ($hdr_status)"
+                    else
+                        echo "HDR: Not supported"
+                    fi
+                fi
+                
+                if [ -e /var/run/display/edid/vrr_support ]; then
+                    if [ "$(cat /var/run/display/edid/vrr_support)" = "1" ]; then
+                        vrr_status=$([ -e /sys/class/drm/card0-HDMI-A-1/vrr_enabled ] && 
+                                   [ "$(cat /sys/class/drm/card0-HDMI-A-1/vrr_enabled)" = "1" ] && 
+                                   echo "Enabled" || echo "Disabled")
+                        echo "VRR: Supported ($vrr_status)"
+                    else
+                        echo "VRR: Not supported"
+                    fi
+                fi
+                
+                # Show available resolutions
+                echo "Available Resolutions:"
+                if [ -e /var/run/display/edid/all_resolutions ]; then
+                    cat /var/run/display/edid/all_resolutions
+                else
+                    echo "  Resolution information not available"
+                fi
+                
+                # Audio capabilities
+                if [ -e /var/run/display/audio_channels ]; then
+                    echo "Audio Channels: $(cat /var/run/display/audio_channels)"
+                fi
+                
+                if [ -e /var/run/display/earc_support ]; then
+                    if [ "$(cat /var/run/display/earc_support)" = "1" ]; then
+                        echo "eARC: Supported"
+                    else
+                        echo "eARC: Not supported"
+                    fi
+                fi
+            else
+                echo "Status: Not connected"
+            fi
+            ;;
+        *)
+            echo "Usage: hdmi <command> [options]"
+            echo "Commands:"
+            echo "  resolution WIDTH HEIGHT - Set resolution"
+            echo "  native - Use device native resolution"
+            echo "  extend [device|hdmi] - Extend display, with primary option"
+            echo "  duplicate - Duplicate display"
+            echo "  hdr [on|off] - Control HDR"
+            echo "  vrr [on|off] - Control Variable Refresh Rate"
+            echo "  llm [on|off|auto] - Control Low Latency Mode"
+            echo "  qms [on|off] - Control Quick Media Switching"
+            echo "  qft [on|off] - Control Quick Frame Transport"
+            echo "  audio channels [1-8] - Set audio channels"
+            echo "  audio arc [on|off] - Control eARC"
+            echo "  cec [on|off|scan] - Control HDMI-CEC"
+            echo "  info - Show display information"
+            ;;
+    esac
+}
+
+# Check for CLI arguments at script end
+if [ $# -gt 0 ] && [ "$1" = "hdmi" ]; then
+    shift
+    hdmi_cli "$@"
+    exit $?
+fi
+
+# Adaptive Buffer Management
+setup_memory() {
+    local total_ram=$(awk '/MemTotal/{print $2}' /proc/meminfo)
+    local compute_ram=0
+    local max_allocation=950 # 92.5% in tenths of percent
+    local increment=185 # 18.5%
+
+    for ((percentage=0; percentage<=max_allocation; percentage+=increment)); do
+        candidate_ram=$((total_ram * percentage / 1000))
+        available_ram=$(awk '/MemAvailable/{print $2}' /proc/meminfo)
+    
+        if [ $candidate_ram -le $((available_ram * 1024)) ]; then
+            compute_ram=$candidate_ram
+        else
+            break
+        fi
+    done
+    
+    # DynamIQ Configuration
+    echo $compute_ram > /sys/kernel/debug/dsu_pmu/l3_partition_size
+    echo "3" > /sys/devices/system/cpu/cpufreq/dsu_governor
+}
+
+# OpenCL/Vulkan Integration
+setup_gpu_interop() {
+    # DMA-BUF to OpenCL
+    cl_import_properties_arm=(
+        CL_IMPORT_TYPE_ARM CL_IMPORT_TYPE_DMA_BUF_ARM
+        CL_IMPORT_DMA_BUF_DATA_OFFSET_ARM 0
+        0
+    )
+    
+    # Vulkan Interop
+    echo "1" > /sys/module/mali/parameters/shareable
+    echo "256" > /sys/module/mali/parameters/memory_pool_size
+}
+
+# Main Execution Flow
+check_dependencies
+detect_display_config
+setup_isp_pipeline
+init_isp_sensors
+setup_gpu_isp_integration
+setup_vdsp_crypto
+setup_memory
+setup_ldsp
+setup_cdsp
+setup_dynamic_controls
+setup_gpu_interop
+setup_modem_dvfs
+setup_csi_sharing
+check_modem_integration
+
+# Start periodic sensor workload updates
+{
+    while true; do
+        update_sensor_workload
+        sleep 10  # Update every 10 seconds
+    done
+} &
+
+log "Compute Framework Active (VDSP: $(cat $VDSP_CTL/clock 2>/dev/null || echo "unknown")Hz, GPU: $(cat $GPU_CTL/cur_freq 2>/dev/null || echo "unknown"))"
+

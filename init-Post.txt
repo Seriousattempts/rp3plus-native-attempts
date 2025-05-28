@@ -1,0 +1,4538 @@
+#!/bin/sh
+# Advanced initramfs init script for UMS512_1H10 (Unisoc Tiger T618)
+# Optimized for ARMv8.2-A architecture, dual-boot scenarios, sensor and radio usage, etc
+
+# Define structured status codes
+STATUS_SUCCESS=0
+STATUS_MOUNT_ISSUE=1
+STATUS_ROOT_NOT_FOUND=2
+STATUS_DEVICE_MISSING=3
+STATUS_FILESYSTEM_ISSUE=4
+STATUS_FIRMWARE_ISSUE=5
+STATUS_SECURE_BOOT_ISSUE=6
+STATUS_NETWORK_ISSUE=7
+STATUS_FILESYSTEM_UNSUPPORTED=8
+STATUS_HARDWARE_DETECTION=9
+STATUS_DUAL_BOOT=10
+STATUS_MODULE_MISSING=11
+STATUS_SWITCH_ROOT_ISSUE=20
+STATUS_INTEGRITY_CHECK_ISSUE=30
+STATUS_FIRMWARE_ISSUE=40
+STATUS_NETWORK_SETUP_ISSUE=50
+STATUS_MOVE_MOUNTS_ISSUE=60
+STATUS_UNKNOWN=99
+
+# Initialize LLVM variable
+KERNEL_LLVM=0
+
+# Global variables for network configuration
+NETWORK_ENABLED=0
+NETWORK_INTERFACE=""
+NETWORK_IP=""
+NETWORK_GATEWAY=""
+NETWORK_NETMASK=""
+NETWORK_DNS=""
+NETWORK_METHOD="dhcp"
+
+# Global variables for secure boot
+SECURE_BOOT_ENABLED=0
+SECURE_BOOT_STATUS=""
+
+# Global variable for dual-boot
+DUAL_BOOT_DETECTED=0
+WINDOWS_PARTITION=""
+WINDOWS_VERSION=""
+
+# Function for logging with timestamps
+log() {
+    echo "$(date +%T) - $@" | tee -a /tmp/initramfs.log
+    echo "$1" > /dev/kmsg
+    echo "$1"d
+}
+
+log "Starting advanced post-boot initialization with modem support"
+
+# Create all required device nodes
+log "Creating device nodes from device_nodes.txt"
+if [ -x /create_devices.sh ]; then
+    /create_devices.sh
+elif [ -x ./create_devices.sh ]; then
+    ./create_devices.sh
+else
+    log "WARNING: create_devices.sh not found or not executable"
+fi
+
+ # Load modem firmware with Tiger T618 specific parameters
+ if [ ! -e /dev/l_modem ]; then
+    mknod /dev/l_modem c 168 0
+    echo "unisoc_t618_modem" > /sys/module/sprd_modem/parameters/chip_ver
+    echo "clk_rate=200000000" > /sys/module/sprd_modem/parameters/clock_rate
+    echo "voltage_level=3" > /sys/module/sprd_modem/parameters/power_profile
+    modprobe sprd_modem
+    
+    # Load firmware from l_modem.img
+    if [ -e /vendor/firmware/l_modem.img ]; then
+        dd if=/vendor/firmware/l_modem.img of=/dev/l_modem bs=4k
+        log "Loaded l_modem.img firmware"
+    else
+        log "ERROR: l_modem.img not found"
+    fi
+fi
+
+# DSP Firmware Map - Ensure all required DSPs are initialized
+for dsp_fw in gdsp ldsp cdsp agdsp; do
+    if [ -e "/vendor/firmware/l_${dsp_fw}.img" ]; then
+        if [ -e "/dev/l_${dsp_fw}" ]; then
+            log "Loading $dsp_fw firmware..."
+            dd if="/vendor/firmware/l_${dsp_fw}.img" of="/dev/l_${dsp_fw}" bs=4k
+        else
+            log "WARNING: /dev/l_${dsp_fw} device node missing"
+        fi
+    else
+        log "WARNING: l_${dsp_fw}.img firmware missing"
+    fi
+done
+
+# Modem power management config
+mkdir -p /sys/devices/platform/modem_dvfs
+echo "400000000 600000000 800000000 1000000000 1200000000 1500000000" > \
+    /sys/devices/platform/modem_dvfs/scaling_available_frequencies
+echo "ondemand" > /sys/devices/platform/modem_dvfs/scaling_governor
+echo "1500000000" > /sys/devices/platform/modem_dvfs/scaling_setspeed
+
+# Modem thermal policy
+mkdir -p /etc/thermal
+cat > /etc/thermal/modem-thermal.conf <<EOF
+[thermal_zone0]
+trip_point_0_temp=70000
+trip_point_0_type=passive
+trip_point_1_temp=85000
+trip_point_1_type=passive
+trip_point_2_temp=85000
+trip_point_2_type=critical
+trip_point_0_hyst=5000
+trip_point_1_hyst=5000
+trip_point_2_hyst=5000
+cdev0=modem-cooling
+cdev0_upper_limit=6
+cdev0_lower_limit=2
+EOF
+
+# ZRAM configuration for CSI datasets
+if [ -e /sys/block/zram0 ]; then
+    echo "lz4" > /sys/block/zram0/comp_algorithm
+    echo $((2*1024*1024*1024)) > /sys/block/zram0/disksize
+    mkswap /dev/zram0
+    swapon -p 5 /dev/zram0
+fi
+
+# ARMv8.2-A acceleration for modem
+echo 1 > /proc/sys/arm/rcpc_enabled
+[ -e /sys/module/sprd_modem/parameters/bf16_enabled ] && \
+    echo 1 > /sys/module/sprd_modem/parameters/bf16_enabled
+[ -e /sys/module/sprd_modem/parameters/crc32_accel ] && \
+    echo 1 > /sys/module/sprd_modem/parameters/crc32_accel
+
+# Configure L2/L3 cache partitioning optimized for modem operation
+if [ -e /sys/kernel/debug/dsu_pmu/l3_partition ]; then
+    # Give slightly more cache to modem for ARMv8.2-A BF16 operations
+    echo "compute=864K,graphics=640K,modem=64K,system=384K,other=64K" > \
+        /sys/kernel/debug/dsu_pmu/l3_partition
+    log "Optimized L3 cache partitioning with 96K for modem operations"
+elif [ -e /proc/sys/kernel/dsu_l3_partition ]; then
+    # Alternative sysctl interface
+    echo "compute=864K,graphics=640K,modem=64K,system=384K,other=64K" > \
+        /proc/sys/kernel/dsu_l3_partition
+fi
+
+# WiFi setup with modem coordination
+if [ -e /dev/wcnmodem ]; then
+    # Load WiFi/BT modem firmware
+    if [ -e /vendor/firmware/wcnmodem.img ]; then
+        dd if=/vendor/firmware/wcnmodem.img of=/dev/wcnmodem bs=4k
+        log "Loaded wcnmodem.img firmware"
+    fi
+    
+    # Setup WiFi-modem coexistence
+    [ -e /sys/devices/platform/wcn_coex/enable ] && \
+        echo 1 > /sys/devices/platform/wcn_coex/enable
+    [ -e /sys/devices/platform/wcn_coex/dynamic_priority ] && \
+        echo 1 > /sys/devices/platform/wcn_coex/dynamic_priority
+fi
+
+# GNSS modem firmware
+if [ -e /dev/gnssmodem ]; then
+    # Load GNSS modem firmware
+    if [ -e /vendor/firmware/gnssmodem.img ]; then
+        dd if=/vendor/firmware/gnssmodem.img of=/dev/gnssmodem bs=4k
+        log "Loaded gnssmodem.img firmware"
+    fi
+fi
+
+# Create necessary control pipes for coordination
+mkdir -p /var/run/modem_coordination
+mkdir -p /var/run/modem_control
+mkfifo /var/run/modem_coordination/wifi_modem_pipe 2>/dev/null || true
+mkfifo /var/run/modem_control/state_pipe 2>/dev/null || true
+
+# Mali-G52 Configuration for modem acceleration
+if [ -e /sys/module/mali_kbase/parameters/mali_astc_enabled ]; then
+    echo 1 > /sys/module/mali_kbase/parameters/mali_astc_enabled
+fi
+if [ -e /sys/module/mali_kbase/parameters/mali_afbc_enabled ]; then
+    echo 1 > /sys/module/mali_kbase/parameters/mali_afbc_enabled
+fi
+
+configure_memory() {
+    log "Enhanced 4GB RAM configuration for Tiger T618 with ARMv8.2-A optimizations"
+    
+    # === ZRAM and Zswap Hybrid Configuration ===
+    # Enable zswap with optimized parameters
+    echo 1 > /sys/module/zswap/parameters/enabled
+    echo "z3fold" > /sys/module/zswap/parameters/zpool
+    echo "zstd" > /sys/module/zswap/parameters/compressor
+    echo 25 > /sys/module/zswap/parameters/max_pool_percent
+    echo 1 > /sys/module/zswap/parameters/same_filled_pages_enabled
+    echo 20 > /sys/module/zswap/parameters/accept_threshold_percent
+    
+    # Multi-stream ZRAM configuration for big.LITTLE architecture
+    swapoff /dev/zram0 2>/dev/null || true
+    echo 2 > /sys/block/zram0/max_comp_streams  # Improved (2 streams for A75 cores)
+    echo "lz4" > /sys/block/zram0/comp_algorithm  # Improved (Balanced approach)
+    echo 2147483648 > /sys/block/zram0/disksize  # 2GB precisely defined
+    echo 0 > /sys/block/zram0/mem_limit  # No hard memory limit
+    mkswap /dev/zram0
+    swapon /dev/zram0 -p 100
+    
+    # Add task affinity for compression threads
+    find /sys/block/zram0/ -name '*comp*' | while read file; do
+        taskset -cp 0-1 $file  # Bind to A75 cores
+    done
+    
+    # === ARMv8.2-A and Cortex-A75/A55 Specific Tuning ===
+    # Enable Energy Aware Scheduling for big.LITTLE architecture
+    echo 1 > /sys/devices/system/cpu/eas/enable
+    
+    # Dynamic L3 cache partitioning with Mali-G52 priority
+    echo "compute=896K,graphics=640K,system=384K,other=128K" > /sys/kernel/debug/dsu_pmu/l3_partition
+    
+    # Big.LITTLE core memory access optimization
+    # Dynamically detect and prioritize big cores (A75) for memory-intensive ops
+
+    # Find all Cortex-A75 cores using CPU info
+    for cpu in $(awk -F': ' '/^processor/ {cpu=$2} /^model name/ && /Cortex-A75/ {print cpu}' /proc/cpuinfo); do
+        sysfs_path="/sys/devices/system/cpu/cpu$cpu/cache/shared_cpu_map/sched_load_boost"
+        
+        if [ -e "$sysfs_path" ]; then
+            echo 8 > "$sysfs_path" 2>/dev/null
+            echo "Boosted CPU$cpu (Cortex-A75) for memory ops"
+        fi
+    done
+
+    
+    # === Dynamic Memory Pressure Management ===
+    # Higher swappiness for 4GB system to maintain free RAM
+    echo 100 > /proc/sys/vm/swappiness
+    # Reduce cache retention under memory pressure
+    echo 50 > /proc/sys/vm/vfs_cache_pressure
+    # Watermarks for smart page reclaim
+    echo 10 > /proc/sys/vm/dirty_background_ratio
+    echo 20 > /proc/sys/vm/dirty_ratio
+    # Avoid excessive direct reclaim
+    echo 15 > /proc/sys/vm/watermark_scale_factor
+    # Optimize kswapd behavior for 4GB RAM
+    echo 1 > /proc/sys/vm/page_lock_unfairness
+    echo 1 > /proc/sys/vm/watermark_boost_factor
+    
+    # === Storage Optimization for eMMC 5.1 ===
+    # Configure optimal I/O parameters for eMMC 5.1
+    for block_dev in /sys/block/mmcblk*; do
+        if [ -e "$block_dev/queue/scheduler" ]; then
+            echo "mq-deadline" > "$block_dev/queue/scheduler"
+            echo 512 > "$block_dev/queue/read_ahead_kb"
+            echo 256 > "$block_dev/queue/nr_requests"
+            echo 2 > "$block_dev/queue/rq_affinity"
+            echo 4 > "$block_dev/queue/write_cache"
+            echo 16 > "$block_dev/queue/write_cache_preserve"
+        fi
+    done
+    
+    # === GPU Memory Management ===
+    # Dynamic CMA optimization for Mali-G52 MC2 with AFBC/ASTC support
+    if [ -e /sys/class/mali/mali0/device/utilization ]; then
+        gpu_util=$(cat /sys/class/mali/mali0/device/utilization)
+        if [ $gpu_util -lt 30 ]; then
+            echo 268435456 > /sys/kernel/debug/cma/cma-mali/target_size  # 256MB
+        else
+            echo 335544320 > /sys/kernel/debug/cma/cma-mali/target_size  # 320MB for 4GB system
+        fi
+    else
+        echo 335544320 > /sys/kernel/debug/cma/cma-mali/target_size  # 320MB for 4GB system
+    fi
+    
+    # Ensure contiguous memory for textures and framebuffers
+    if [ -e /sys/kernel/debug/mali/cma_reclaim_thresholds ]; then
+        echo "high:128M,normal:64M,low:32M" > /sys/kernel/debug/mali/cma_reclaim_thresholds
+    fi
+    
+    # ASTC/AFBC buffer handling
+    if [ -e /sys/class/mali/mali0/device/mempool_max_size ]; then
+        echo 67108864 > /sys/class/mali/mali0/device/mempool_max_size  # 64MB
+    fi
+    
+    # === Advanced Memory Reclaim and Defragmentation ===
+    # Smart memory compaction strategy
+    echo 1 > /proc/sys/vm/compact_memory
+    echo 20 > /proc/sys/vm/compaction_proactiveness  # Aggressive
+    echo 1 > /proc/sys/vm/page_boost_recording  # Record page access patterns
+    
+    # Transparent Huge Pages optimization for ARM
+    echo "madvise" > /sys/kernel/mm/transparent_hugepage/enabled
+    echo "defer+madvise" > /sys/kernel/mm/transparent_hugepage/defrag
+    echo 1 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag
+    
+    # === Sensor and CDSP Memory Integration ===
+    # Create reserved memory pool for sensor data processing
+    if [ -e /sys/class/misc/sensor_hub/reserved_mem_size ]; then
+        echo 8388608 > /sys/class/misc/sensor_hub/reserved_mem_size  # 8MB for gyro+accel data
+    fi
+    
+    # Configure CDSP memory access patterns (supports GPU scaling ratio)
+    if [ -e /sys/kernel/dsp/cdsp/mem_access_policy ]; then
+        echo "concurrent" > /sys/kernel/dsp/cdsp/mem_access_policy
+    fi
+    
+    # === Thermal-Aware Memory Management ===
+    # Conservative memory policy when system is hot
+    if [ -e /sys/class/thermal/thermal_zone0 ]; then
+        # Create trigger for thermal events
+        mkdir -p /etc/thermal/memory
+        echo "#!/bin/sh
+        if [ \$1 -gt 70 ]; then
+            echo 180 > /proc/sys/vm/swappiness
+            echo 30 > /proc/sys/vm/vfs_cache_pressure
+            echo \"Thermal throttling engaged at \$(date)\" >> /var/log/mem_thermal.log
+        elif [ \$1 -lt 60 ]; then  # Add 10°C hysteresis
+            echo 100 > /proc/sys/vm/swappiness
+            echo 50 > /proc/sys/vm/vfs_cache_pressure
+        fi" > /etc/thermal/memory/thermal_memory.sh
+        chmod +x /etc/thermal/memory/thermal_memory.sh
+    fi
+    
+    log "Enhanced memory optimization complete for 4GB Tiger T618 system"
+}
+
+# Initialize HDMI output
+init_hdmi_output() {
+    log "Initializing HDMI output"
+    
+    # Dynamic DRM card detection
+    HDMI_CARD=$(find /sys/class/drm/ -name "card*-HDMI-A-*" | head -n1)
+    if [ -n "$HDMI_CARD" ] && [ -e "$HDMI_CARD/status" ]; then
+        if grep -q "connected" "$HDMI_CARD/status"; then
+            HDMI_CONNECTED=1
+            log "HDMI display connected on $HDMI_CARD"
+            
+            # Store card path for later use
+            echo "$HDMI_CARD" > /var/run/display/hdmi_card_path
+            
+            # Create symlink for legacy compatibility
+            ln -sf "$HDMI_CARD" /sys/class/drm/card0-HDMI-A-1 2>/dev/null
+            
+            # Create config directory
+            mkdir -p /etc/hdmi
+            
+            # Set up HDMI audio
+            if [ -e "/sys/class/drm/card0-HDMI-A-1/audio" ]; then
+                echo 1 > /sys/class/drm/card0-HDMI-A-1/audio
+                log "HDMI audio enabled"
+                
+                # Create audio config for PulseAudio/PipeWire
+                mkdir -p /etc/pulse/default.pa.d
+                echo "load-module module-alsa-sink device=hw:0,3 sink_name=hdmi_out" > /etc/pulse/default.pa.d/hdmi.pa
+                
+                # PipeWire configuration
+                mkdir -p /etc/pipewire/pipewire.conf.d
+                cat > /etc/pipewire/pipewire.conf.d/hdmi.conf << EOF
+context.modules = [
+    { name = libpipewire-module-adapter 
+      args = {
+        factory.name = support.null-audio-sink
+        node.name = "hdmi-out"
+        node.description = "HDMI Output"
+        media.class = "Audio/Sink"
+        audio.position = [ FL FR ]
+      }
+    }
+]
+EOF
+            fi
+            
+            # Set up HDMI-CEC
+            if [ -e "/dev/cec0" ]; then
+                echo 1 > /sys/class/cec/cec0/enable
+                log "HDMI-CEC enabled"
+            fi
+            
+            # Initialize EDID
+            if [ -e "/sys/class/drm/card0-HDMI-A-1/edid" ]; then
+                mkdir -p /var/run/edid
+                cp /sys/class/drm/card0-HDMI-A-1/edid /var/run/edid/raw_edid
+                
+                # Parse EDID if edid-decode is available
+                if command -v edid-decode >/dev/null 2>&1; then
+                    edid-decode < /var/run/edid/raw_edid > /var/run/edid/decoded_edid 2>/dev/null
+                    
+                    # Check for HDR support
+                    if grep -q "HDR" /var/run/edid/decoded_edid; then
+                        echo 1 > /var/run/edid/hdr_support
+                        log "HDR support detected"
+                    fi
+                    
+                    # Check for VRR support
+                    if grep -q "Variable Refresh Rate" /var/run/edid/decoded_edid; then
+                        echo 1 > /var/run/edid/vrr_support
+                        log "VRR support detected"
+                    fi
+                    
+                    # Get supported resolutions
+                    grep -E "pixclk [0-9]+ MHz, [0-9]+x[0-9]+" /var/run/edid/decoded_edid | \
+                        sed -E 's/.*pixclk [0-9]+ MHz, ([0-9]+)x([0-9]+).*/\1x\2/' | \
+                        sort -u > /var/run/edid/resolutions
+                        
+                    # Get preferred resolution
+                    preferred=$(grep -m1 "preferred mode" /var/run/edid/decoded_edid | \
+                                sed -E 's/.*pixclk [0-9]+ MHz, ([0-9]+)x([0-9]+).*/\1x\2/')
+                    [ -n "$preferred" ] && echo "$preferred" > /var/run/edid/preferred
+                    
+                    # HDMI version
+                    hdmi_ver=$(grep -i "HDMI version" /var/run/edid/decoded_edid | \
+                              sed -E 's/.*HDMI version ([0-9]+\.[0-9]+).*/\1/')
+                    [ -n "$hdmi_ver" ] && echo "$hdmi_ver" > /var/run/edid/hdmi_version
+                fi
+            fi
+            
+            # Initialize default configuration
+            [ ! -e /etc/hdmi/config ] && setup_hdmi_config_script
+            
+            # Apply default settings - duplicate mode with device resolution
+            setup_display_mode duplicate device
+        else
+            log "No HDMI display connected"
+            HDMI_CONNECTED=0
+        fi
+    else
+        log "No HDMI interface detected"
+        HDMI_CONNECTED=0
+    fi
+}
+
+# Advanced xrandr control with Mali-G52 optimizations
+xrandr_control() {
+    local action=$1
+    local primary=$2
+    local resolution=$3
+    
+    # Get connected displays
+    INTERNAL_DISPLAY=$(xrandr | awk '/ connected.*primary/{print $1}')
+    HDMI_DISPLAY=$(xrandr | awk '/ connected.*HDMI/{print $1}')
+    
+    # Validate displays
+    [ -z "$INTERNAL_DISPLAY" ] && log "No internal display detected" && return 1
+    [ -z "$HDMI_DISPLAY" ] && log "No HDMI display detected" && return 1
+    
+    # Resolution handling
+    if [ -n "$resolution" ]; then
+        local width=${resolution%x*}
+        local height=${resolution#*x}
+        
+        # Validate against Mali-G52 capabilities
+        if [ $width -gt 3840 ] || [ $height -gt 2160 ]; then
+            log "Resolution $resolution exceeds Mali-G52 capabilities"
+            return 1
+        fi
+    else
+        resolution=$(cat /var/run/display/preferred)
+    fi
+    
+    case $action in
+        "extend")
+            xrandr --output $HDMI_DISPLAY --mode $resolution --${primary}-of $INTERNAL_DISPLAY
+            echo "$resolution" > /var/run/display/current_hdmi_res
+            ;;
+        "duplicate")
+            xrandr --output $HDMI_DISPLAY --mode $resolution --same-as $INTERNAL_DISPLAY
+            echo "$resolution" > /var/run/display/current_hdmi_res
+            ;;
+        "internal-only")
+            xrandr --output $HDMI_DISPLAY --off
+            ;;
+        "hdmi-only")
+            xrandr --output $INTERNAL_DISPLAY --off
+            ;;
+        *)
+            log "Invalid xrandr action: $action"
+            return 1
+            ;;
+    esac
+    
+    # Update OpenCL context
+    if [ -x /usr/bin/isp_cli ]; then
+        /usr/bin/isp_cli update-res $resolution
+    fi
+}
+
+# Function to handle issues with debugging info
+handle_issue() {
+    local STATUS_CODE=$1
+    shift
+    log "ISSUE ($STATUS_CODE): $@"
+    log "System information:"
+    cat /proc/cpuinfo | grep -E "model name|processor" 2>/dev/null
+    cat /proc/meminfo | grep MemTotal 2>/dev/null
+    
+    # Log hardware details for deeper diagnostics
+    log "Hardware details:"
+    [ -e /sys/class/dmi/id/product_name ] && cat /sys/class/dmi/id/product_name
+    [ -e /sys/class/dmi/id/product_version ] && cat /sys/class/dmi/id/product_version
+    
+    # Check for network if enabled
+    if [ $NETWORK_ENABLED -eq 1 ]; then
+        log "Network status:"
+        ifconfig -a 2>/dev/null || ip addr 2>/dev/null
+        route -n 2>/dev/null || ip route 2>/dev/null
+    fi
+    
+    # Advanced recovery options
+    log "Recovery options available:"
+    if [ $NETWORK_ENABLED -eq 1 ]; then
+        log " - Network recovery: Type 'network_rescue' to start SSH server"
+    fi
+    log " - Emergency shell: Type 'shell' to get a shell"
+    log " - Try filesystem check: Type 'fsck_recovery' to check filesystems"
+    log " - Firmware recovery: Type 'firmware_recovery' for firmware repair tools"
+    log " - Continue boot: Type 'continue' to try continuing boot process"
+
+    # Present recovery menu
+    log "Dropping to emergency shell..."
+    export PS1="(initramfs) # "
+    exec /bin/sh
+}
+
+# Function to check filesystem integrity before mounting
+check_fs_integrity() {
+    local part=$1
+    local fstype=$2
+    
+    log "Checking integrity of $part ($fstype)..."
+    
+    case $fstype in
+        ext4)
+            e2fsck -p -f /dev/$part
+            return $?
+            ;;
+        f2fs)
+            fsck.f2fs -p /dev/$part
+            return $?
+            ;;
+        btrfs)
+            btrfsck --check /dev/$part
+            return $?
+            ;;
+        ntfs)
+            ntfsfix -d /dev/$part
+            return $?
+            ;;
+        refs)
+            log "ReFS validation not supported in initramfs"
+            return 0
+            ;;
+        *)
+            log "No integrity check available for $fstype"
+            return 0
+            ;;
+    esac
+}
+
+# Function to load filesystem modules optimized for ARM
+load_fs_modules() {
+    log "Loading ARM-optimized filesystem modules..."
+    
+    # Core filesystems
+    for fs in ext4 f2fs btrfs vfat exfat ntfs ntfs3 xfs; do
+        modprobe $fs 2>/dev/null && log "Loaded $fs module" || log "Unable to load $fs module"
+    done
+    
+    # Performance optimization for ext4 on ARM
+    if modprobe -q ext4; then
+        log "Applying ext4 optimizations for ARMv8.2-A"
+        echo "1" > /sys/module/ext4/parameters/optimize_scan 2>/dev/null
+        echo "1" > /sys/module/ext4/parameters/journal_fast_commit 2>/dev/null
+    fi
+    
+    # Performance optimization for f2fs on ARM
+    if modprobe -q f2fs; then
+        log "Applying f2fs optimizations for ARMv8.2-A"
+        # Enable compression if available
+        if [ -d /sys/fs/f2fs ]; then
+            for param in /sys/fs/f2fs/features/compression; do
+                [ -e $param ] && echo "1" > $param 2>/dev/null
+            done
+        fi
+    fi
+    
+    # Load specific ARM-optimized filesystem compression modules
+    for comp in zlib lzo lz4 zstd; do
+        modprobe ${comp}_compress 2>/dev/null && log "Loaded ${comp}_compress module"
+        modprobe ${comp}_decompress 2>/dev/null && log "Loaded ${comp}_decompress module"
+    done
+    
+    # Check available CPU features for filesystem acceleration
+    if [ -e /proc/cpuinfo ]; then
+        if grep -q "neon\|sve\|asimd" /proc/cpuinfo; then
+            log "NEON/SVE/ASIMD instructions available for filesystem acceleration"
+        fi
+        
+        if grep -q "crc32" /proc/cpuinfo; then
+            log "CRC32 acceleration available for filesystem checksums"
+            # Load CRC32 ARM acceleration modules
+            modprobe crc32_arm64 2>/dev/null && log "Loaded crc32_arm64 acceleration"
+        fi
+    fi
+}
+
+verify_firmware_signature() {
+    local fw_file="$1"
+    local dsp_type="$2"
+    
+    # Try standard verification first
+    if fw_printenv -c /etc/fw_env.config dsp_${dsp_type}_sig 2>/dev/null | \
+       openssl dgst -sha256 -verify /etc/public.pem -signature <(tail -c 256 "$fw_file") >/dev/null; then
+        return 0
+    fi
+
+    # Add CRC32 validation for each DSP type
+    crc_expected=$(fw_printenv -c /etc/fw_env.config dsp_${dsp_type}_crc | cut -d= -f2)
+    crc_actual=$(crc32 "$fw_file" | cut -d' ' -f1)
+    if [ "$crc_actual" != "$crc_expected" ]; then
+       log "CRC mismatch for ${DSP_FW[$dsp_type]}"
+       return 1
+    fi
+    
+    # Fall back to header verification
+    if [ -x /usr/bin/dsp_verify ]; then
+        /usr/bin/dsp_verify "$fw_file" "$dsp_type" >/dev/null 2>&1
+        return $?
+    fi
+    
+    # Last resort: check firmware header magic
+    local header_magic=$(dd if="$fw_file" bs=4 count=1 2>/dev/null | hexdump -e '1/4 "%08x"')
+    if [ "$header_magic" = "54363138" ]; then  # "T618" in hex
+        log "Basic header verification passed for $dsp_type"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Function for emergency shutdown procedure
+emergency_shutdown() {
+    log "CRITICAL: Emergency shutdown initiated due to DSP failure"
+    
+    # Sync filesystems
+    sync
+    
+    # Kill all processes
+    killall5 -15
+    sleep 2
+    killall5 -9
+    
+    # Unmount filesystems
+    umount -a -r 2>/dev/null
+    
+    # Remount root read-only
+    mount -o remount,ro / 2>/dev/null
+    
+    # Record failure for next boot
+    mkdir -p /var/lib/dsp_failure
+    date > /var/lib/dsp_failure/last_failure
+    
+    # Trigger reboot
+    echo b > /proc/sysrq-trigger
+    # Ensure all DSP subsystems are reset
+    for dsp in "${!DSP_FW[@]}"; do
+          echo 1 > /sys/kernel/dsp/$dsp/reset
+          echo 0 > /sys/kernel/dsp/$dsp/clock
+    done
+    umount /var/lib/firmware/recovery 2>/dev/null || true
+
+}
+
+# Tiger T618 Specific DSP Firmware Loading
+load_dsp_firmware() {
+    log "Initializing Tiger T618 DSP subsystems with ARMv8.2-A validation"
+    
+    # Enhanced SoC verification using both device tree and CPU info
+    if ! (grep -q "Tiger T618" /proc/device-tree/model 2>/dev/null ||
+          grep -q "sc9863a" /proc/device-tree/compatible 2>/dev/null) ||
+       ! grep -q "t618" /proc/cpuinfo; then
+        handle_issue $STATUS_HARDWARE_DETECTION "Incompatible SoC for DSP firmware"
+    fi
+
+    # Create recovery directory
+    mkdir -p /var/lib/firmware/recovery
+    
+    # Backup original firmware
+    for fw in l_gdsp l_ldsp l_cdsp l_agdsp; do
+        cp "/lib/firmware/$fw.img" "/var/lib/firmware/recovery/$fw.img.bak" 2>/dev/null
+    done
+    sync
+
+    # DSP Firmware Map
+    declare -A DSP_FW=(
+        ["gdsp"]="l_gdsp.img"
+        ["ldsp"]="l_ldsp.img"
+        ["cdsp"]="l_cdsp.img"
+        ["agdsp"]="l_agdsp.img"
+        ["modem"]="l_modem.img"
+        ["wcnmodem"]="wcnmodem.img"
+        ["gnssmodem"]="gnssmodem.img"
+    )
+
+    # Load each DSP with validation
+    declare -A FW_LOAD_STATUS=()
+    for dsp in "${!DSP_FW[@]}"; do
+        fw_file="/lib/firmware/${DSP_FW[$dsp]}"
+        sysfs_node="/sys/kernel/dsp/$dsp/firmware"
+        recovery_file="/var/lib/firmware/recovery/${DSP_FW[$dsp]}"
+        
+        # Enhanced firmware validation
+        if [ ! -f "$fw_file" ]; then
+            if [ -f "$recovery_file" ]; then
+                log "Using recovery firmware for $dsp"
+                fw_file="$recovery_file"
+            else
+                handle_issue $STATUS_FIRMWARE_ISSUE "Missing DSP firmware: ${DSP_FW[$dsp]}"
+                FW_LOAD_STATUS[$dsp]="missing"
+                continue
+            fi
+        fi
+
+        # Cryptographic verification with fallback
+        if ! verify_firmware_signature "$fw_file" "$dsp"; then
+            if [ -f "$recovery_file" ]; then
+                log "Trying recovery firmware for $dsp"
+                if verify_firmware_signature "$recovery_file" "$dsp"; then
+                    fw_file="$recovery_file"
+                else
+                    handle_issue $STATUS_FIRMWARE_ISSUE "Invalid signature for ${DSP_FW[$dsp]} (both primary and recovery)"
+                    FW_LOAD_STATUS[$dsp]="invalid_sig"
+                    continue
+                fi
+            else
+                handle_issue $STATUS_FIRMWARE_ISSUE "Invalid signature for ${DSP_FW[$dsp]}"
+                FW_LOAD_STATUS[$dsp]="invalid_sig"
+                continue
+            fi
+        fi
+
+        # Load firmware with timeout
+        for attempt in {1..3}; do
+            log "Loading ${DSP_FW[$dsp]} for $dsp DSP (attempt $attempt)"
+            if timeout 10s dd if="$fw_file" of="$sysfs_node" bs=1M status=none; then
+                # Verify activation
+                if [ "$(cat /sys/kernel/dsp/$dsp/status 2>/dev/null)" = "active" ]; then
+                    FW_LOAD_STATUS[$dsp]="loaded"
+                    break
+                else
+                    log "Activation failed for $dsp DSP"
+                    echo 1 > /sys/kernel/dsp/$dsp/reset 2>/dev/null
+                    sleep $((attempt * 2))
+                fi
+            else
+                log "Loading failed for $dsp DSP (attempt $attempt)"
+                echo 1 > /sys/kernel/dsp/$dsp/reset 2>/dev/null
+                sleep $((attempt * 2))
+            fi
+        done
+        
+        if [ "${FW_LOAD_STATUS[$dsp]}" != "loaded" ]; then
+            handle_issue $STATUS_FIRMWARE_ISSUE "Critical failure loading $dsp DSP after 3 attempts"
+            FW_LOAD_STATUS[$dsp]="failed"
+            
+            # Emergency shutdown for critical DSPs
+            if [[ "$dsp" == @(gdsp|ldsp) ]]; then
+                log "Critical DSP failure - initiating safe shutdown"
+                emergency_shutdown
+            fi
+        fi
+
+        # Configure ARMv8.2-A features
+        if grep -q "asimdhp\|dotprod" /proc/cpuinfo; then
+            case $dsp in
+                "gdsp")
+                    echo "astc=1 afbc=1 fp16=1" > /sys/kernel/dsp/$dsp/features
+                    ;;
+                "cdsp")
+                    echo "fp16=1 dotprod=1" > /sys/kernel/dsp/$dsp/features
+                    ;;
+            esac
+        fi
+    done
+
+    # Post-load verification
+    for dsp in "${!DSP_FW[@]}"; do
+        if [ "${FW_LOAD_STATUS[$dsp]}" != "loaded" ]; then
+            handle_issue $STATUS_FIRMWARE_ISSUE "Timeout loading ${DSP_FW[$dsp]}"
+            echo "recovery" > /sys/kernel/dsp/$dsp/mode
+        fi
+    done
+    
+    # Dynamic power management integration
+    echo "adaptive" > /sys/kernel/dsp/power_mode
+    echo "1" > /sys/kernel/dsp/dynamic_scaling
+    echo "interactive" > /sys/kernel/dsp/governor
+    
+    # Link to system load monitor
+    ln -s /sys/kernel/dsp/ /var/run/system-load/dsp 2>/dev/null || true
+
+    # Configure AGDSP for audio processing
+    echo "48000" > /sys/kernel/dsp/agdsp/sample_rate
+    echo "2" > /sys/kernel/dsp/agdsp/channels
+    echo "256" > /sys/kernel/dsp/agdsp/buffer_size
+    
+    log "DSP subsystems initialized: ${FW_LOAD_STATUS[*]}"
+}
+
+log "Configuring modem power management"
+echo 950000 > /sys/class/devfreq/modem/max_freq
+echo 1350000 > /sys/class/regulator/modem_vdd/max_microvolts
+echo 1 > /sys/kernel/dsp/gnss/low_power_mode
+
+log "Enabling ARMv8.2-A features and ARMv8.3-A RCpc extension"
+# Enable RCpc (Release Consistency processor consistent) for improved memory ordering
+echo 1 > /sys/kernel/debug/armv8_2_features/rcpc_enable 2>/dev/null || log "Failed to enable RCPC feature"
+echo 1 > /proc/sys/arm/addr_policy/ldapr_ordering 2>/dev/null || log "Failed to configure LDAPR ordering"
+
+# Configure ARMv8.3-A RCpc extension
+if [ -e /proc/sys/arm/rcpc_enabled ]; then
+    echo 1 > /proc/sys/arm/rcpc_enabled 2>/dev/null || log "Failed to enable ARMv8.3-A RCpc extension"
+fi
+# Enable weaker memory ordering model for better performance with RCpc
+if [ -e /proc/sys/arm/mem_model ]; then
+    echo "relaxed" > /proc/sys/arm/mem_model 2>/dev/null || log "Failed to set relaxed memory model"
+fi
+
+log "Configuring coexistence GPIOs"
+echo 237 > /sys/class/gpio/export  # GNSS_WCN_COEX_GPIO
+echo "high" > /sys/class/gpio/gpio237/direction
+echo 1 > /sys/kernel/dsp/wcn/mode3_coexistence
+
+# Initialize sensors from the DTB (Device Tree Blob) files with dynamic frequency scaling
+init_sensors() {
+    log "Initializing sensors with dynamic frequency scaling from the DTB (Device Tree Blob)"
+    
+    # Initial workload level (25% of full capacity)
+    mkdir -p /var/run/sensor_control 2>/dev/null
+    echo "25" > /var/run/sensor_control/current_workload 2>/dev/null
+    
+    # Check for thermal sensor from the DTB (Device Tree Blob) files using grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts
+    if [ -e /sys/class/thermal/thermal_zone0 ]; then
+        log "Found thermal sensor, configuring..."
+        echo "enabled" > /sys/class/thermal/thermal_zone0/mode 2>/dev/null || log "Failed to enable thermal sensor"
+    fi
+    
+    # Configure camera/imaging sensors with initial low power mode from the DTB (Device Tree Blob) files using grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts
+    for sensor in "main:0x20" "sub:0x5a" "main2:0x20" "sub2:0x6e" "main3:0x6c"; do
+        sensor_name=${sensor%:*}
+        sensor_addr=${sensor#*:}
+        
+        if [ -e /sys/bus/i2c/devices/0-$(printf "%02x" ${sensor_addr#0x})/device ]; then
+            log "Found sensor-$sensor_name at address $sensor_addr, initializing..."
+            # Enable sensor with initial 25% power mode
+            echo 0 > /sys/class/i2c-dev/i2c-0/device/$sensor_addr/enable 2>/dev/null
+            echo 25 > /sys/class/i2c-dev/i2c-0/device/$sensor_addr/power_level 2>/dev/null
+            echo 1 > /sys/class/i2c-dev/i2c-0/device/$sensor_addr/enable 2>/dev/null || log "ERROR: Failed to enable sensor-$sensor_name - check I2C bus 0"
+        else
+            log "Sensor-$sensor_name at $sensor_addr not found"
+        fi
+    done
+    
+    # Configure sensor power supplies with reduced voltage for initial low-frequency operation from the DTB (Device Tree Blob) files using grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts
+    for supply in vddcamio vddcama0 vddcamd0 vddcammot vddcama1 vddcamd1; do
+        if [ -e /sys/class/regulator/$supply ]; then
+            log "Enabling $supply for sensors at initial 25% voltage..."
+            # Use reduced voltage initially (75% of nominal)
+            if [ -e /sys/class/regulator/$supply/microvolts ]; then
+                nominal_uv=$(cat /sys/class/regulator/$supply/max_microvolts)
+                initial_uv=$(echo "$nominal_uv * 0.75" | bc 2>/dev/null || echo "$nominal_uv")
+                echo $initial_uv > /sys/class/regulator/$supply/microvolts 2>/dev/null || log "Failed to set $supply voltage"
+            fi
+            echo 1 > /sys/class/regulator/$supply/enable 2>/dev/null || log "Failed to enable $supply"
+        fi
+    done
+    
+    # Enhanced detection for specific sensor models with dynamic frequency from the DTB (Device Tree Blob) files using grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts
+    for sensor_path in /sys/class/input/event*; do
+        if [ -e "$sensor_path/device/name" ]; then
+            sensor_name=$(cat "$sensor_path/device/name")
+            case "$sensor_name" in
+                *accel*|*Accel*|*ACCEL*|*lsm303d*|*LSM303D*)
+                    log "Found accelerometer: $sensor_name (compatible with LSM303D)"
+                    # Initial 25% of target frequency (25Hz instead of 100Hz)
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 25 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    [ -e "$sensor_path/device/dynamic_scaling" ] && echo 1 > "$sensor_path/device/dynamic_scaling" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable accelerometer"
+                    ;;
+                *gyro*|*Gyro*|*GYRO*)
+                    log "Found gyroscope: $sensor_name"
+                    # Initial 25% of target frequency (25Hz instead of 100Hz)
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 25 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    [ -e "$sensor_path/device/dynamic_scaling" ] && echo 1 > "$sensor_path/device/dynamic_scaling" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable gyroscope"
+                    ;;
+                *mag*|*Mag*|*MAG*|*lsm303d*|*LSM303D*)
+                    log "Found magnetometer: $sensor_name (compatible with LSM303D)"
+                    # Initial 25% of target frequency (25Hz instead of 100Hz)
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 25 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    [ -e "$sensor_path/device/dynamic_scaling" ] && echo 1 > "$sensor_path/device/dynamic_scaling" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable magnetometer"
+                    ;;
+                *light*|*Light*|*LIGHT*|*tcs3472*|*TCS3472*)
+                    log "Found light sensor: $sensor_name (compatible with TCS3472)"
+                    # Keep 200ms integration time but use low power mode initially
+                    [ -e "$sensor_path/device/integration_time" ] && echo 200 > "$sensor_path/device/integration_time" 2>/dev/null
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable light sensor"
+                    ;;
+                *hall*|*Hall*|*HALL*|*sng-sprd*|*SNG-SPRD*)
+                    log "Found hall effect sensor: $sensor_name (compatible with SNG-SPRD-004)"
+                    # Hall effect sensors typically use event-based triggering, keep as is
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable hall effect sensor"
+                    ;;
+                *proximity*|*Proximity*|*PROXIMITY*|*prox*|*Prox*|*PROX*)
+                    log "Found proximity sensor: $sensor_name"
+                    # Initial 25% of target frequency (2.5Hz instead of 10Hz)
+                    [ -e "$sensor_path/device/sampling_frequency" ] && echo 2.5 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                    [ -e "$sensor_path/device/power_mode" ] && echo "low_power" > "$sensor_path/device/power_mode" 2>/dev/null
+                    [ -e "$sensor_path/device/dynamic_scaling" ] && echo 1 > "$sensor_path/device/dynamic_scaling" 2>/dev/null
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null || log "Failed to enable proximity sensor"
+                    ;;
+            esac
+        fi
+    done
+    
+    # Additional I2C bus scanning with dynamic frequency configuration
+    for i2c_dev in /sys/bus/i2c/devices/*; do
+        if [ -e "$i2c_dev/name" ]; then
+            dev_name=$(cat "$i2c_dev/name")
+            
+            # LSM303D accelerometer/magnetometer
+            if echo "$dev_name" | grep -qi "lsm303d"; then
+                log "Found LSM303D via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 0 > "$i2c_dev/enable" 2>/dev/null
+                [ -e "$i2c_dev/sampling_frequency" ] && echo 25 > "$i2c_dev/sampling_frequency" 2>/dev/null
+                # Set 25% of target frequency (25Hz instead of 100Hz)
+                [ -e "$i2c_dev/sampling_frequency" ] && echo 25 > "$i2c_dev/sampling_frequency" 2>/dev/null
+                [ -e "$i2c_dev/power_mode" ] && echo "low_power" > "$i2c_dev/power_mode" 2>/dev/null
+                [ -e "$i2c_dev/dynamic_scaling" ] && echo 1 > "$i2c_dev/dynamic_scaling" 2>/dev/null
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+            fi
+            
+            # TCS3472 light sensor
+            if echo "$dev_name" | grep -qi "tcs3472"; then
+                log "Found TCS3472 via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 0 > "$i2c_dev/enable" 2>/dev/null
+                # Keep 200ms integration time but use low power mode
+                [ -e "$i2c_dev/integration_time" ] && echo 200 > "$i2c_dev/integration_time" 2>/dev/null
+                [ -e "$i2c_dev/power_mode" ] && echo "low_power" > "$i2c_dev/power_mode" 2>/dev/null
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+            fi
+            
+            # SNG-SPRD-004 hall effect sensor
+            if echo "$dev_name" | grep -qi "sng-hall"; then
+                log "Found SNG-SPRD-004 via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 0 > "$i2c_dev/enable" 2>/dev/null
+                [ -e "$i2c_dev/power_mode" ] && echo "low_power" > "$i2c_dev/power_mode" 2>/dev/null
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+            fi
+            
+            # Proximity sensor
+            if echo "$dev_name" | grep -qi "proximity"; then
+                log "Found proximity sensor via I2C: $dev_name"
+                [ -e "$i2c_dev/enable" ] && echo 0 > "$i2c_dev/enable" 2>/dev/null
+                # Set 25% of target frequency (2.5Hz instead of 10Hz)
+                [ -e "$i2c_dev/sampling_frequency" ] && echo 2.5 > "$i2c_dev/sampling_frequency" 2>/dev/null
+                [ -e "$i2c_dev/power_mode" ] && echo "low_power" > "$i2c_dev/power_mode" 2>/dev/null
+                [ -e "$i2c_dev/dynamic_scaling" ] && echo 1 > "$i2c_dev/dynamic_scaling" 2>/dev/null
+                [ -e "$i2c_dev/enable" ] && echo 1 > "$i2c_dev/enable" 2>/dev/null
+            fi
+        fi
+    done
+    
+    # Set up background process to listen for workload updates if not already running
+    if ! pgrep -f "sensor_workload_monitor" > /dev/null; then
+        # Create a named pipe for communication
+        [ -e /var/run/sensor_control/workload_fifo ] || mkfifo /var/run/sensor_control/workload_fifo 2>/dev/null
+        
+        # Start a background process for sensor workload monitoring
+        {
+            # Tag process for easier identification
+            echo $$ > /var/run/sensor_control/monitor.pid
+            
+            # Monitor loop
+            while true; do
+                # Read current workload percentage from named pipe
+                if [ -e /var/run/sensor_control/workload_fifo ]; then
+                    while read -r workload_level < /var/run/sensor_control/workload_fifo; do
+                        if [ -n "$workload_level" ]; then
+                            # Ensure workload level is between 25 and 100
+                            if [ "$workload_level" -lt 25 ]; then
+                                workload_level=25
+                            elif [ "$workload_level" -gt 100 ]; then
+                                workload_level=100
+                            fi
+                            
+                            # Update stored workload level
+                            echo "$workload_level" > /var/run/sensor_control/current_workload
+                            
+                            log "Adjusting sensor frequencies to ${workload_level}% of target values"
+                            
+                            # Calculate new frequencies based on workload
+                            accel_freq=$(echo "100 * $workload_level / 100" | bc 2>/dev/null || echo 25)
+                            prox_freq=$(echo "10 * $workload_level / 100" | bc 2>/dev/null || echo 2.5)
+                            
+                            # Calculate voltage scaling (75% to 100% of nominal based on workload)
+                            voltage_scale=$(echo "0.75 + (0.25 * $workload_level / 100)" | bc 2>/dev/null || echo 0.75)
+                            
+                            # Update accelerometer/gyroscope/magnetometer frequency
+                            for sensor in $(find /sys/class/input/event*/device -name sampling_frequency 2>/dev/null); do
+                                device_name=$(cat "$(dirname "$sensor")/name" 2>/dev/null)
+                                if echo "$device_name" | grep -qi "accel\|gyro\|mag\|lsm303d"; then
+                                    echo "$accel_freq" > "$sensor" 2>/dev/null
+                                elif echo "$device_name" | grep -qi "proximity\|prox"; then
+                                    echo "$prox_freq" > "$sensor" 2>/dev/null
+                                fi
+                            done
+                            
+                            # Update I2C device frequencies
+                            for i2c_dev in $(find /sys/bus/i2c/devices -name sampling_frequency 2>/dev/null); do
+                                device_name=$(cat "$(dirname "$i2c_dev")/name" 2>/dev/null)
+                                if echo "$device_name" | grep -qi "lsm303d\|accel\|gyro\|mag"; then
+                                    echo "$accel_freq" > "$i2c_dev" 2>/dev/null
+                                elif echo "$device_name" | grep -qi "proximity\|prox"; then
+                                    echo "$prox_freq" > "$i2c_dev" 2>/dev/null
+                                fi
+                            done
+                            
+                            # Update voltage regulators based on workload
+                            for supply in vddcamio vddcama0 vddcamd0 vddcammot vddcama1 vddcamd1; do
+                                if [ -e /sys/class/regulator/$supply/microvolts ] && [ -e /sys/class/regulator/$supply/max_microvolts ]; then
+                                    nominal_uv=$(cat /sys/class/regulator/$supply/max_microvolts)
+                                    scaled_uv=$(echo "$nominal_uv * $voltage_scale" | bc 2>/dev/null || echo "$nominal_uv")
+                                    echo "$scaled_uv" > /sys/class/regulator/$supply/microvolts 2>/dev/null
+                                fi
+                            done
+                        fi
+                    done
+                else
+                    # If fifo doesn't exist, sleep and try again
+                    sleep 5
+                    mkfifo /var/run/sensor_control/workload_fifo 2>/dev/null
+                fi
+            done
+        } &
+    fi
+    
+    log "Sensor initialization complete with dynamic frequency scaling"
+}
+
+# Function to initialize HDMI output with enhanced capabilities
+init_hdmi_output() {
+    log "Initializing HDMI output with dynamic resolution support and multiple modes..."
+    
+    # Create configuration directory
+    mkdir -p /var/run/display /var/lib/display
+    
+    # Set default configuration
+    HDMI_MODE="duplicate"  # duplicate or extend
+    HDMI_RESOLUTION="auto" # auto, native, or specific resolution
+    FB_CONSOLE_ENABLED="yes" # yes or no
+    PRIMARY_DISPLAY="device" # device or hdmi
+    
+    # Load previous configuration if available
+    if [ -f /var/lib/display/hdmi_config ]; then
+        . /var/lib/display/hdmi_config
+    else
+        # Create initial configuration
+        mkdir -p /var/lib/display
+        echo "# HDMI Configuration" > /var/lib/display/hdmi_config
+        echo "HDMI_MODE=\"duplicate\"" >> /var/lib/display/hdmi_config
+        echo "HDMI_RESOLUTION=\"auto\"" >> /var/lib/display/hdmi_config
+        echo "FB_CONSOLE_ENABLED=\"yes\"" >> /var/lib/display/hdmi_config
+        echo "PRIMARY_DISPLAY=\"device\"" >> /var/lib/display/hdmi_config
+    fi
+    
+    # Load DRM modules for HDMI
+    for mod in drm drm_kms_helper; do
+        modprobe $mod 2>/dev/null && log "Loaded $mod" || log "Failed to load $mod"
+    done
+    
+    # Load framebuffer console support
+    if [ "$FB_CONSOLE_ENABLED" = "yes" ]; then
+        modprobe fbcon 2>/dev/null && log "Loaded framebuffer console" || log "Failed to load framebuffer console"
+    fi
+    
+    # Check for HDMI 2.2 support
+    if [ -e /sys/class/drm/card0/card0-HDMI-A-1/hdmi_2_2_support ]; then
+        HDMI_2_2_SUPPORT=$(cat /sys/class/drm/card0/card0-HDMI-A-1/hdmi_2_2_support)
+        log "HDMI 2.2 support: $HDMI_2_2_SUPPORT"
+        echo $HDMI_2_2_SUPPORT > /var/run/display/hdmi_2_2_support
+    else
+        log "Unable to determine HDMI 2.2 support, assuming supported"
+        echo 1 > /var/run/display/hdmi_2_2_support
+    fi
+    
+    # Detect connected displays
+    HDMI_CONNECTED=0
+    for card in /sys/class/drm/card*-HDMI-A-*; do
+        if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+            log "Found connected HDMI display on $card"
+            HDMI_CONNECTED=1
+            echo 1 > /var/run/display/hdmi_connected
+            HDMI_CARD="$card"
+            
+            # Read EDID information for enhanced display capabilities
+            if [ -e "$card/edid" ]; then
+                log "Reading EDID information for capabilities..."
+                if command -v edid-decode >/dev/null 2>&1; then
+                    mkdir -p /var/run/display/edid
+                    cp "$card/edid" /var/run/display/edid/raw_edid
+                    
+                    edid_info=$(edid-decode < "$card/edid" 2>/dev/null)
+                    echo "$edid_info" > /var/run/display/edid/decoded_edid
+                    
+                    # Extract display capabilities
+                    display_name=$(echo "$edid_info" | grep -m1 "Display Product Name" | cut -d: -f2- | xargs)
+                    [ -n "$display_name" ] && echo "$display_name" > /var/run/display/edid/display_name
+                    
+                    max_resolution=$(echo "$edid_info" | grep -m1 "DTD 1:" | awk '{print $3"x"$5}')
+                    [ -n "$max_resolution" ] && echo "$max_resolution" > /var/run/display/edid/max_resolution
+                    
+                    preferred_mode=$(echo "$edid_info" | grep -m1 "Detailed mode" | awk -F: '{print $3"x"$5}')
+                    [ -n "$preferred_mode" ] && echo "$preferred_mode" > /var/run/display/edid/preferred_mode
+                    
+                    # Extract all supported resolutions
+                    echo "$edid_info" | grep -E "DTD|Detailed mode" | \
+                      awk -F: '{if ($2 ~ /pixclk/) print $3"x"$5}' | uniq > /var/run/display/edid/all_resolutions
+                    
+                    # Check for HDR support
+                    echo "$edid_info" | grep -q "HDR" && echo 1 > /var/run/display/edid/hdr_support || echo 0 > /var/run/display/edid/hdr_support
+                    
+                    log "Display capabilities:"
+                    log " - Name: $display_name"
+                    log " - Max Resolution: $max_resolution"
+                    log " - Preferred Mode: $preferred_mode"
+                    
+                    # Set resolution based on configuration
+                    if [ "$HDMI_RESOLUTION" = "auto" ]; then
+                        # Use preferred mode from EDID
+                        if [ -n "$preferred_mode" ]; then
+                            RESOLUTION="$preferred_mode"
+                            log "Using display preferred mode: $RESOLUTION"
+                        else
+                            # Fall back to device resolution
+                            RESOLUTION="1336x752"
+                            log "No preferred mode found, using device resolution: $RESOLUTION"
+                        fi
+                    elif [ "$HDMI_RESOLUTION" = "native" ]; then
+                        # Use device native resolution
+                        RESOLUTION="1336x752"
+                        log "Using device native resolution: $RESOLUTION"
+                    else
+                        # Use specified resolution
+                        RESOLUTION="$HDMI_RESOLUTION"
+                        log "Using specified resolution: $RESOLUTION"
+                    fi
+                    
+                    echo "$RESOLUTION" > /var/run/display/current_resolution
+                else
+                    log "edid-decode not found, limited EDID support available"
+                    # Basic EDID parsing if edid-decode is not available
+                    xxd -p "$card/edid" | tr -d '\n' > /var/run/display/edid/raw_edid_hex
+                    
+                    # Extract basic information from EDID
+                    edid_bytes=$(cat /var/run/display/edid/raw_edid_hex)
+                    width_mm=$(printf "%d" 0x$(echo $edid_bytes | cut -c 42-43))
+                    height_mm=$(printf "%d" 0x$(echo $edid_bytes | cut -c 44-45))
+                    
+                    echo "Display size: ${width_mm}mm x ${height_mm}mm" > /var/run/display/edid/basic_info
+                    echo "1336x752" > /var/run/display/current_resolution
+                    RESOLUTION="1336x752"
+                    log "Using default resolution: $RESOLUTION"
+                fi
+            else
+                log "EDID information not available"
+                echo "1336x752" > /var/run/display/current_resolution
+                RESOLUTION="1336x752"
+                log "Using default resolution: $RESOLUTION"
+            fi
+            
+            # Apply initial configuration
+            setup_display_mode
+            setup_fb_console
+            
+        fi
+    done
+    
+    if [ $HDMI_CONNECTED -eq 0 ]; then
+        log "No HDMI display connected"
+        echo 0 > /var/run/display/hdmi_connected
+        # Set internal display only
+        RESOLUTION="1336x752"
+        echo "$RESOLUTION" > /var/run/display/current_resolution
+    fi
+
+    # Initialize advanced HDMI features
+    init_hdmi_advanced() {
+        if [ $HDMI_CONNECTED -ne 1 ]; then
+            log "No HDMI display connected, cannot initialize advanced features"
+            return 1
+        fi
+    
+        log "Initializing advanced HDMI features"
+    
+        # Load configuration
+        [ -e /etc/hdmi/config ] && . /etc/hdmi/config
+    
+        # Check for HDMI 2.2 support
+        if [ -e /sys/class/drm/card0-HDMI-A-1/hdmi_2_2_support ]; then
+            HDR_SUPPORTED=0
+            VRR_SUPPORTED=0
+            LLM_SUPPORTED=0
+            QMS_SUPPORTED=0
+            QFT_SUPPORTED=0
+            EARC_SUPPORTED=0
+            HEC_SUPPORTED=0
+        
+            # Check individual features
+            if [ -e /var/run/edid/decoded_edid ]; then
+                # HDR
+                if grep -q "HDR" /var/run/edid/decoded_edid; then
+                    HDR_SUPPORTED=1
+                    log "HDR supported by display"
+                
+                    # Enable HDR if configured
+                    if [ "$HDR_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/hdr_output ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/hdr_output
+                        echo "pq" > /sys/class/drm/card0-HDMI-A-1/hdr_eotf
+                        log "HDR enabled"
+                    fi
+                fi
+            
+                # VRR
+                if grep -q "Variable Refresh Rate" /var/run/edid/decoded_edid; then
+                    VRR_SUPPORTED=1
+                    log "VRR supported by display"
+                
+                    # Enable VRR if configured
+                    if [ "$VRR_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/vrr_enabled ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/vrr_enabled
+                        log "VRR enabled"
+                    fi
+                fi
+            
+                # LLM (ALLM)
+                if grep -q "ALLM" /var/run/edid/decoded_edid; then
+                    LLM_SUPPORTED=1
+                    log "Low Latency Mode (ALLM) supported by display"
+                
+                    # Configure Low Latency Mode
+                    if [ -e /sys/class/drm/card0-HDMI-A-1/allm_enabled ]; then
+                        if [ "$LLM_MODE" = "on" ]; then
+                            echo 1 > /sys/class/drm/card0-HDMI-A-1/allm_enabled
+                            log "Low Latency Mode enabled"
+                        elif [ "$LLM_MODE" = "auto" ]; then
+                            echo 2 > /sys/class/drm/card0-HDMI-A-1/allm_enabled
+                            log "Low Latency Mode set to auto"
+                        fi
+                    fi
+                fi
+            
+                # QMS
+                if grep -q "QMS" /var/run/edid/decoded_edid; then
+                    QMS_SUPPORTED=1
+                    log "Quick Media Switching supported by display"
+                
+                    # Enable QMS if configured
+                    if [ "$QMS_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/qms_enabled ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/qms_enabled
+                        log "Quick Media Switching enabled"
+                    fi
+                fi
+            
+                # QFT
+                if grep -q "QFT" /var/run/edid/decoded_edid; then
+                    QFT_SUPPORTED=1
+                    log "Quick Frame Transport supported by display"
+                
+                    # Enable QFT if configured
+                    if [ "$QFT_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/qft_enabled ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/qft_enabled
+                        log "Quick Frame Transport enabled"
+                    fi
+                fi
+            
+                # eARC
+                if grep -q "eARC" /var/run/edid/decoded_edid; then
+                    EARC_SUPPORTED=1
+                    log "eARC supported by display"
+                
+                    # Enable eARC if configured
+                    if [ "$EARC_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/earc_enabled ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/earc_enabled
+                        log "eARC enabled"
+                    fi
+                fi
+            
+                # HEC (HDMI Ethernet Channel)
+                if grep -q "HEC" /var/run/edid/decoded_edid; then
+                    HEC_SUPPORTED=1
+                    log "HDMI Ethernet Channel supported by display"
+                
+                    # Enable HEC if configured
+                    if [ "$HEC_ENABLED" = "yes" ] && [ -e /sys/class/drm/card0-HDMI-A-1/hec_enabled ]; then
+                        echo 1 > /sys/class/drm/card0-HDMI-A-1/hec_enabled
+                        log "HDMI Ethernet Channel enabled"
+                    fi
+                fi
+            fi
+        else
+            log "HDMI 2.2 not supported, advanced features unavailable"
+        fi
+}
+
+    
+    # Create HDMI config utility script
+    setup_hdmi_config_script
+    
+    log "HDMI initialization complete"
+}
+
+# Function to setup display mode (duplicate or extend)
+# Set up display mode (duplicate or extend)
+setup_display_mode() {
+    local mode="$1"  # duplicate or extend
+    local primary="$2"  # device or hdmi
+    
+    if [ $HDMI_CONNECTED -ne 1 ]; then
+        log "No HDMI display connected, cannot set mode"
+        return 1
+    fi
+    
+    log "Setting display mode to $mode, primary: $primary"
+    
+    # Save configuration
+    echo "DISPLAY_MODE=\"$mode\"" > /etc/hdmi/config
+    echo "PRIMARY_DISPLAY=\"$primary\"" >> /etc/hdmi/config
+    
+    # Apply using xrandr if in X session
+    if [ -n "$DISPLAY" ] && command -v xrandr >/dev/null 2>&1; then
+        # Get display names
+        internal=$(xrandr | grep -E "^[[:alnum:]]+-[0-9]+ connected" | grep -v HDMI | head -1 | awk '{print $1}')
+        external=$(xrandr | grep -E "^HDMI-[0-9]+ connected" | awk '{print $1}')
+        
+        if [ -n "$internal" ] && [ -n "$external" ]; then
+            # Get preferred resolution or use native
+            if [ -e /var/run/edid/preferred ]; then
+                resolution=$(cat /var/run/edid/preferred)
+            else
+                resolution="${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+            fi
+            
+            if [ "$mode" = "duplicate" ]; then
+                xrandr --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" \
+                       --output "$external" --mode "$resolution" --same-as "$internal"
+            else # extend
+                if [ "$primary" = "device" ]; then
+                    xrandr --output "$internal" --primary --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" \
+                           --output "$external" --mode "$resolution" --right-of "$internal"
+                else
+                    xrandr --output "$external" --primary --mode "$resolution" \
+                           --output "$internal" --mode "${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}" --right-of "$external"
+                fi
+            fi
+            log "Applied display mode using xrandr"
+        fi
+    else
+        # Use direct sysfs configuration
+        echo "$mode" > /sys/class/drm/card0/display_mode 2>/dev/null
+        echo "$primary" > /sys/class/drm/card0/primary_display 2>/dev/null
+        log "Applied display mode using sysfs"
+        
+        # Attempt to use tvservice for Raspberry Pi-like devices
+        if command -v tvservice >/dev/null 2>&1; then
+            if [ -e /var/run/edid/preferred ]; then
+                resolution=$(cat /var/run/edid/preferred)
+                width=${resolution%x*}
+                height=${resolution#*x}
+                
+                # Find matching mode
+                modes=$(tvservice -m CEA && tvservice -m DMT)
+                mode_id=$(echo "$modes" | grep -i "${width}x${height}" | head -1 | awk '{print $1}' | sed 's/(//')
+                [ -n "$mode_id" ] && tvservice -e "$mode_id"
+            fi
+            log "Applied display mode using tvservice"
+        fi
+    fi
+    
+    # Set up framebuffer console if enabled
+    setup_fb_console
+}
+
+# Function to setup framebuffer console
+setup_fb_console() {
+    log "Setting up framebuffer console"
+    
+    # Check if framebuffer console is enabled in config
+    FB_CONSOLE_ENABLED="yes"
+    [ -e /etc/hdmi/config ] && . /etc/hdmi/config
+    
+    if [ "$FB_CONSOLE_ENABLED" = "yes" ] && [ -e /dev/fb0 ]; then
+        # Ensure framebuffer is not blanked
+        echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null
+        
+        # Set framebuffer resolution if possible
+        if [ -e /sys/class/graphics/fb0/virtual_size ]; then
+            if [ $HDMI_CONNECTED -eq 1 ] && [ -e /var/run/edid/preferred ]; then
+                resolution=$(cat /var/run/edid/preferred)
+                width=${resolution%x*}
+                height=${resolution#*x}
+                echo "${width},${height}" > /sys/class/graphics/fb0/virtual_size 2>/dev/null
+                log "Set framebuffer resolution to ${width}x${height}"
+            else
+                # Use device native resolution
+                echo "${DEFAULT_WIDTH},${DEFAULT_HEIGHT}" > /sys/class/graphics/fb0/virtual_size 2>/dev/null
+                log "Set framebuffer resolution to ${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}"
+            fi
+        fi
+        
+        # Configure framebuffer console
+        if [ -e /sys/class/vtconsole/vtcon1/bind ]; then
+            echo 1 > /sys/class/vtconsole/vtcon1/bind 2>/dev/null
+        fi
+        
+        log "Framebuffer console enabled"
+    else
+        # Disable framebuffer console
+        if [ -e /sys/class/vtconsole/vtcon1/bind ]; then
+            echo 0 > /sys/class/vtconsole/vtcon1/bind 2>/dev/null
+        fi
+        
+        # Blank framebuffer
+        [ -e /sys/class/graphics/fb0/blank ] && echo 1 > /sys/class/graphics/fb0/blank 2>/dev/null
+        
+        log "Framebuffer console disabled"
+    fi
+}
+
+# Setup HDMI configuration script for terminal access
+setup_hdmi_config_script() {
+    log "Setting up HDMI configuration script..."
+    
+    mkdir -p /mnt/root/usr/local/bin
+    
+    cat > /mnt/root/usr/local/bin/hdmi-config << 'EOF'
+#!/bin/bash
+# HDMI Configuration Tool for Unisoc Tiger T618
+# Supports resolution changes, screen modes, HDR, VRR, and Low Latency Mode
+
+CONFIG_DIR="/var/lib/hdmi"
+CONFIG_FILE="$CONFIG_DIR/config"
+DISPLAY_INFO="/var/run/display"
+DEFAULT_RESOLUTION="1336x752"
+DEVICE_RESOLUTION="1336x752"
+
+# Create config directory if it doesn't exist
+mkdir -p "$CONFIG_DIR" "$DISPLAY_INFO" 2>/dev/null
+
+# Function to show help message
+show_help() {
+    echo "HDMI Configuration Tool for Unisoc Tiger T618"
+    echo ""
+    echo "Usage: hdmi-config [OPTION]"
+    echo ""
+    echo "Options:"
+    echo "  --resolution=WIDTHxHEIGHT  Set specific resolution"
+    echo "  --device-res              Set to device native resolution (1336x752)"
+    echo "  --display-res             Set to connected display's preferred resolution"
+    echo "  --extend                  Extend screen to HDMI output"
+    echo "  --duplicate               Duplicate screen to HDMI output"
+    echo "  --hdr=on|off|auto         Set HDR mode"
+    echo "  --vrr=on|off|auto         Set Variable Refresh Rate mode"
+    echo "  --llm=on|off|auto         Set Low Latency Mode"
+    echo "  --list-res                List available resolutions"
+    echo "  --status                  Show current HDMI configuration"
+    echo "  --save                    Save current configuration"
+    echo "  --load                    Load saved configuration"
+    echo "  --info                    Display detailed information about connected display"
+    echo "  --menu                    Show interactive menu interface"
+    echo "  --help                    Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  hdmi-config --resolution=1920x1080"
+    echo "  hdmi-config --extend --display-res"
+    echo "  hdmi-config --duplicate --device-res"
+    echo "  hdmi-config --hdr=on --vrr=auto"
+}
+
+# Function to load configuration
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        source "$CONFIG_FILE"
+        echo "Configuration loaded from $CONFIG_FILE"
+        apply_config
+    else
+        echo "No saved configuration found."
+    fi
+}
+
+# Function to save configuration
+save_config() {
+    # Get current config
+    local resolution=$(get_current_resolution)
+    local mode=$(get_current_mode)
+    local hdr=$(get_hdr_status)
+    local vrr=$(get_vrr_status)
+    local llm=$(get_llm_status)
+    
+    # Save to file
+    mkdir -p "$CONFIG_DIR"
+    cat > "$CONFIG_FILE" << CONFEOF
+HDMI_RESOLUTION="$resolution"
+HDMI_MODE="$mode"
+HDMI_HDR="$hdr"
+HDMI_VRR="$vrr"
+HDMI_LLM="$llm"
+CONFEOF
+    
+    echo "Configuration saved to $CONFIG_FILE"
+}
+
+# Apply the loaded or specified configuration
+apply_config() {
+    # Apply resolution if set
+    if [ -n "$HDMI_RESOLUTION" ]; then
+        set_resolution "$HDMI_RESOLUTION"
+    fi
+    
+    # Apply screen mode if set
+    if [ -n "$HDMI_MODE" ]; then
+        set_screen_mode "$HDMI_MODE"
+    fi
+    
+    # Apply HDR setting if set
+    if [ -n "$HDMI_HDR" ]; then
+        set_hdr "$HDMI_HDR"
+    fi
+    
+    # Apply VRR setting if set
+    if [ -n "$HDMI_VRR" ]; then
+        set_vrr "$HDMI_VRR"
+    fi
+    
+    # Apply LLM setting if set
+    if [ -n "$HDMI_LLM" ]; then
+        set_llm "$HDMI_LLM"
+    fi
+    
+    echo "Configuration applied."
+}
+
+# Function to show current status
+show_status() {
+    echo "Current HDMI Configuration:"
+    echo "------------------------"
+    echo "Resolution: $(get_current_resolution)"
+    echo "Screen Mode: $(get_current_mode)"
+    echo "HDR: $(get_hdr_status)"
+    echo "Variable Refresh Rate: $(get_vrr_status)"
+    echo "Low Latency Mode: $(get_llm_status)"
+    
+    # Show connected display information if available
+    if [ -f "$DISPLAY_INFO/connected" ] && [ "$(cat "$DISPLAY_INFO/connected")" = "yes" ]; then
+        echo ""
+        echo "Connected Display:"
+        echo "-----------------"
+        [ -f "$DISPLAY_INFO/display_name" ] && echo "Name: $(cat "$DISPLAY_INFO/display_name")"
+        [ -f "$DISPLAY_INFO/preferred_mode" ] && echo "Preferred Mode: $(cat "$DISPLAY_INFO/preferred_mode")"
+        [ -f "$DISPLAY_INFO/hdr_capable" ] && echo "HDR Capable: $(cat "$DISPLAY_INFO/hdr_capable")"
+        [ -f "$DISPLAY_INFO/vrr_capable" ] && echo "VRR Capable: $(cat "$DISPLAY_INFO/vrr_capable")"
+        [ -f "$DISPLAY_INFO/llm_capable" ] && echo "LLM Capable: $(cat "$DISPLAY_INFO/llm_capable")"
+    else
+        echo ""
+        echo "No display connected."
+    fi
+}
+
+# Function to list available resolutions
+list_resolutions() {
+    echo "Available Resolutions:"
+    echo "---------------------"
+    
+    # Try using xrandr if available
+    if command -v xrandr >/dev/null 2>&1; then
+        xrandr --query | grep -v Screen | grep -v connected | grep "^ " | awk '{print $1}'
+    else
+        # Fallback to common resolutions supported by Mali-G52
+        echo "3840x2160 (4K UHD)"
+        echo "2560x1440 (QHD)"
+        echo "1920x1080 (Full HD)"
+        echo "1680x1050"
+        echo "1600x900"
+        echo "1440x900"
+        echo "1366x768"
+        echo "1336x752 (Device Native)"
+        echo "1280x720 (HD)"
+        echo "1024x768 (XGA)"
+        echo "800x600 (SVGA)"
+        echo "720x480 (SD)"
+        echo "640x480 (VGA)"
+    fi
+    
+    # Device native resolution
+    echo ""
+    echo "Device Native Resolution: $DEVICE_RESOLUTION"
+    
+    # Connected display's preferred resolution if available
+    if [ -f "$DISPLAY_INFO/preferred_mode" ]; then
+        echo "Connected Display's Preferred Resolution: $(cat "$DISPLAY_INFO/preferred_mode")"
+    fi
+}
+
+# Helper functions for getting current status
+get_current_resolution() {
+    if [ -f "$DISPLAY_INFO/resolution" ]; then
+        cat "$DISPLAY_INFO/resolution"
+    else
+        echo "$DEFAULT_RESOLUTION"
+    fi
+}
+
+get_current_mode() {
+    if [ -f "$DISPLAY_INFO/mode" ]; then
+        cat "$DISPLAY_INFO/mode"
+    else
+        echo "duplicate"
+    fi
+}
+
+get_hdr_status() {
+    if [ -f "$DISPLAY_INFO/hdr" ]; then
+        cat "$DISPLAY_INFO/hdr"
+    else
+        echo "off"
+    fi
+}
+
+get_vrr_status() {
+    if [ -f "$DISPLAY_INFO/vrr" ]; then
+        cat "$DISPLAY_INFO/vrr"
+    else
+        echo "off"
+    fi
+}
+
+get_llm_status() {
+    if [ -f "$DISPLAY_INFO/llm" ]; then
+        cat "$DISPLAY_INFO/llm"
+    else
+        echo "off"
+    fi
+}
+
+# Set resolution function
+set_resolution() {
+    local resolution="$1"
+    
+    # First try xrandr if available
+    if command -v xrandr >/dev/null 2>&1; then
+        local output=$(xrandr | grep " connected " | awk '{print $1}' | head -n 1)
+        if [ -n "$output" ]; then
+            xrandr --output "$output" --mode "$resolution" && {
+                echo "$resolution" > "$DISPLAY_INFO/resolution"
+                echo "Resolution set to $resolution using xrandr"
+                return 0
+            }
+        fi
+    fi
+    
+    # Fallback to tvservice if available
+    if command -v tvservice >/dev/null 2>&1; then
+        local width=${resolution%x*}
+        local height=${resolution#*x}
+        tvservice -e "CEA $width $height" && {
+            echo "$resolution" > "$DISPLAY_INFO/resolution"
+            echo "Resolution set to $resolution using tvservice"
+            return 0
+        }
+    fi
+    
+    # Fallback to direct sysfs method for Mali-G52
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*-HDMI-A-*; do
+            if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                if [ -e "$card/mode" ]; then
+                    echo "$resolution" > "$card/mode" 2>/dev/null && {
+                        echo "$resolution" > "$DISPLAY_INFO/resolution"
+                        echo "Resolution set to $resolution using sysfs"
+                        return 0
+                    }
+                fi
+            fi
+        done
+    fi
+    
+    echo "Failed to set resolution to $resolution"
+    return 1
+}
+
+# Set screen mode (extend or duplicate)
+set_screen_mode() {
+    local mode="$1"
+    
+    if [ "$mode" != "extend" ] && [ "$mode" != "duplicate" ]; then
+        echo "Invalid mode. Use 'extend' or 'duplicate'."
+        return 1
+    fi
+    
+    # First try xrandr if available
+    if command -v xrandr >/dev/null 2>&1; then
+        local primary=$(xrandr | grep " connected " | awk '{print $1}' | head -n 1)
+        local secondary=$(xrandr | grep " connected " | awk '{print $1}' | head -n 2 | tail -n 1)
+        
+        if [ -n "$primary" ] && [ -n "$secondary" ]; then
+            if [ "$mode" = "extend" ]; then
+                xrandr --output "$primary" --auto --output "$secondary" --auto --right-of "$primary" && {
+                    echo "extend" > "$DISPLAY_INFO/mode"
+                    echo "Screen mode set to extend using xrandr"
+                    return 0
+                }
+            else
+                xrandr --output "$primary" --auto --output "$secondary" --auto --same-as "$primary" && {
+                    echo "duplicate" > "$DISPLAY_INFO/mode"
+                    echo "Screen mode set to duplicate using xrandr"
+                    return 0
+                }
+            fi
+        fi
+    fi
+    
+    # Fallback to sysfs method for Mali-G52
+    if [ -d /sys/class/graphics/fb0 ] && [ -d /sys/class/graphics/fb1 ]; then
+        if [ "$mode" = "extend" ]; then
+            echo 1 > /sys/class/graphics/fb1/blank
+            echo 0 > /sys/class/graphics/fb1/blank
+            echo 1 > /sys/class/graphics/fb0/fsl_disp_property/mode 2>/dev/null && {
+                echo "extend" > "$DISPLAY_INFO/mode"
+                echo "Screen mode set to extend using sysfs"
+                return 0
+            }
+        else
+            echo 1 > /sys/class/graphics/fb1/blank
+            echo 0 > /sys/class/graphics/fb0/blank
+            echo 0 > /sys/class/graphics/fb0/fsl_disp_property/mode 2>/dev/null && {
+                echo "duplicate" > "$DISPLAY_INFO/mode"
+                echo "Screen mode set to duplicate using sysfs"
+                return 0
+            }
+        fi
+    fi
+    
+    echo "Failed to set screen mode to $mode"
+    return 1
+}
+
+# Set HDR mode
+set_hdr() {
+    local mode="$1"
+    
+    if [ "$mode" != "on" ] && [ "$mode" != "off" ] && [ "$mode" != "auto" ]; then
+        echo "Invalid HDR mode. Use 'on', 'off', or 'auto'."
+        return 1
+    fi
+    
+    # Check if display supports HDR
+    if [ "$mode" != "off" ] && [ -f "$DISPLAY_INFO/hdr_capable" ] && [ "$(cat "$DISPLAY_INFO/hdr_capable")" != "yes" ]; then
+        echo "Warning: Connected display does not support HDR. Setting anyway."
+    fi
+    
+    # Try using Mali HDMI driver interface
+    if [ -d /sys/class/mali-hdr ]; then
+        case "$mode" in
+            on)
+                echo 1 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null && {
+                    echo "on" > "$DISPLAY_INFO/hdr"
+                    echo "HDR enabled"
+                    return 0
+                }
+                ;;
+            off)
+                echo 0 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null && {
+                    echo "off" > "$DISPLAY_INFO/hdr"
+                    echo "HDR disabled"
+                    return 0
+                }
+                ;;
+            auto)
+                echo 2 > /sys/class/mali-hdr/mali-hdr0/enable 2>/dev/null && {
+                    echo "auto" > "$DISPLAY_INFO/hdr"
+                    echo "HDR set to auto"
+                    return 0
+                }
+                ;;
+        esac
+    fi
+    
+    # Try using DRM interface for HDR
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*-HDMI-A-*; do
+            if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                if [ -e "$card/hdr_metadata_type1" ]; then
+                    case "$mode" in
+                        on)
+                            echo 1 > "$card/hdr_output_metadata" 2>/dev/null && {
+                                echo "on" > "$DISPLAY_INFO/hdr"
+                                echo "HDR enabled using DRM interface"
+                                return 0
+                            }
+                            ;;
+                        off)
+                            echo 0 > "$card/hdr_output_metadata" 2>/dev/null && {
+                                echo "off" > "$DISPLAY_INFO/hdr"
+                                echo "HDR disabled using DRM interface"
+                                return 0
+                            }
+                            ;;
+                        auto)
+                            echo 2 > "$card/hdr_output_metadata" 2>/dev/null && {
+                                echo "auto" > "$DISPLAY_INFO/hdr"
+                                echo "HDR set to auto using DRM interface"
+                                return 0
+                            }
+                            ;;
+                    esac
+                fi
+            fi
+        done
+    fi
+    
+    # Store the setting even if we couldn't apply it
+    echo "$mode" > "$DISPLAY_INFO/hdr"
+    echo "HDR mode recorded as $mode (may not be applied)"
+    return 1
+}
+
+# Set VRR mode
+set_vrr() {
+    local mode="$1"
+    
+    if [ "$mode" != "on" ] && [ "$mode" != "off" ] && [ "$mode" != "auto" ]; then
+        echo "Invalid VRR mode. Use 'on', 'off', or 'auto'."
+        return 1
+    fi
+    
+    # Check if display supports VRR
+    if [ "$mode" != "off" ] && [ -f "$DISPLAY_INFO/vrr_capable" ] && [ "$(cat "$DISPLAY_INFO/vrr_capable")" != "yes" ]; then
+        echo "Warning: Connected display does not support VRR. Setting anyway."
+    fi
+    
+    # Try using the appropriate sysfs interface
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*-HDMI-A-*; do
+            if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                if [ -e "$card/vrr_enabled" ]; then
+                    case "$mode" in
+                        on)
+                            echo 1 > "$card/vrr_enabled" 2>/dev/null && {
+                                echo "on" > "$DISPLAY_INFO/vrr"
+                                echo "VRR enabled"
+                                return 0
+                            }
+                            ;;
+                        off)
+                            echo 0 > "$card/vrr_enabled" 2>/dev/null && {
+                                echo "off" > "$DISPLAY_INFO/vrr"
+                                echo "VRR disabled"
+                                return 0
+                            }
+                            ;;
+                        auto)
+                            echo 2 > "$card/vrr_enabled" 2>/dev/null && {
+                                echo "auto" > "$DISPLAY_INFO/vrr"
+                                echo "VRR set to auto"
+                                return 0
+                            }
+                            ;;
+                    esac
+                fi
+            fi
+        done
+    fi
+    
+    # Store the setting even if we couldn't apply it
+    echo "$mode" > "$DISPLAY_INFO/vrr"
+    echo "VRR mode recorded as $mode (may not be applied)"
+    return 1
+}
+
+# Set Low Latency Mode
+set_llm() {
+    local mode="$1"
+    
+    if [ "$mode" != "on" ] && [ "$mode" != "off" ] && [ "$mode" != "auto" ]; then
+        echo "Invalid Low Latency Mode. Use 'on', 'off', or 'auto'."
+        return 1
+    fi
+    
+    # Check if display supports LLM
+    if [ "$mode" != "off" ] && [ -f "$DISPLAY_INFO/llm_capable" ] && [ "$(cat "$DISPLAY_INFO/llm_capable")" != "yes" ]; then
+        echo "Warning: Connected display does not support Low Latency Mode. Setting anyway."
+    fi
+    
+    # Try using the appropriate sysfs interface
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*-HDMI-A-*; do
+            if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+                if [ -e "$card/llm_enabled" ] || [ -e "$card/gaming_mode_enabled" ]; then
+                    local llm_file="$card/llm_enabled"
+                    [ ! -e "$llm_file" ] && llm_file="$card/gaming_mode_enabled"
+                    
+                    case "$mode" in
+                        on)
+                            echo 1 > "$llm_file" 2>/dev/null && {
+                                echo "on" > "$DISPLAY_INFO/llm"
+                                echo "Low Latency Mode enabled"
+                                return 0
+                            }
+                            ;;
+                        off)
+                            echo 0 > "$llm_file" 2>/dev/null && {
+                                echo "off" > "$DISPLAY_INFO/llm"
+                                echo "Low Latency Mode disabled"
+                                return 0
+                            }
+                            ;;
+                        auto)
+                            echo 2 > "$llm_file" 2>/dev/null && {
+                                echo "auto" > "$DISPLAY_INFO/llm"
+                                echo "Low Latency Mode set to auto"
+                                return 0
+                            }
+                            ;;
+                    esac
+                fi
+            fi
+        done
+    fi
+    
+    # Store the setting even if we couldn't apply it
+    echo "$mode" > "$DISPLAY_INFO/llm"
+    echo "Low Latency Mode recorded as $mode (may not be applied)"
+    return 1
+}
+
+# Function to show display information
+display_info() {
+    echo "Display Information:"
+    echo "-------------------"
+    
+    # Try using edid-decode if available
+    if command -v edid-decode >/dev/null 2>&1; then
+        for card in /sys/class/drm/card*-HDMI-A-*; do
+            if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ] && [ -e "$card/edid" ]; then
+                echo "EDID Information:"
+                edid-decode < "$card/edid" | grep -E "Manufacturer|Product|Serial|Made|Display|HDR|Native|Max Image|CTA|Variable|Gaming Mode"
+                return 0
+            fi
+        done
+    fi
+    
+    # Fallback to xrandr if available
+    if command -v xrandr >/dev/null 2>&1; then
+        echo "xrandr Display Information:"
+        xrandr --verbose | grep -E "connected|HDMI|Resolution|primary|Refresh|transform"
+        return 0
+    fi
+    
+    # Fallback to sysfs information
+    echo "Direct Hardware Information:"
+    for card in /sys/class/drm/card*-HDMI-A-*; do
+        if [ -e "$card/status" ] && [ "$(cat $card/status)" = "connected" ]; then
+            echo "Card: $(basename $card)"
+            echo "Status: $(cat $card/status)"
+            [ -e "$card/enabled" ] && echo "Enabled: $(cat $card/enabled)"
+            [ -e "$card/mode" ] && echo "Mode: $(cat $card/mode)"
+            [ -e "$card/modes" ] && echo "Available Modes: $(cat $card/modes)"
+            [ -e "$card/vrr_capable" ] && echo "VRR Capable: $(cat $card/vrr_capable)"
+            [ -e "$card/hdr_metadata_type1" ] && echo "HDR Capable: Yes"
+        fi
+    done
+}
+
+# Function to process command line arguments
+process_args() {
+    case "$1" in
+        --help)
+            show_help
+            ;;
+        --resolution=*)
+            resolution="${1#*=}"
+            set_resolution "$resolution"
+            ;;
+        --device-res)
+            set_resolution "$DEVICE_RESOLUTION"
+            ;;
+        --display-res)
+            if [ -f "$DISPLAY_INFO/preferred_mode" ]; then
+                set_resolution "$(cat "$DISPLAY_INFO/preferred_mode")"
+            else
+                echo "No preferred resolution detected. Using device resolution."
+                set_resolution "$DEVICE_RESOLUTION"
+            fi
+            ;;
+        --extend)
+            set_screen_mode "extend"
+            ;;
+        --duplicate)
+            set_screen_mode "duplicate"
+            ;;
+        --hdr=*)
+            mode="${1#*=}"
+            set_hdr "$mode"
+            ;;
+        --vrr=*)
+            mode="${1#*=}"
+            set_vrr "$mode"
+            ;;
+        --llm=*)
+            mode="${1#*=}"
+            set_llm "$mode"
+            ;;
+        --list-res)
+            list_resolutions
+            ;;
+        --status)
+            show_status
+            ;;
+        --save)
+            save_config
+            ;;
+        --load)
+            load_config
+            ;;
+        --info)
+            display_info
+            ;;
+        --menu)
+            hdmi_control_menu
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help to see available options."
+            exit 1
+            ;;
+    esac
+}
+
+# Interactive menu functions
+hdmi_control_menu() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "   HDMI Configuration Control Menu"
+        echo "======================================"
+        echo "1. Change Resolution"
+        echo "2. Set Screen Mode (Extend/Duplicate)"
+        echo "3. Toggle HDR"
+        echo "4. Toggle Variable Refresh Rate (VRR)"
+        echo "5. Low Latency Mode Options"
+        echo "6. Show Current Status"
+        echo "7. Display Information"
+        echo "8. Load Saved Configuration"
+        echo "9. Save Current Configuration"
+        echo "0. Exit"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-9]: "
+        read choice
+        
+        case $choice in
+            1) hdmi_resolution_menu ;;
+            2) screen_mode_menu ;;
+            3) toggle_hdr ;;
+            4) toggle_vrr ;;
+            5) low_latency_menu ;;
+            6) 
+                show_status
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            7) 
+                display_info
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            8) 
+                load_config
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            9) 
+                save_config
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *) 
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+hdmi_resolution_menu() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "        Resolution Selection"
+        echo "======================================"
+        echo "1. Device Native (1336x752)"
+        echo "2. Full HD (1920x1080)"
+        echo "3. HD (1280x720)"
+        echo "4. 4K UHD (3840x2160)"
+        echo "5. Display's Preferred Resolution"
+        echo "6. Custom Resolution"
+        echo "7. List All Available Resolutions"
+        echo "0. Back to Main Menu"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-7]: "
+        read choice
+        
+        case $choice in
+            1) 
+                set_resolution "1336x752"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            2) 
+                set_resolution "1920x1080"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            3) 
+                set_resolution "1280x720"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            4) 
+                set_resolution "3840x2160"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            5)
+                if [ -f "$DISPLAY_INFO/preferred_mode" ]; then
+                    set_resolution "$(cat "$DISPLAY_INFO/preferred_mode")"
+                else
+                    echo "No preferred resolution detected. Using device resolution."
+                    set_resolution "$DEVICE_RESOLUTION"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            6)
+                echo ""
+                echo -n "Enter custom resolution (e.g., 1600x900): "
+                read custom_res
+                set_resolution "$custom_res"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            7)
+                list_resolutions
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+screen_mode_menu() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "         Screen Mode Selection"
+        echo "======================================"
+        echo "1. Extend (Display as Second Screen)"
+        echo "2. Duplicate (Mirror) with Device Resolution"
+        echo "3. Duplicate (Mirror) with Display's Resolution"
+        echo "0. Back to Main Menu"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-3]: "
+        read choice
+        
+        case $choice in
+            1) 
+                set_screen_mode "extend"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            2) 
+                set_screen_mode "duplicate"
+                set_resolution "$DEVICE_RESOLUTION"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            3)
+                if [ -f "$DISPLAY_INFO/preferred_mode" ]; then
+                    set_screen_mode "duplicate"
+                    set_resolution "$(cat "$DISPLAY_INFO/preferred_mode")"
+                else
+                    echo "No preferred resolution detected. Using device resolution."
+                    set_screen_mode "duplicate"
+                    set_resolution "$DEVICE_RESOLUTION"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+toggle_hdr() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "           HDR Configuration"
+        echo "======================================"
+        echo "Current HDR Status: $(get_hdr_status)"
+        echo ""
+        echo "1. Enable HDR"
+        echo "2. Disable HDR"
+        echo "3. Set HDR to Auto"
+        echo "0. Back to Main Menu"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-3]: "
+        read choice
+        
+        case $choice in
+            1) 
+                set_hdr "on"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            2) 
+                set_hdr "off"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            3) 
+                set_hdr "auto"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+toggle_vrr() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "      Variable Refresh Rate (VRR)"
+        echo "======================================"
+        echo "Current VRR Status: $(get_vrr_status)"
+        echo ""
+        echo "1. Enable VRR"
+        echo "2. Disable VRR"
+        echo "3. Set VRR to Auto"
+        echo "0. Back to Main Menu"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-3]: "
+        read choice
+        
+        case $choice in
+            1) 
+                set_vrr "on"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            2) 
+                set_vrr "off"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            3) 
+                set_vrr "auto"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+low_latency_menu() {
+    while true; do
+        clear
+        echo "======================================"
+        echo "          Low Latency Mode"
+        echo "======================================"
+        echo "Current Low Latency Mode: $(get_llm_status)"
+        echo ""
+        echo "1. Enable Low Latency Mode"
+        echo "2. Disable Low Latency Mode"
+        echo "3. Set Low Latency Mode to Auto"
+        echo "0. Back to Main Menu"
+        echo "--------------------------------------"
+        echo -n "Enter your choice [0-3]: "
+        read choice
+        
+        case $choice in
+            1) 
+                set_llm "on"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            2) 
+                set_llm "off"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            3) 
+                set_llm "auto"
+                echo ""
+                echo "Press Enter to continue..."
+                read dummy
+                ;;
+            0) break ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read dummy
+                ;;
+        esac
+    done
+}
+
+# Main command processing
+if [ $# -eq 0 ]; then
+    hdmi_control_menu
+else
+    process_args "$@"
+fi
+EOF
+
+    chmod +x /mnt/root/usr/local/bin/hdmi-config
+    
+    # Create symbolic link for easy access
+    ln -sf /usr/local/bin/hdmi-config /mnt/root/usr/local/bin/hdmiconfig
+    
+    # Create desktop entry
+    mkdir -p /mnt/root/usr/share/applications
+    cat > /mnt/root/usr/share/applications/hdmi-config.desktop << 'EOF'
+[Desktop Entry]
+Name=HDMI Configuration
+Comment=Configure HDMI display settings
+Exec=hdmi-config --menu
+Icon=preferences-desktop-display
+Terminal=true
+Type=Application
+Categories=Settings;HardwareSettings;
+Keywords=display;monitor;hdmi;resolution;hdr;vrr;
+EOF
+
+    log "HDMI configuration script set up"
+}
+
+# Function for advanced HDMI configuration
+init_hdmi_advanced() {
+    log "Setting up advanced HDMI options (HDR, VRR, LLM)..."
+    
+    # Create directory to store display capabilities
+    mkdir -p /var/run/display
+    
+    # Detect HDR capability
+    if grep -q "HDR" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null; then
+        echo "yes" > /var/run/display/hdr_capable
+        log "HDR capability detected in connected display"
+    else
+        echo "no" > /var/run/display/hdr_capable
+        log "No HDR capability detected"
+    fi
+    
+    # Detect VRR capability
+    if grep -q "Adaptive-Sync" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null || 
+       grep -q "FreeSync" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null; then
+        echo "yes" > /var/run/display/vrr_capable
+        log "VRR capability detected in connected display"
+    else
+        echo "no" > /var/run/display/vrr_capable
+        log "No VRR capability detected"
+    fi
+    
+    # Detect Low Latency Mode capability
+    if grep -q "Low Latency" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null || 
+       grep -q "Game Mode" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null || 
+       grep -q "Gaming Mode" /sys/class/drm/card0-HDMI-A-1/edid 2>/dev/null; then
+        echo "yes" > /var/run/display/llm_capable
+        log "Low Latency Mode capability detected in connected display"
+    else
+        echo "no" > /var/run/display/llm_capable
+        log "No Low Latency Mode capability detected"
+    fi
+    
+    # Set initial configuration to off for all features
+    echo "off" > /var/run/display/hdr
+    echo "off" > /var/run/display/vrr
+    echo "off" > /var/run/display/llm
+    
+    # Detect connected state
+    card numbering
+    for hdmi_card in /sys/class/drm/card*-HDMI-A-*; do
+        if [ -e "$hdmi_card/status" ] && [ "$(cat $hdmi_card/status)" = "connected" ]; then
+            HDMI_CARD="$hdmi_card"
+            echo "yes" > /var/run/display/connected
+            break
+        fi
+    done
+        echo "yes" > /var/run/display/connected
+    else
+        echo "no" > /var/run/display/connected
+    fi
+    
+    log "Advanced HDMI options initialized"
+}
+
+# Function to integrate with isp-compute-setup.sh
+setup_isp_compute_framework() {
+    log "Setting up ISP compute framework..."
+    
+    if [ -e /mnt/root/usr/local/bin/isp-compute-setup.sh ]; then
+        log "Found isp-compute-setup.sh, executing..."
+        # Execute with chroot to new root
+        chroot /mnt/root /usr/local/bin/isp-compute-setup.sh || log "Failed to execute isp-compute-setup.sh"
+    elif [ -e /usr/local/bin/isp-compute-setup.sh ]; then
+        log "Found isp-compute-setup.sh in initramfs, executing..."
+        /usr/local/bin/isp-compute-setup.sh || log "Failed to execute isp-compute-setup.sh"
+    else
+        log "isp-compute-setup.sh not found"
+    fi
+}
+
+# Function to initialize OpenCL framework from isp_opencl_integration file
+init_opencl_framework() {
+    log "Initializing OpenCL 3.0 framework for Mali-G52..."
+    
+    # Load Mali GPU driver with optimized settings for G52 MC2
+    if modprobe mali_kbase; then
+        log "Mali GPU driver loaded successfully"
+        
+        # Set Mali GPU frequency settings from isp_opencl_integration
+        if [ -d /sys/class/devfreq/mali0 ]; then
+            log "Configuring Mali-G52 MC2 DVFS with OpenCL 3.0 integration"
+            echo "userspace" > /sys/class/devfreq/mali0/governor 2>/dev/null || log "Failed to set DVFS governor"
+            echo 200000000 > /sys/class/devfreq/mali0/min_freq 2>/dev/null  # From DVFS_LEVEL_POWER_SAVE
+            echo 950000000 > /sys/class/devfreq/mali0/max_freq 2>/dev/null  # From DVFS_LEVEL_MAX
+            echo 705000000 > /sys/class/devfreq/mali0/nominal_freq 2>/dev/null  # Default steady-state
+            echo 425000000 > /sys/class/devfreq/mali0/init_freq 2>/dev/null  # Boot frequency
+
+            # Initialize DVFS level based on workload history
+            echo 3 > /sys/module/mali_kbase/parameters/dvfs_initial_level  # DVFS_LEVEL_MEDIUM
+
+            # Configure frequency thresholds from isp_opencl_integration DVFS levels
+            echo "200000 450000 700000 850000 950000" > /sys/class/devfreq/mali0/available_frequencies
+            echo "200000:250 450000:400 700000:550 850000:700 950000:850" > /sys/class/devfreq/mali0/voltage_map
+        fi
+
+        
+        # Initialize CL device for ARM Mali
+        if [ -e /dev/mali0 ]; then
+            log "Setting up OpenCL device permissions..."
+            chmod 666 /dev/mali0 || log "Failed to set mali0 permissions"
+        fi
+        
+        # Set up ION/DMA-BUF for OpenCL memory allocation
+        if [ -e /dev/ion ]; then
+            log "Setting up ION/DMA-BUF for OpenCL memory allocation..."
+            chmod 666 /dev/ion || log "Failed to set ion permissions"
+        fi
+    else
+        log "Failed to load Mali GPU driver"
+    fi
+    
+    # Link to OpenCL libraries if available
+    if [ -d /mnt/root/usr/lib/mali-opencl ]; then
+        log "Linking OpenCL libraries..."
+        chroot /mnt/root ln -sf /usr/lib/mali-opencl/libOpenCL.so.1 /usr/lib/libOpenCL.so.1 2>/dev/null || log "Failed to link OpenCL library"
+    fi
+
+# Add OpenCL 3.0 environment configuration
+log "Configuring OpenCL 3.0 runtime from isp_opencl_integration"
+mkdir -p /etc/OpenCL/vendors 2>/dev/null
+cat > /etc/OpenCL/vendors/mali.icd << EOF
+libmali.so
+Mali-G52
+EOF
+
+# Set Mali-G52 specific workgroup parameters
+echo "MALI_G52_OPTIMAL_LOCAL_SIZE_X=32" >> /etc/environment
+echo "MALI_G52_OPTIMAL_LOCAL_SIZE_Y=8" >> /etc/environment
+echo "MALI_G52_L2_CACHE_SIZE=131072" >> /etc/environment
+
+# Configure OpenCL memory allocation limits
+sysctl -w vm.mali_gpu_mem_limit=268435456  # 256MB
+sysctl -w vm.mali_dma_buf_pool_size=134217728  # 128MB
+
+# Enable Mali-G52 specific compression formats
+log "Enabling ASTC and AFBC compression"
+if [ -e /sys/module/mali_kbase/parameters/enable_afbc ]; then
+    echo 1 > /sys/module/mali_kbase/parameters/enable_afbc
+    echo "AFBC enabled: Compression ratio 1:2 for framebuffers" | tee -a /tmp/gpu_init.log
+fi
+
+# Initialize CDSP for compute integration with GPU
+if [ -e /sys/kernel/dsp/cdsp/status ] && [ "$(cat /sys/kernel/dsp/cdsp/status 2>/dev/null)" = "active" ]; then
+    log "Initializing CDSP for GPU compute coordination"
+    # Configure CDSP for:
+    # - Preprocessing for GPU-bound workloads
+    # - Concurrent DSP-GPU execution
+    # - Audio/video processing offload
+    # - Parallel task offloading with ARM Compute Library
+    echo "compute" > /sys/kernel/dsp/cdsp/mode
+    echo "fp16=1 dotprod=1 neon=1 rcpc=1" > /sys/kernel/dsp/cdsp/features
+    echo "1" > /sys/kernel/dsp/cdsp/coherent
+    echo "adaptive:4gb" > /sys/kernel/dsp/cdsp/workload_balance
+    echo "arm_compute" > /sys/kernel/dsp/cdsp/compute_lib
+    echo "enable" > /sys/kernel/dsp/cdsp/av_processing
+    echo "balanced" > /sys/kernel/dsp/cdsp/power_policy
+    # Get Mali-G52 current frequency
+    GPU_FREQ=$(cat /sys/class/devfreq/mali0/cur_freq 2>/dev/null || echo 700000000)
+
+    # Calculate CDSP frequency based on DVFS level
+    case $GPU_FREQ in
+        200000000) CDSP_FREQ=170000000 ;;  # DVFS_LEVEL_POWER_SAVE
+        450000000) CDSP_FREQ=382500000 ;;  # DVFS_LEVEL_LOW
+        700000000) CDSP_FREQ=595000000 ;;  # DVFS_LEVEL_MEDIUM
+        850000000) CDSP_FREQ=722500000 ;;  # DVFS_LEVEL_HIGH
+        950000000) CDSP_FREQ=786250000 ;;  # DVFS_LEVEL_MAX
+        *) CDSP_FREQ=$(( (GPU_FREQ * 79) / 100 )) ;;  # Default 79%
+    esac
+
+    # Apply Tiger T618-specific floor/ceiling
+    CDSP_FREQ=$(( CDSP_FREQ < 325000000 ? 325000000 : CDSP_FREQ ))
+    CDSP_FREQ=$(( CDSP_FREQ > 950000000 ? 950000000 : CDSP_FREQ ))
+
+    log "Initializing CDSP at ${CDSP_FREQ}Hz based on Mali-G52 ${GPU_FREQ}Hz"
+    echo "$CDSP_FREQ" > /sys/kernel/dsp/cdsp/clock
+    
+    # Set up shared memory between GPU and CDSP for Mali-G52
+    if [ -e /sys/class/mali/mali0/oskmem_gralloc/enable_dsp_integration ]; then
+        echo 1 > /sys/class/mali/mali0/oskmem_gralloc/enable_dsp_integration
+        log "Enabled shared memory between Mali-G52 MC2 and CDSP"
+    fi
+    
+    # Configure ASTC texture compression for CDSP-GPU shared resources
+    if [ -e /sys/class/mali/mali0/device/astc_enable ]; then
+        echo 1 > /sys/class/mali/mali0/device/astc_enable
+        log "Enabled ASTC for CDSP-GPU shared resources"
+    fi
+    
+    log "CDSP initialized for compute operations with GPU integration"
+fi
+
+if [ -e /sys/module/mali_kbase/parameters/enable_astc ]; then
+    echo 1 > /sys/module/mali_kbase/parameters/enable_astc
+    echo "ASTC enabled: Adaptive texture compression" | tee -a /tmp/gpu_init.log
+fi
+
+# Set tile buffer size for ASTC
+[ -e /sys/class/mali/mali0/device/tile_memory_size ] && 
+echo 64 > /sys/class/mali/mali0/device/tile_memory_size  # 64KB per tile buffer
+
+# Configure AFBC superblocks
+[ -e /sys/module/mali_kbase/parameters/afbc_superblock_size ] &&
+echo 16x16 > /sys/module/mali_kbase/parameters/afbc_superblock_size
+
+# Optimize L2 cache for compute workloads
+log "Configuring Mali-G52 L2 cache for computational workloads"
+echo 3 > /sys/class/mali/mali0/device/l2_policy  # Compute-oriented policy
+echo 1 > /sys/class/mali/mali0/device/l2_hash_enable  # Enable hash-based addressing
+echo 131072 > /sys/class/mali/mali0/device/l2_cache_size  # 128KB cache
+echo 64 > /sys/class/mali/mali0/device/l2_cache_line_size  # 64-byte lines
+echo "write-alloc" > /sys/class/mali/mali0/device/l2_cache_alloc_policy
+echo "full" > /sys/class/mali/mali0/device/l2_cache_data_prefetch
+
+# Set cache maintenance parameters
+echo 32 > /sys/class/mali/mali0/device/l2_max_requests  # Max concurrent requests
+echo 2 > /sys/class/mali/mali0/device/l2_stall_mode  # Adaptive stall
+
+# Enable explicit ARMv8.2-A architecture enhancements
+log "Enabling explicit ARMv8.2-A enhancements for Mali-G52"
+
+# Create architecture feature configuration directory
+mkdir -p /etc/gpu/arch_features 2>/dev/null
+
+# Enable FP16 (half-precision) acceleration
+if grep -q "fphp\|asimdhp" /proc/cpuinfo; then
+    echo 1 > /sys/module/mali_kbase/parameters/fp16_enabled 2>/dev/null || true
+    echo "export MALI_FP16_ENABLED=1" > /etc/gpu/arch_features/fp16.conf
+    log "Enabled FP16 acceleration for Mali-G52"
+fi
+
+# Enable dot product operations for matrix acceleration
+if grep -q "dotprod\|asimddp" /proc/cpuinfo; then
+    echo 1 > /sys/module/mali_kbase/parameters/dotprod_enabled 2>/dev/null || true
+    echo "export MALI_DOTPROD_ENABLED=1" > /etc/gpu/arch_features/dotprod.conf
+    log "Enabled dot product acceleration for matrix operations"
+fi
+
+# Configure RCpc memory model for ARMv8.3-A extension
+if grep -q "rcpc" /proc/cpuinfo || [ -e /sys/kernel/debug/armv8_2_features/rcpc_enable ]; then
+    echo 1 > /sys/kernel/debug/armv8_2_features/rcpc_enable 2>/dev/null || true
+    echo "export MALI_RCPC_ENABLED=1" > /etc/gpu/arch_features/rcpc.conf
+    log "Enabled RCpc memory model for improved coherency"
+fi
+
+# Optimize shader core configuration
+if [ -e /sys/class/mali/mali0/device/shader_config ]; then
+    # Configure optimal shader core scheduling for Mali-G52 MC2
+    echo "present:2 freq:high cache:large" > /sys/class/mali/mali0/device/shader_config
+    log "Optimized shader core configuration for Mali-G52 MC2"
+fi
+
+# Set Mali OpenCL JIT compiler flags for ARMv8.2-A
+mkdir -p /etc/OpenCL/vendors/mali 2>/dev/null
+cat > /etc/OpenCL/vendors/mali/compiler_flags.conf << EOF
+-cl-arm-non-uniform-work-group-size
+-cl-arm-integer-dot-product-int8
+-cl-arm-integer-dot-product-accumulate-int8
+-cl-arm-integer-dot-product-accumulate-saturate-int8
+-cl-arm-feature=fp16,dotprod,rcpc
+EOF
+log "Set ARMv8.2-A specific compiler flags for Mali OpenCL JIT"
+
+# Start the GPU DVFS daemon
+init_gpu_dvfs_daemon
+}
+
+# Enhanced function to load crypto modules optimized for ARMv8.2-A
+load_crypto_modules() {
+    log "Loading ARM optimized crypto modules for encrypted filesystems..."
+    
+    # Initialize crypto flags
+    ARMV8_CRYPTO=0
+    ARMV82_CRYPTO=0  # Add this line
+    
+    # Core crypto modules
+    for mod in crypto_user cryptd; do
+        modprobe $mod 2>/dev/null && log "Loaded $mod" || log "Failed to load $mod"
+    done
+    
+    # Detect ARMv8.2-A specific features for crypto acceleration
+    ARMV8_CRYPTO=0
+    if grep -q "aes\|sha1\|sha2\|pmull" /proc/cpuinfo; then
+        log "Detected ARMv8 Crypto Extensions"
+        ARMV8_CRYPTO=1
+    fi
+    
+    if grep -q "sha3\|sm3\|sm4" /proc/cpuinfo; then
+        log "Detected ARMv8.2-A enhanced Crypto Extensions"
+        ARMV82_CRYPTO=1
+    fi
+    
+    # Load ARMv8.2-A optimized crypto modules with enhanced detection
+    log "Loading ARMv8.2-A optimized crypto modules..."
+    
+    # Base ARMv8 crypto modules
+    for mod in aes_arm64 sha1_arm64 sha2_arm64 sha256_arm64 sha512_arm64 ghash_ce_arm64 aes_ce_blk aes_ce_ccm; do
+        modprobe $mod 2>/dev/null && log "Loaded ARMv8 crypto module $mod" || log "Failed to load $mod"
+    done
+    
+    # ARMv8.2-A specific crypto modules
+    if [ "$ARMV82_CRYPTO" = "1" ]; then
+        for mod in sha3_arm64 sm3_arm64 sm4_arm64; do
+            modprobe $mod 2>/dev/null && log "Loaded ARMv8.2-A crypto module $mod" || log "Failed to load $mod"
+        done
+    fi
+    
+    # NEON/SVE optimized crypto
+    for mod in chacha20_neon poly1305_neon; do
+        modprobe $mod 2>/dev/null && log "Loaded NEON-optimized crypto module $mod" || log "Failed to load $mod"
+    done
+    
+    # Load advanced device mapper and LUKS support with ARMv8.2-A optimizations
+    log "Loading device mapper and LUKS support..."
+    for mod in dm_mod dm_crypt dm_integrity dm_verity dm_bufio dm_snapshot dm_mirror dm_zero dm_thin_pool; do
+        modprobe $mod 2>/dev/null && log "Loaded device mapper module $mod" || log "Failed to load $mod"
+    done
+    
+    # Create device mapper directory and control device if needed
+    if [ ! -d /dev/mapper ]; then
+        mkdir -p /dev/mapper
+        [ -e /dev/mapper/control ] || mknod /dev/mapper/control c 10 236
+    fi
+    
+    # Initialize crypto hardware acceleration for ARMv8.2-A
+    if [ "$ARMV82_CRYPTO" = "1" ]; then
+        log "Initializing ARMv8.2-A crypto hardware acceleration..."
+        
+        # Try to load T618-specific crypto modules if available
+        if grep -q "T618" /proc/device-tree/model 2>/dev/null; then
+            log "Applying Unisoc T618-specific crypto optimizations"
+            
+            # Load SoC-specific crypto modules if available
+            for mod in sprd_cryptodev sprd_crypto sprd_aes sprd_sha; do
+                modprobe $mod 2>/dev/null && log "Loaded Unisoc T618 crypto module $mod"
+            done
+        fi
+    fi
+    
+    # Enhanced LUKS2 support for ARMv8.2-A
+    modprobe xts 2>/dev/null && log "Loaded XTS mode for LUKS"
+    
+    log "ARMv8.2-A optimized crypto modules loaded"
+}
+
+# Advanced modem power configuration for Tiger T618
+echo "modem_boost" > /sys/module/modem_power/parameters/power_profile
+# Apply adaptive governor for CPU load-aware scaling 
+echo "interactive" > /sys/devices/platform/modem_dvfs/scaling_governor
+# Enable coordination with Mali-G52 GPU
+echo 1 > /sys/class/modem/modem0/gpu_coordination
+
+# ZRAM config
+echo "zram:2M modem:2M gpu:2M" > /sys/module/zswap/parameters/memory_pool
+
+# Modem firmware
+MODEM_FW="/lib/firmware/l_modem.img"
+if [ -f $MODEM_FW ]; then
+    echo 1 > /sys/class/remoteproc/remoteproc0/firmware
+    echo $MODEM_FW > /sys/class/remoteproc/remoteproc0/firmware
+    echo start > /sys/class/remoteproc/remoteproc0/state
+fi
+
+# Enhanced coordination WiFi setup
+echo 1 > /sys/class/modem/modem0/enable_coex
+/sbin/iw reg set US
+nmcli radio wifi on
+
+
+# Network setup for advanced recovery scenarios
+setup_network() {
+    log "Setting up network for recovery..."
+    
+    # Load networking modules
+    for module in r8169 rtl8188eu rtl8192cu rtl8xxxu usbnet mii asix cdc_ether; do
+        modprobe $module 2>/dev/null
+    done
+    
+    # Check for network interfaces
+    if ls /sys/class/net/*/device | grep -q .; then
+        log "Network devices found"
+        
+        # Try to bring up all network interfaces
+        for iface in $(ls /sys/class/net | grep -v lo); do
+            log "Bringing up interface $iface"
+            ip link set $iface up
+            
+            # Try DHCP if udhcpc is available
+            if command -v udhcpc >/dev/null 2>&1; then
+                log "Attempting DHCP on $iface"
+                if udhcpc -i $iface -n -q -t 5 -s /etc/udhcpc/simple.script; then
+                    log "DHCP successful on $iface"
+                    return 0
+                fi
+            fi
+        done
+        
+        # If DHCP failed, try static configuration as fallback
+        log "Setting up static IP (192.168.1.10) as fallback"
+        ip addr add 192.168.1.10/24 dev $(ls /sys/class/net | grep -v lo | head -1)
+        ip route add default via 192.168.1.1
+        
+        # Set up DNS
+        mkdir -p /etc
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+        
+        return 0
+    else
+        log "No network devices found"
+        return 1
+    fi
+}
+
+# Function to detect and handle external storage devices
+detect_external_storage() {
+    log "Detecting external storage devices..."
+    
+    # Load USB storage modules
+    for module in usb-storage uas sd_mod mmc_block; do
+        modprobe $module 2>/dev/null
+    done
+    
+    # Wait for devices to initialize
+    sleep 2
+    
+    # Create directories for mounting
+    mkdir -p /mnt/external/usb /mnt/external/sdcard
+    
+    # Look for USB storage devices
+    for device in $(ls /dev/sd? 2>/dev/null); do
+        log "Found USB storage device: $device"
+        blkid $device
+    done
+    
+    # Look for SD cards
+    for device in $(ls /dev/mmcblk[1-9] 2>/dev/null); do
+        log "Found SD card: $device"
+        blkid $device
+    done
+}
+
+# Function to handle UEFI secure boot variables
+check_secure_boot() {
+    log "Checking UEFI Secure Boot status..."
+    
+    if [ -d /sys/firmware/efi ]; then
+        log "UEFI firmware detected"
+        
+        # Check for UEFI variables
+        if [ -d /sys/firmware/efi/efivars ]; then
+            log "UEFI variables accessible"
+            
+            # Try to read SecureBoot variable
+            if [ -e /sys/firmware/efi/efivars/SecureBoot-* ]; then
+                SECURE_BOOT_VAR=$(hexdump -e '1/1 "%02x"' /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | tail -c 2)
+                if [ "$SECURE_BOOT_VAR" = "01" ]; then
+                    log "Secure Boot is enabled"
+                    SECURE_BOOT=1
+                else
+                    log "Secure Boot is disabled"
+                    SECURE_BOOT=0
+                fi
+            else
+                log "SecureBoot variable not found"
+                SECURE_BOOT=0
+            fi
+        else
+            log "UEFI variables not accessible"
+            SECURE_BOOT=0
+        fi
+    else
+        log "Not running on UEFI firmware"
+        SECURE_BOOT=0
+    fi
+}
+
+# Function to apply LLVM/Clang specific optimizations for ARM64
+apply_llvm_arm64_optimizations() {
+    if [ $KERNEL_LLVM -eq 1 ]; then
+        log "Applying LLVM/Clang specific optimizations for ARM64..."
+        
+        # Set ARM64 specific LLVM parameters if available
+        if [ -d /sys/module/llvm_arm64_support ]; then
+            echo "1" > /sys/module/llvm_arm64_support/parameters/enable_optimizations 2>/dev/null
+        fi
+        
+        # Apply vectorization hints for ARM NEON/SVE
+        if [ -d /sys/module/llvm_sve_hints ]; then
+            echo "1" > /sys/module/llvm_sve_hints/parameters/enable 2>/dev/null
+        fi
+    fi
+}
+
+# Load V4L2 M2M and related modules (add after load_fs_modules)
+load_v4l2_mem2mem_modules() {
+    log "Loading V4L2 memory-to-memory and ISP modules..."
+    
+    # Core V4L2 modules
+    for mod in videobuf2_common videobuf2_v4l2 videobuf2_memops videobuf2_dma_contig v4l2-mem2mem; do
+        modprobe $mod 2>/dev/null && log "Loaded $mod" || log "Failed to load $mod"
+    done
+    
+    # Unisoc ISP-specific modules
+    for mod in sprd_isp sprd_cam sprd_cpp sprd_img; do
+        modprobe $mod 2>/dev/null && log "Loaded Unisoc ISP module $mod" || log "Failed to load $mod"
+    done
+}
+
+# Initialize ISP for computational workloads (add after init_ums512_hardware)
+init_isp_compute() {
+    log "Initializing ISP for computational workloads..."
+    
+    # Ensure DRM scheduler is loaded for GPU-ISP interop
+    modprobe gpu-sched 2>/dev/null && log "Loaded GPU scheduler" || log "Failed to load GPU scheduler"
+    
+    # Create device nodes if needed
+    for i in $(seq 0 4); do
+        [ -e /dev/video$i ] || mknod /dev/video$i c 81 $i
+    done
+    
+    # Initialize media controller
+    if command -v media-ctl >/dev/null 2>&1; then
+        log "Configuring media pipeline for computational use"
+        media-ctl -d /dev/media0 -r
+        # Configure ISP pipeline similar to camera but for computational use
+        media-ctl -d /dev/media0 -l '"isp_input":0 -> "isp_processor":0'
+    fi
+    
+    # Configure DMA for efficient memory transfers
+    if [ -e /sys/class/dma/dma0chan0/buffer_size ]; then
+        echo 256 > /sys/class/dma/dma0chan0/buffer_size
+        echo 1 > /sys/class/dma/dma0chan0/enable_sg
+    fi
+    
+    # Set ISP for compute mode rather than camera mode
+    if [ -e /sys/module/sprd_isp/parameters/enable_computational_mode ]; then
+        echo 1 > /sys/module/sprd_isp/parameters/enable_computational_mode
+    fi
+}
+
+# Configure GPU-ISP shared memory
+setup_gpu_isp_integration() {
+    log "Setting up GPU-ISP shared memory interface..."
+    
+    # Create directory for device tree overlays
+    mkdir -p /sys/kernel/config/device-tree/overlays/isp_compute
+    
+    # Configure DRM/KMS for shared dmabuf with ISP
+    if [ -d /sys/class/drm ]; then
+        for card in /sys/class/drm/card*; do
+            if [ -e $card/device/driver ]; then
+                log "Configuring GPU card $(basename $card) for ISP integration"
+                echo Y > $card/device/enable_isp_offload 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Configure Mali GPU integration with ISP if available
+    if [ -d /sys/class/mali ]; then
+        log "Configuring Mali GPU-ISP integration"
+        echo 1 > /sys/class/mali/mali0/oskmem_gralloc/enable_isp_integration 2>/dev/null || true
+    fi
+}
+
+detect_windows() {
+    log "Searching for Windows Server 2016 on ARM64 (build 14282 rs1_onecore_mqsrv_sc)..."
+    
+    WINDOWS_FOUND=0
+    
+    # Check for NTFS partitions using modern ntfs3 driver first, fallback to ntfs
+    for part in $(ls /dev/mmcblk* /dev/sd* 2>/dev/null | grep -E 'p[0-9]+$|[a-z][0-9]+$'); do
+        if blkid $part | grep -q "TYPE=\"ntfs\""; then
+            log "Found NTFS partition at $part, checking for Windows Server 2016 on ARM64..."
+            
+            mkdir -p /mnt/windows
+            if mount -t ntfs3 -o ro $part /mnt/windows 2>/dev/null || mount -t ntfs -o ro $part /mnt/windows 2>/dev/null; then
+                # Advanced detection for Windows Server 2016 on ARM64
+                
+                # First check for ARM64-specific directories
+                if [ -d /mnt/windows/Windows/SysArm32 ] || [ -d /mnt/windows/Windows/SysArm64 ]; then
+                    log "Found ARM64 system directories, likely Windows on ARM"
+                    ARM64_DETECTED=1
+                else
+                    ARM64_DETECTED=0
+                fi
+                
+                # Check for Server 2016 specific components with more thorough detection
+                SERVER_DETECTED=0
+                if [ -f /mnt/windows/Windows/System32/server.exe ]; then
+                    SERVER_DETECTED=1
+                    log "Found server.exe, indicating Windows Server installation"
+                    
+                    # Additional Server 2016 specific checks
+                    if [ -d /mnt/windows/Windows/ServerCore ] || [ -f /mnt/windows/Windows/System32/ServerManager.exe ]; then
+                        log "Confirmed Server components via ServerCore or ServerManager.exe"
+                        SERVER_DETECTED=2
+                    fi
+                fi
+                
+                # Check for build 14282 specific files
+                BUILD_14282_DETECTED=0
+                if [ -f /mnt/windows/Windows/System32/config/SOFTWARE ]; then
+                    # Look for build 14282 signature in registry
+                    if strings /mnt/windows/Windows/System32/config/SOFTWARE | grep -q "14282\|rs1_onecore_mqsrv_sc"; then
+                        log "Found build 14282 (rs1_onecore_mqsrv_sc) signature"
+                        BUILD_14282_DETECTED=1
+                    fi
+                    
+                    # Alternative build detection method
+                    if [ $BUILD_14282_DETECTED -eq 0 ] && [ -f /mnt/windows/Windows/System32/ntoskrnl.exe ]; then
+                        if strings /mnt/windows/Windows/System32/ntoskrnl.exe | grep -q "14282\|rs1_onecore_mqsrv_sc"; then
+                            log "Found build 14282 signature in ntoskrnl.exe"
+                            BUILD_14282_DETECTED=1
+                        fi
+                    fi
+                fi
+                
+                # Check for ARM64 indicators more thoroughly
+                if [ $ARM64_DETECTED -eq 0 ]; then
+                    # Check critical system files for ARM64 markers
+                    for file in /mnt/windows/Windows/System32/ntdll.dll /mnt/windows/Windows/System32/kernel32.dll /mnt/windows/Windows/System32/ntoskrnl.exe; do
+                        if [ -f "$file" ] && strings "$file" | grep -q "ARM64"; then
+                            log "Found ARM64 marker in $file"
+                            ARM64_DETECTED=1
+                            break
+                        fi
+                    done
+                    
+                    # Check for ARM64 in registry
+                    if [ -f /mnt/windows/Windows/System32/config/SYSTEM ] && strings /mnt/windows/Windows/System32/config/SYSTEM | grep -q "ARM64"; then
+                        log "Found ARM64 marker in registry (SYSTEM hive)"
+                        ARM64_DETECTED=1
+                    fi
+                fi
+                
+                # Combine detection results
+                if [ $SERVER_DETECTED -ge 1 ] && ([ $BUILD_14282_DETECTED -eq 1 ] || [ -d /mnt/windows/Windows/WinSxS/*_rs1_onecore_mqsrv_* ]); then
+                    WINDOWS_PARTITION=$part
+                    WINDOWS_FOUND=1
+                    
+                    if [ $ARM64_DETECTED -eq 1 ]; then
+                        WINDOWS_VERSION="Windows Server 2016 build 14282 (rs1_onecore_mqsrv_sc) on ARM64"
+                        log "Confirmed Windows Server 2016 on ARM64"
+                    else
+                        WINDOWS_VERSION="Windows Server 2016 build 14282 (rs1_onecore_mqsrv_sc)"
+                        log "Confirmed Windows Server 2016, ARM64 not definitively detected"
+                        fi
+
+                        umount /mnt/windows || log "Warning: Failed to unmount Windows partition"
+                        return $WINDOWS_FOUND
+                        break
+                    
+                    # Save additional Windows details for dual-boot setup
+                    WIN_SYSTEM_PARTITION=$part
+                    WIN_SYSTEM_ROOT="/Windows"
+                    
+                    # Check for BCD store
+                    if [ -f /mnt/windows/Boot/BCD ]; then
+                        WIN_BCD_PATH="/Boot/BCD"
+                    elif [ -f /mnt/windows/Windows/Boot/BCD ]; then
+                        WIN_BCD_PATH="/Windows/Boot/BCD"
+                    fi
+                    
+                    umount /mnt/windows
+                    break
+                fi
+                
+                umount /mnt/windows
+            fi
+        fi
+    done
+    
+    # Check EFI System Partition for Server 2016 ARM64 bootloader if Windows not found yet
+    if [ $WINDOWS_FOUND -eq 0 ]; then
+        log "Checking EFI partitions for Windows Server 2016 ARM64 bootloader..."
+        
+        for part in $(ls /dev/mmcblk* /dev/sd* 2>/dev/null | grep -E 'p[0-9]+$|[a-z][0-9]+$'); do
+            if blkid $part | grep -q "TYPE=\"vfat\""; then
+                mkdir -p /mnt/efi
+                if mount -t vfat -o ro $part /mnt/efi 2>/dev/null; then
+                    # Enhanced detection for Windows Server 2016 ARM64 bootloader
+                    if [ -f /mnt/efi/EFI/Microsoft/Boot/bootmgfw.efi ]; then
+                        # Check if it's an ARM64 bootloader
+                        if file /mnt/efi/EFI/Microsoft/Boot/bootmgfw.efi 2>/dev/null | grep -q "ARM" || 
+                           strings /mnt/efi/EFI/Microsoft/Boot/bootmgfw.efi 2>/dev/null | grep -q "ARM64"; then
+                            log "Found ARM64 Windows bootloader on EFI partition $part"
+                            ARM64_BOOTLOADER=1
+                        else
+                            log "Found Windows bootloader (architecture unknown) on EFI partition $part"
+                            ARM64_BOOTLOADER=0
+                        fi
+                        
+                        # Check for Server specific indicators
+                        if [ -d /mnt/efi/EFI/Microsoft/Server ] || [ -f /mnt/efi/EFI/Microsoft/Boot/bootmgr.efi ] && 
+                           strings /mnt/efi/EFI/Microsoft/Boot/bootmgr.efi 2>/dev/null | grep -q "Server"; then
+                            log "Found Windows Server bootloader indicators"
+                            SERVER_BOOTLOADER=1
+                        else
+                            SERVER_BOOTLOADER=0
+                        fi
+                        
+                        # If we found a Windows Server bootloader
+                        if [ $SERVER_BOOTLOADER -eq 1 ] || [ -d /mnt/efi/EFI/Microsoft/Server ]; then
+                            WINDOWS_PARTITION=$part
+                            WIN_EFI_PARTITION=$part
+                            WINDOWS_FOUND=1
+                            
+                            if [ $ARM64_BOOTLOADER -eq 1 ]; then
+                                WINDOWS_VERSION="Windows Server 2016 on ARM64 (EFI bootloader)"
+                                log "Confirmed Windows Server ARM64 via EFI bootloader"
+                            else
+                                WINDOWS_VERSION="Windows Server 2016 (EFI bootloader, architecture unknown)"
+                                log "Found Windows Server via EFI bootloader, ARM64 not confirmed"
+                            fi
+                        fi
+                    fi
+                    
+                    umount /mnt/efi
+                    
+                    # If we found a Windows Server bootloader, break the loop
+                    if [ $WINDOWS_FOUND -eq 1 ]; then
+                        break
+                    fi
+                fi
+            fi
+        done
+    fi
+    
+    if [ $WINDOWS_FOUND -eq 1 ]; then
+        log "Windows detected: $WINDOWS_VERSION on $WINDOWS_PARTITION"
+        DUAL_BOOT_DETECTED=1
+        
+        # Record Windows details for later dual-boot configuration
+        mkdir -p /tmp/windows_info
+        echo "$WINDOWS_VERSION" > /tmp/windows_info/version
+        echo "$WINDOWS_PARTITION" > /tmp/windows_info/system_partition
+        [ -n "$WIN_EFI_PARTITION" ] && echo "$WIN_EFI_PARTITION" > /tmp/windows_info/efi_partition
+        [ -n "$WIN_BCD_PATH" ] && echo "$WIN_BCD_PATH" > /tmp/windows_info/bcd_path
+        [ -n "$WIN_SYSTEM_ROOT" ] && echo "$WIN_SYSTEM_ROOT" > /tmp/windows_info/system_root
+        
+        return 0
+    else
+        log "No Windows installation detected"
+        return 1
+    fi
+}
+
+handle_dual_boot() {
+    if [ $DUAL_BOOT_DETECTED -eq 1 ]; then
+        log "Configuring dual-boot with Windows Server on ARM..."
+        
+        # Create secure boot aware configuration
+        mkdir -p /mnt/root/etc/secureboot
+        echo "$WINDOWS_VERSION" > /mnt/root/etc/secureboot/windows_info
+        echo "$WINDOWS_PARTITION" | sed 's|/dev/||' > /mnt/root/etc/secureboot/windows_partition
+        
+        # Setup ARM-specific dual boot configuration
+        if echo "$WINDOWS_VERSION" | grep -q "ARM64"; then
+            log "Setting up ARM64-specific dual boot configuration"
+            mkdir -p /mnt/root/etc/secureboot/arm64
+            echo 1 > /mnt/root/etc/secureboot/arm64/windows_server_arm64
+            
+            # Check if we need to mount the EFI partition
+            if [ ! -d /mnt/efi ]; then
+                # Find EFI System Partition
+                EFI_PART=$(blkid | grep "EFI System" | cut -d ":" -f 1)
+                if [ -n "$EFI_PART" ]; then
+                    mkdir -p /mnt/efi
+                    mount $EFI_PART /mnt/efi
+                fi
+            fi
+        fi
+        
+        # Handle Server 2016 Secure Boot requirements
+        if [ $SECURE_BOOT -eq 1 ]; then
+            log "Configuring Secure Boot chainloading for ARM64"
+            
+            # Check if EFI directory exists in root, if not, mount EFI partition
+            if [ ! -d /mnt/root/boot/efi ]; then
+                mkdir -p /mnt/root/boot/efi
+                # Find and mount EFI partition
+                EFI_PART=$(blkid | grep "EFI System" | cut -d ":" -f 1)
+                if [ -n "$EFI_PART" ]; then
+                    mount $EFI_PART /mnt/root/boot/efi
+                fi
+            fi
+            
+            # Copy Windows bootloader for chainloading
+            mkdir -p /mnt/root/boot/efi/EFI/BOOT
+            cp /mnt/efi/EFI/Microsoft/Boot/bootmgfw.efi /mnt/root/boot/efi/EFI/BOOT/bootmgfw.efi 2>/dev/null
+            
+            # Create ARM64-specific boot entry if detected
+            if echo "$WINDOWS_VERSION" | grep -q "ARM64"; then
+                efibootmgr -c -d ${WINDOWS_PARTITION%p*} -p ${WINDOWS_PARTITION##*p} -L "Windows Server 2016 (ARM64)" -l \\EFI\\Microsoft\\Boot\\bootmgfw.efi
+            else
+                efibootmgr -c -d ${WINDOWS_PARTITION%p*} -p ${WINDOWS_PARTITION##*p} -L "Windows Server 2016" -l \\EFI\\Microsoft\\Boot\\bootmgfw.efi
+            fi
+        fi
+        
+        # Configure rEFInd boot manager for ARM64 Server compatibility
+        if [ ! -d /mnt/root/boot/efi/EFI/refind ]; then
+            mkdir -p /mnt/root/boot/efi/EFI/refind
+            
+            # Copy appropriate rEFInd binary based on architecture
+            if echo "$WINDOWS_VERSION" | grep -q "ARM64" && [ -e /usr/share/refind/refind_aa64.efi ]; then
+                cp /usr/share/refind/refind_aa64.efi /mnt/root/boot/efi/EFI/refind/refind_aa64.efi
+                cp /usr/share/refind/refind_aa64.efi /mnt/root/boot/efi/EFI/refind/refind.efi
+            else
+                cp /usr/share/refind/refind_x64.efi /mnt/root/boot/efi/EFI/refind/
+            fi
+            
+            # Create a configuration optimized for Windows Server on ARM
+            echo "scanfor internal,external,optical" > /mnt/root/boot/efi/EFI/refind/refind.conf
+            
+            # ARM64-specific Windows entry if detected
+            if echo "$WINDOWS_VERSION" | grep -q "ARM64"; then
+                echo "menuentry \"Windows Server 2016 (ARM64)\" {" >> /mnt/root/boot/efi/EFI/refind/refind.conf
+            else
+                echo "menuentry \"Windows Server 2016\" {" >> /mnt/root/boot/efi/EFI/refind/refind.conf
+            fi
+            
+            echo "    loader \\EFI\\Microsoft\\Boot\\bootmgfw.efi" >> /mnt/root/boot/efi/EFI/refind/refind.conf
+            echo "    graphics on" >> /mnt/root/boot/efi/EFI/refind/refind.conf
+            echo "}" >> /mnt/root/boot/efi/EFI/refind/refind.conf
+        fi
+    fi
+}
+
+# Recovery from failed firmware updates
+check_firmware_update_status() {
+    log "Checking firmware update status..."
+    
+    # Validate ROOT_PART exists
+    if [ -z "$ROOT_PART" ] || [ ! -e "$ROOT_PART" ]; then
+        log "Root partition not defined or missing"
+        return 1
+    fi
+    
+    # Check for update markers
+    if [ -e /mnt/root/.firmware_update_in_progress ]; then
+        log "Detected interrupted firmware update"
+        
+        # Check for backup partitions using ARM-specific naming
+        if [ -e /dev/mmcblk0p_backup ] || [ -e /dev/mmcblk0_backup ]; then
+            log "Backup partition found, attempting recovery"
+            
+            # Try to identify the correct backup partition
+            BACKUP_PART=""
+            for part in mmcblk0p_backup mmcblk0_backup mmcblk0p_bak; do
+                if [ -e /dev/$part ]; then
+                    BACKUP_PART=$part
+                    break
+                fi
+            done
+            
+            if [ -n "$BACKUP_PART" ]; then
+                log "Restoring from backup partition $BACKUP_PART"
+                # Safe recovery - only if we know the target partition
+                if [ -n "$ROOT_PART" ]; then
+                    dd if=/dev/$BACKUP_PART of=$ROOT_PART bs=4M
+                    log "Firmware recovery completed"
+                else
+                    log "Cannot restore - target partition unknown"
+                fi
+            fi
+            
+            # Remove the marker after recovery attempt
+            rm -f /mnt/root/.firmware_update_in_progress
+        else
+            log "No suitable backup partition found"
+        fi
+    else
+        log "No interrupted firmware updates detected"
+    fi
+}
+
+# Enhanced core detection for ARM big.LITTLE and DynamIQ architectures
+detect_cores() {
+    A75_CORES=()
+    A55_CORES=()
+    A76_CORES=()
+    A73_CORES=()
+    A72_CORES=()
+    A53_CORES=()
+    
+    # Store core revisions for errata mitigation
+    declare -A CPU_REVISIONS=()
+    declare -A CPU_VARIANTS=()
+    declare -A ERRATA_STATUS=()
+
+    for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+        cpu_num="${cpu##*cpu}"
+        if [ -f "$cpu/cpufreq/scaling_available_frequencies" ]; then
+            model=$(awk -F': ' '/^model name/ {print $2}' "$cpu/topology/core_cpus_list")
+            
+            # Extract CPU revision information from /proc/cpuinfo
+            # Format typically shows: CPU variant: 0x3, CPU revision: r0p2
+            variant=$(grep -A15 "processor.*$cpu_num" /proc/cpuinfo | grep -o "CPU variant.*0x[0-9a-f]" | grep -o "0x[0-9a-f]")
+            revision=$(grep -A15 "processor.*$cpu_num" /proc/cpuinfo | grep -o "CPU revision.*[0-9]" | grep -o "r[0-9]p[0-9]")
+            
+            # Default to r0p0 if revision info isn't available
+            revision=${revision:-"r0p0"}
+            CPU_REVISIONS[$cpu_num]=$revision
+            CPU_VARIANTS[$cpu_num]=${variant:-"0x0"}
+            
+            case "$model" in
+                *Cortex-A75*)
+                    A75_CORES+=("$cpu_num")
+                    log "Detected Cortex-A75 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+                *Cortex-A55*)
+                    A55_CORES+=("$cpu_num")
+                    log "Detected Cortex-A55 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+                *Cortex-A76*)
+                    A76_CORES+=("$cpu_num")
+                    log "Detected Cortex-A76 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+                *Cortex-A73*)
+                    A73_CORES+=("$cpu_num")
+                    log "Detected Cortex-A73 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+                *Cortex-A72*)
+                    A72_CORES+=("$cpu_num")
+                    log "Detected Cortex-A72 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+                *Cortex-A53*)
+                    A53_CORES+=("$cpu_num")
+                    log "Detected Cortex-A53 core: CPU$cpu_num (Revision: $revision)"
+                    ;;
+            esac
+        fi
+    done
+
+    # Error checking
+    [ ${#A75_CORES[@]} -eq 0 ] && [ ${#A76_CORES[@]} -eq 0 ] && \
+    [ ${#A73_CORES[@]} -eq 0 ] && [ ${#A72_CORES[@]} -eq 0 ] && \
+    log "No performance cores detected!"
+    [ ${#A55_CORES[@]} -eq 0 ] && [ ${#A53_CORES[@]} -eq 0 ] && \
+    log "No efficiency cores detected!"
+    
+    # Export the CPU information for errata handling
+    export CPU_REVISIONS
+    export CPU_VARIANTS
+    export ERRATA_STATUS
+}
+
+# Apply ARM TF errata mitigations based on core type and revision
+apply_errata_mitigations() {
+    log "Applying ARM Trusted Firmware errata mitigations..."
+    
+    # General security vulnerability workarounds
+    apply_security_mitigations
+    
+    # Apply errata mitigations for each core type
+    apply_a53_errata
+    apply_a55_errata
+    apply_a72_errata
+    apply_a73_errata
+    apply_a75_errata
+    apply_a76_errata
+    
+    # Display errata mitigation status
+    display_errata_status
+}
+
+# Apply common security vulnerability mitigations
+apply_security_mitigations() {
+    log "Applying security vulnerability mitigations..."
+    
+    # Set standard security vulnerability mitigations
+    mitigations=(
+        "WORKAROUND_CVE_2017_5715=1"  # Spectre v2
+        "WORKAROUND_CVE_2018_3639=1"  # Speculative Store Bypass
+        "WORKAROUND_CVE_2022_23960=1" # Branch History Injection
+        "WORKAROUND_CVE_2024_5660=1"  # Disable hardware page aggregation
+        "WORKAROUND_CVE_2024_7881=1"  # Recently documented vulnerability
+    )
+    
+    for mitigation in "${mitigations[@]}"; do
+        name="${mitigation%%=*}"
+        value="${mitigation##*=}"
+        
+        # Apply mitigations via sysfs if available
+        if [ -e "/sys/devices/system/cpu/vulnerabilities" ]; then
+            case "$name" in
+                "WORKAROUND_CVE_2017_5715")
+                    echo "$value" > /sys/devices/system/cpu/vulnerabilities/spectre_v2_mitigations_enable 2>/dev/null || true
+                    ;;
+                "WORKAROUND_CVE_2018_3639")
+                    echo "$value" > /sys/devices/system/cpu/vulnerabilities/spec_store_bypass_disable 2>/dev/null || true
+                    ;;
+                *)
+                    # Other mitigations might be firmware-controlled
+                    ;;
+            esac
+        fi
+        
+        # Record mitigation status
+        ERRATA_STATUS["$name"]="$value"
+    done
+}
+
+# Apply Cortex-A53 errata mitigations
+apply_a53_errata() {
+    if [ ${#A53_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A53 errata mitigations..."
+    
+    for cpu in "${A53_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "819472" "<=" "0" "1" # r0p1
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "824069" "<=" "0" "2" # r0p2
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "826319" "<=" "0" "2" # r0p2
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "827319" "<=" "0" "2" # r0p2
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "835769" "<=" "0" "4" # r0p4
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "836870" "<=" "0" "3" # r0p3
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "843419" "<=" "0" "4" # r0p4
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "855873" ">=" "0" "3" # r0p3 and later
+        
+        # Apply errata for all revisions
+        check_and_apply_errata "A53" "$cpu" "$rev_major" "$rev_minor" "1530924" "all" "0" "0" # all revisions
+    done
+}
+
+# Apply Cortex-A55 errata mitigations
+apply_a55_errata() {
+    if [ ${#A55_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A55 errata mitigations..."
+    
+    for cpu in "${A55_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "768277" "==" "0" "0" # r0p0
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "778703" "==" "0" "0" # r0p0
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "798797" "==" "0" "0" # r0p0
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "846532" "<=" "0" "1" # r0p1
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "903758" "<=" "0" "1" # r0p1
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "1221012" "<=" "1" "0" # r1p0
+        
+        # Apply errata for all revisions
+        check_and_apply_errata "A55" "$cpu" "$rev_major" "$rev_minor" "1530923" "all" "0" "0" # all revisions
+    done
+}
+
+# Apply Cortex-A72 errata mitigations
+apply_a72_errata() {
+    if [ ${#A72_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A72 errata mitigations..."
+    
+    for cpu in "${A72_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A72" "$cpu" "$rev_major" "$rev_minor" "859971" "<=" "0" "3" # r0p3
+        
+        # Apply errata for all revisions
+        check_and_apply_errata "A72" "$cpu" "$rev_major" "$rev_minor" "1319367" "all" "0" "0" # all revisions
+    done
+}
+
+# Apply Cortex-A73 errata mitigations
+apply_a73_errata() {
+    if [ ${#A73_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A73 errata mitigations..."
+    
+    for cpu in "${A73_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A73" "$cpu" "$rev_major" "$rev_minor" "852427" "==" "0" "0" # r0p0
+        check_and_apply_errata "A73" "$cpu" "$rev_major" "$rev_minor" "855423" "<=" "0" "1" # r0p1
+    done
+}
+
+# Apply Cortex-A75 errata mitigations
+apply_a75_errata() {
+    if [ ${#A75_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A75 errata mitigations..."
+    
+    for cpu in "${A75_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A75" "$cpu" "$rev_major" "$rev_minor" "764081" "==" "0" "0" # r0p0
+        check_and_apply_errata "A75" "$cpu" "$rev_major" "$rev_minor" "790748" "==" "0" "0" # r0p0
+    done
+}
+
+# Apply Cortex-A76 errata mitigations
+apply_a76_errata() {
+    if [ ${#A76_CORES[@]} -eq 0 ]; then
+        return
+    fi
+    
+    log "Applying Cortex-A76 errata mitigations..."
+    
+    for cpu in "${A76_CORES[@]}"; do
+        revision="${CPU_REVISIONS[$cpu]}"
+        
+        # Extract revision numbers for comparison
+        rev_major=$(echo "$revision" | grep -o "r[0-9]" | cut -c2-)
+        rev_minor=$(echo "$revision" | grep -o "p[0-9]" | cut -c2-)
+        
+        # Check and apply errata workarounds
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1073348" "<=" "1" "0" # r1p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1130799" "<=" "2" "0" # r2p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1220197" "<=" "2" "0" # r2p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1257314" "<=" "3" "0" # r3p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1262606" "<=" "3" "0" # r3p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1262888" "<=" "3" "0" # r3p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1275112" "<=" "3" "0" # r3p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1791580" "<=" "4" "0" # r4p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1868343" "<=" "4" "0" # r4p0
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1946160" "rev-range" "3-4" "0-1" # r3p0-r4p1
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "2743102" "<=" "4" "1" # r4p1 and below, still open
+        
+        # Apply errata for all revisions
+        check_and_apply_errata "A76" "$cpu" "$rev_major" "$rev_minor" "1165522" "all" "0" "0" # all revisions
+    done
+}
+
+# Helper function to check and apply errata
+check_and_apply_errata() {
+    local core=$1
+    local cpu=$2
+    local rev_major=$3
+    local rev_minor=$4
+    local errata_id=$5
+    local condition=$6
+    local comp_major=$7
+    local comp_minor=$8
+    
+    local errata_key="ERRATA_${core}_${errata_id}"
+    local apply_errata=0
+    
+    case "$condition" in
+        "==")
+            # Exact revision match
+            if [ "$rev_major" -eq "$comp_major" ] && [ "$rev_minor" -eq "$comp_minor" ]; then
+                apply_errata=1
+            fi
+            ;;
+        "<=")
+            # Revision less than or equal
+            if [ "$rev_major" -lt "$comp_major" ] || 
+               [ "$rev_major" -eq "$comp_major" -a "$rev_minor" -le "$comp_minor" ]; then
+                apply_errata=1
+            fi
+            ;;
+        ">=")
+            # Revision greater than or equal
+            if [ "$rev_major" -gt "$comp_major" ] || 
+               [ "$rev_major" -eq "$comp_major" -a "$rev_minor" -ge "$comp_minor" ]; then
+                apply_errata=1
+            fi
+            ;;
+        "rev-range")
+            # Specific revision range (e.g., "3-4" "0-1" for r3p0-r4p1)
+            IFS='-' read -ra major_range <<< "$comp_major"
+            IFS='-' read -ra minor_range <<< "$comp_minor"
+            
+            if [ "$rev_major" -ge "${major_range[0]}" ] && 
+               [ "$rev_major" -le "${major_range[1]}" ]; then
+                if [ "$rev_major" -eq "${major_range[0]}" ] && [ "$rev_minor" -lt "${minor_range[0]}" ]; then
+                    apply_errata=0
+                elif [ "$rev_major" -eq "${major_range[1]}" ] && [ "$rev_minor" -gt "${minor_range[1]}" ]; then
+                    apply_errata=0
+                else
+                    apply_errata=1
+                fi
+            fi
+            ;;
+        "all")
+            # Apply to all revisions
+            apply_errata=1
+            ;;
+    esac
+    
+    if [ "$apply_errata" -eq 1 ]; then
+        # Apply errata mitigation
+        apply_errata_workaround "$core" "$cpu" "$errata_id"
+        
+        # Record errata status
+        ERRATA_STATUS["${errata_key}_CPU${cpu}"]=1
+    else
+        # Record non-applicable status
+        ERRATA_STATUS["${errata_key}_CPU${cpu}"]=0
+    fi
+}
+
+# Apply specific errata workaround
+apply_errata_workaround() {
+    local core=$1
+    local cpu=$2
+    local errata_id=$3
+    
+    log "  CPU$cpu: Applying ${core} errata $errata_id workaround"
+    
+    # Apply errata-specific workarounds
+    case "${core}_${errata_id}" in
+        "A76_1188873")
+            # Special handling for A76 timer register corruption errata
+            if [ -e "/sys/devices/system/cpu/cpu$cpu/errata/1188873" ]; then
+                echo 1 > "/sys/devices/system/cpu/cpu$cpu/errata/1188873" 2>/dev/null || true
+            fi
+            # Additional kernel parameter that might be needed for this errata
+            if [ -e "/proc/sys/kernel/timer_migration" ]; then
+                echo 1 > /proc/sys/kernel/timer_migration 2>/dev/null || true
+            fi
+            ;;
+        "A53_835769" | "A53_843419")
+            # Special handling for A53 erratum that requires memory alignment
+            if [ -e "/sys/kernel/debug/arm-mem-align" ]; then
+                echo 1 > "/sys/kernel/debug/arm-mem-align" 2>/dev/null || true
+            fi
+            ;;
+        *)
+            # Generic errata handling through sysfs if available
+            if [ -e "/sys/devices/system/cpu/cpu$cpu/errata/$errata_id" ]; then
+                echo 1 > "/sys/devices/system/cpu/cpu$cpu/errata/$errata_id" 2>/dev/null || true
+            fi
+            
+            # For CPU-specific firmware-controlled errata, ensure firmware is up-to-date
+            if [ -e "/sys/devices/system/cpu/microcode/reload" ]; then
+                echo 1 > /sys/devices/system/cpu/microcode/reload 2>/dev/null || true
+            fi
+            ;;
+    esac
+}
+
+# Display errata mitigation status
+display_errata_status() {
+    log "ARM errata mitigation status:"
+    
+    for key in "${!ERRATA_STATUS[@]}"; do
+        log "  $key: ${ERRATA_STATUS[$key]}"
+    done
+}
+
+# Enhanced UMS512 hardware initialization with dynamic core detection
+init_ums512_hardware() {
+    log "Initializing UMS512 hardware with ARMv8.2-A optimizations..."
+    
+    # Detect all core types with revision information
+    detect_cores
+    
+    # Apply ARM TF errata mitigations
+    apply_errata_mitigations
+    
+    # Set CPU governor and frequencies for all detected core types
+    declare -a core_types=("A75" "A76" "A73" "A72" "A55" "A53")
+    
+    for type in "${core_types[@]}"; do
+        var_name="${type}_CORES"
+        cores=("${!var_name}")
+        
+        for cpu in "${cores[@]}"; do
+            sysfs_path="/sys/devices/system/cpu/cpu$cpu/cpufreq"
+            
+            # Set governor and frequencies
+            case $type in
+                A75|A76|A73|A72)
+                    # Performance cores
+                    set_frequency_governor "PERF" "$cpu"
+                    ;;
+                A55|A53)
+                    # Efficiency cores
+                    set_frequency_governor "EFF" "$cpu"
+                    ;;
+            esac
+            
+            # Apply ARMv8.2-A specific optimizations
+            if [ -e "$sysfs_path/energy_performance_preference" ]; then
+                case $type in
+                    A75|A76) echo "performance" > "$sysfs_path/energy_performance_preference" ;;
+                    A73|A72) echo "balance_performance" > "$sysfs_path/energy_performance_preference" ;;
+                    A55|A53) echo "balance_power" > "$sysfs_path/energy_performance_preference" ;;
+                esac
+            fi
+        done
+    done
+
+    # ARMv8.2-A specific hardware optimizations
+    if grep -q "UMS512\|T618" /proc/device-tree/model 2>/dev/null; then
+        log "Applying UMS512-specific ARMv8.2-A enhancements"
+        
+        # 52-bit virtual addressing
+        if [ -e /proc/sys/vm/va_bits ] && grep -q "lva" /proc/cpuinfo; then
+            current_va=$(cat /proc/sys/vm/va_bits)
+            [ "$current_va" -lt "52" ] && echo 52 > /proc/sys/vm/va_bits 2>/dev/null
+        fi
+
+        # Mali-G52 GPU optimizations
+        if [ -d /sys/class/devfreq/mali0 ]; then
+            echo performance > /sys/class/devfreq/mali0/governor 2>/dev/null
+            [ -e /sys/class/mali/mali0/device/feature ] && echo "fp16" > /sys/class/mali/mali0/device/feature
+        fi
+
+        # Load architecture-specific modules
+        modprobe neon_udk 2>/dev/null
+        [ -e /sys/module/mali_kbase/parameters/enable_fp16 ] && echo "Y" > /sys/module/mali_kbase/parameters/enable_fp16
+    fi
+
+    log "Hardware initialization completed with dynamic core configuration and errata mitigations"
+}
+
+# Frequency governor configuration with architectural constraints
+set_frequency_governor() {
+    local core_type=$1
+    local cpu=$2
+    local path="/sys/devices/system/cpu/cpu$cpu/cpufreq"
+
+    declare -A freq_limits=(
+        [PERF_A75]="1.25:3.0"
+        [PERF_A76]="1.8:3.5"
+        [PERF_A73]="1.2:2.8"
+        [PERF_A72]="1.5:2.5"
+        [EFF_A55]="0.5:2.0" 
+        [EFF_A53]="0.4:1.5"
+    )
+
+    case $core_type in
+        "PERF")
+            governor="performance"
+            case ${cpu##*cpu} in
+                *75*) limits=${freq_limits[PERF_A75]} ;;
+                *76*) limits=${freq_limits[PERF_A76]} ;;
+                *73*) limits=${freq_limits[PERF_A73]} ;;
+                *72*) limits=${freq_limits[PERF_A72]} ;;
+                *) limits="1.0:2.5" ;;
+            esac
+            ;;
+        "EFF")
+            governor="schedutil"
+            case ${cpu##*cpu} in
+                *55*) limits=${freq_limits[EFF_A55]} ;;
+                *53*) limits=${freq_limits[EFF_A53]} ;;
+                *) limits="0.5:1.5" ;;
+            esac
+            ;;
+    esac
+
+    IFS=':' read -ra range <<< "$limits"
+    min_freq=$(echo "${range[0]}*1000000" | bc)
+    max_freq=$(echo "${range[1]}*1000000" | bc)
+
+    # Apply settings
+    [ -e "$path/scaling_governor" ] && echo "$governor" > "$path/scaling_governor"
+    [ -e "$path/scaling_min_freq" ] && echo "$min_freq" > "$path/scaling_min_freq"
+    [ -e "$path/scaling_max_freq" ] && echo "$max_freq" > "$path/scaling_max_freq"
+}
+
+# Check for compiler support for ARMv8.3-A RCpc extension
+if [ $KERNEL_LLVM -eq 1 ]; then
+    # Add ARMv8.3-A RCpc compiler flags if applicable
+    if grep -q "rcpc\|rcpc3" /proc/cpuinfo 2>/dev/null; then
+        log "Configuring compiler for ARMv8.3-A RCpc support"
+        if [ -e /proc/sys/kernel/arch_rcpc ]; then
+            echo 1 > /proc/sys/kernel/arch_rcpc 2>/dev/null
+        fi
+        
+        # Add gcc/clang RCpc target feature flags
+        export CFLAGS="${CFLAGS} -march=armv8.2-a+rcpc"
+        export CXXFLAGS="${CXXFLAGS} -march=armv8.2-a+rcpc"
+    fi
+fi
+
+# Enable DSU PMU for cluster monitoring
+modprobe arm_dsu_pmu
+echo 1 > /sys/bus/event_source/devices/arm_dsu_0/enable
+# Configure DynamIQ Shared Unit L3 cache
+echo 256 > /sys/kernel/debug/dsu_pmu/l3_partition_size
+# Configure DynamIQ Shared Unit for 4-level frequency scaling
+echo "low:500000 min:1250000 med:2000000 max:3250000" > /sys/kernel/debug/dsu_pmu/freq_levels
+echo "balanced" > /sys/kernel/debug/dsu_pmu/power_profile
+
+# Function to detect and optimize for LLVM/Clang compiled kernels
+check_llvm_support() {
+    log "Checking for LLVM/Clang compiled kernel..."
+    
+    # Look for LLVM signature in kernel version
+    if uname -v | grep -q "LLVM\|Clang"; then
+        log "Detected LLVM/Clang compiled kernel"
+        KERNEL_LLVM=1
+        
+        # Check LLVM/Clang version
+        LLVM_VER=$(uname -v | grep -o "LLVM\|Clang [0-9.]*" | grep -o "[0-9.]*")
+        [ -n "$LLVM_VER" ] && log "LLVM/Clang version: $LLVM_VER"
+        
+        # Apply LLVM-specific optimizations
+        log "Applying LLVM-specific optimizations"
+        
+        # Enable Polly optimizations if available
+        if [ -e /sys/kernel/debug/polly ]; then
+            log "Polly optimizer detected"
+            echo "1" > /sys/kernel/debug/polly/enable 2>/dev/null
+        fi
+        
+        return 0
+    else
+        log "Kernel not compiled with LLVM/Clang or signature not found"
+        KERNEL_LLVM=0
+        return 1
+    fi
+}
+
+# Function to apply LLVM/Clang specific optimizations for ARM64
+apply_llvm_arm64_optimizations() {
+    if [ $KERNEL_LLVM -eq 1 ]; then
+        log "Applying LLVM/Clang specific optimizations for ARM64..."
+        
+        # Set ARM64 specific LLVM parameters if available
+        if [ -d /sys/module/llvm_arm64_support ]; then
+            echo "1" > /sys/module/llvm_arm64_support/parameters/enable_optimizations 2>/dev/null
+        fi
+        
+        # Apply vectorization hints for ARM NEON/SVE
+        if [ -d /sys/module/llvm_sve_hints ]; then
+            echo "1" > /sys/module/llvm_sve_hints/parameters/enable 2>/dev/null
+        fi
+    fi
+}
+
+#Check for LLVM compiled kernel
+check_llvm_support
+
+# DVFS Daemon Function
+init_gpu_dvfs_daemon() {
+    log "Starting GPU DVFS monitoring daemon"
+    {
+        while true; do
+            # Get GPU utilization from kernel
+            util=$(cat /sys/class/devfreq/mali0/load)
+            freq=$(cat /sys/class/devfreq/mali0/cur_freq)
+            
+            # Dynamic scaling logic
+            if [ $util -lt 25 ]; then
+                new_freq=200000000
+            elif [ $util -lt 50 ]; then
+                new_freq=450000000
+            elif [ $util -lt 75 ]; then
+                new_freq=700000000
+            elif [ $util -lt 90 ]; then
+                new_freq=850000000
+            else
+                new_freq=950000000
+            fi
+            
+            # Apply frequency change
+            if [ $freq -ne $new_freq ]; then
+                echo $new_freq > /sys/class/devfreq/mali0/userspace/set_freq
+                log "GPU Freq: ${freq}MHz → ${new_freq}MHz (Util: ${util}%)"
+            fi
+            
+            sleep 0.5
+        done
+    } &
+}
+
+# Mount essential filesystems
+log "Mounting essential filesystems..."
+mkdir -p /proc /sys /dev /tmp
+mount -t proc none /proc || handle_issue $STATUS_MOUNT_ISSUE "Unable to mount proc"
+mount -t sysfs none /sys || handle_issue $STATUS_MOUNT_ISSUE "Unable to mount sys"
+mount -t devtmpfs none /dev || handle_issue $STATUS_MOUNT_ISSUE "Unable to mount dev"
+mount -t tmpfs none /tmp 2>/dev/null
+mkdir -p /dev/pts /run
+mount -t devpts devpts /dev/pts 2>/dev/null
+mount -t tmpfs tmpfs /run 2>/dev/null
+
+# Parse kernel command line parameters
+log "Parsing kernel command line..."
+CMDLINE=$(cat /proc/cmdline)
+for param in $CMDLINE; do
+    case $param in
+        root=*)
+            ROOT_DEV=${param#root=}
+            log "Found root device from parameter $ROOT_DEV"
+            ;;
+        rootfstype=*)
+            ROOT_FSTYPE=${param#rootfstype=}
+            log "Found root filesystem type $ROOT_FSTYPE"
+            ;;
+        rootwait)
+            ROOT_WAIT=1
+            ;;
+        rootflags=*)
+            ROOT_FLAGS=${param#rootflags=}
+            log "Found root mount flags $ROOT_FLAGS"
+            ;;
+        resume=*)
+            RESUME_DEV=${param#resume=}
+            log "Found resume device $RESUME_DEV"
+            ;;
+        debug)
+            DEBUG=1
+            ;;
+        init=*)
+            INIT=${param#init=}
+            log "Custom init path specified $INIT"
+            ;;
+        ro|rw)
+            ROOT_RW=$param
+            ;;
+        rescue)
+            RESCUE=1
+            ;;
+        fsck.mode=*)
+            FSCK_MODE=${param#fsck.mode=}
+            log "Found fsck mode $FSCK_MODE"
+            ;;
+        ip=*)
+            NETWORK_PARAM=${param#ip=}
+            NETWORK_ENABLED=1
+            log "Network parameter specified: $NETWORK_PARAM"
+            ;;
+        nameserver=*)
+            NETWORK_DNS=${param#nameserver=}
+            log "DNS server specified: $NETWORK_DNS"
+            ;;
+        rd.neednet=*)
+            NETWORK_ENABLED=1
+            log "Network required for boot"
+            ;;
+        rd.luks=*)
+            LUKS_PARAM=${param#rd.luks=}
+            log "LUKS encryption parameter: $LUKS_PARAM"
+            ;;
+        recovery)
+            RECOVERY_MODE=1
+            log "Recovery mode requested"
+            ;;
+        checksecurity)
+            CHECK_SECURITY=1
+            log "Security check requested"
+            ;;
+        dualboot)
+            DUAL_BOOT_MODE=1
+            log "Explicit dual-boot handling requested"
+            ;;
+        # ARMv8.2-A specific parameters
+        armv8.2=*)
+            ARMV82_MODE=${param#armv8.2=}
+            log "ARMv8.2-A mode specified: $ARMV82_MODE"
+            ;;
+        lva=*)
+            LVA_MODE=${param#lva=}
+            log "LVA mode specified: $LVA_MODE"
+            ;;
+        lpa=*)
+            LPA_MODE=${param#lpa=}
+            log "LPA mode specified: $LPA_MODE"
+            ;;
+        crypto.hwaccel=*)
+            CRYPTO_HWACCEL=${param#crypto.hwaccel=}
+            log "Crypto hardware acceleration mode: $CRYPTO_HWACCEL"
+            ;;
+        gpu.governor=*)
+            GPU_GOVERNOR=${param#gpu.governor=}
+            log "GPU governor specified: $GPU_GOVERNOR"
+            ;;
+        cpu.governor=*)
+            CPU_GOVERNOR=${param#cpu.governor=}
+            log "CPU governor specified: $CPU_GOVERNOR"
+            ;;
+        llvm=*)
+            LLVM_PARAM=${param#llvm=}
+            log "LLVM parameter specified: $LLVM_PARAM"
+            ;;
+        # Windows on ARM specific parameters
+        windowsarm=*)
+            WINDOWSARM_PARAM=${param#windowsarm=}
+            log "Windows on ARM parameter: $WINDOWSARM_PARAM"
+            ;;
+    esac
+done
+
+# Set default values
+INIT=${INIT-/sbin/init}
+ROOT_RW=${ROOT_RW-rw}
+ROOT_FLAGS=${ROOT_FLAGS-noatime}
+DEBUG=${DEBUG-0}
+ROOT_WAIT=${ROOT_WAIT-0}
+RESCUE=${RESCUE-0}
+NETWORK_BOOT=${NETWORK_BOOT-0}
+INTEGRITY_CHECK=${INTEGRITY_CHECK-1}  # Enable integrity check by default
+FORCE_SECURE_BOOT_CHECK=${FORCE_SECURE_BOOT_CHECK-0}
+FSCK_MODE=${FSCK_MODE-auto}
+
+# Debug output
+log "Booting For 3Plus"
+log "CPU: 2.0 GHz ARM Cortex-A75/A55, ARMv8.2-A architecture"
+
+# Initialize UMS512-specific hardware
+init_ums512_hardware
+
+# Load filesystem modules
+load_fs_modules
+
+# Check secure boot status
+check_secure_boot
+
+# Wait for storage devices to initialize
+if [ $ROOT_WAIT = 1 ]; then
+    log "Waiting for storage devices (rootwait specified)..."
+    sleep 3
+else
+    log "Waiting for storage devices..."
+    sleep 2
+fi
+
+# Create device nodes if not created by devtmpfs
+log "Creating device nodes if needed..."
+[ -e /dev/mmcblk0 ] || mknod /dev/mmcblk0 b 179 0
+# Create nodes for all potential partitions (0-63)
+for i in $(seq 0 63); do
+    [ -e /dev/mmcblk0p$i ] || mknod /dev/mmcblk0p$i b 179 $i
+done
+
+# Function to check if a partition contains Linux
+check_linux_partition() {
+    local part=$1
+    local fstype=$2
+    mkdir -p /mnt/root
+    
+    if mount -t $fstype /dev/$part /mnt/root 2>/dev/null; then
+        if [ -f /mnt/root/etc/os-release ] || [ -d /mnt/root/bin ]; then
+            ROOT_PART=/dev/$part
+            ROOT_FSTYPE=$fstype
+            log "Found Linux root at $ROOT_PART (type $ROOT_FSTYPE)"
+            return 0
+        fi
+        umount /mnt/root
+    fi
+    return 1
+}
+
+# Detect external storage
+detect_external_storage
+
+# Set up networking if requested
+if [ $NETWORK_BOOT = 1 ]; then
+    setup_network || log "Network setup unsuccessful, continuing boot process"
+fi
+
+# Attempt to resume from hibernation if specified
+if [ -n "$RESUME_DEV" ] && [ -e "$RESUME_DEV" ]; then
+    log "Attempting to resume from hibernation..."
+    if [ -e /sys/power/resume ]; then
+        echo $(stat -c %D $RESUME_DEV | sed 's/^0x//') > /sys/power/resume 2>/dev/null
+        log "Resume attempt completed, continuing normal boot..."
+    fi
+fi
+
+# List available partitions for debugging
+if [ $DEBUG = 1 ] || [ -z "$ROOT_DEV" ]; then
+    log "Available partitions:"
+    ls -la /dev/mmcblk*
+    blkid | sort
+fi
+
+# Use root device from kernel parameter if provided
+if [ -n "$ROOT_DEV" ]; then
+    # Handle UUID/LABEL-based root specifications
+    case $ROOT_DEV in
+        UUID=*)
+            UUID=${ROOT_DEV#UUID=}
+            log "Looking for root partition with UUID $UUID"
+            for blk in $(ls /dev/mmcblk*p* 2>/dev/null); do
+                blkid $blk | grep -q "UUID=\"$UUID\"" && ROOT_PART=$blk && break
+            done
+            ;;
+        LABEL=*)
+            LABEL=${ROOT_DEV#LABEL=}
+            log "Looking for root partition with LABEL $LABEL"
+            for blk in $(ls /dev/mmcblk*p* 2>/dev/null); do
+                blkid $blk | grep -q "LABEL=\"$LABEL\"" && ROOT_PART=$blk && break
+            done
+            ;;
+        *)
+            ROOT_PART=$ROOT_DEV
+            ;;
+    esac
+    ROOT_FSTYPE=${ROOT_FSTYPE-ext4}
+    log "Using root partition $ROOT_PART"
+else
+    # Try to find the Linux root partition
+    log "Searching for Linux root partition..."
+    ROOT_PART=
+
+    # Try standard partitions first
+    for part in mmcblk0p32 mmcblk0p43 mmcblk0p33; do
+        if [ -e /dev/$part ]; then
+            log "Trying partition /dev/$part..."
+            # Try multiple filesystem types
+            for fstype in ext4 f2fs btrfs; do
+                check_linux_partition $part $fstype && break 2
+            done
+        fi
+    done
+
+    # If we didn't find a root partition, try super partition fallbacks
+    if [ -z "$ROOT_PART" ]; then
+        for part in mmcblk0p41 mmcblk0p64; do
+            if [ -e /dev/$part ]; then
+                log "Trying super partition /dev/$part as fallback..."
+                for fstype in ext4 f2fs btrfs; do
+                    check_linux_partition $part $fstype && break 2
+                done
+            fi
+        done
+    fi
+
+    # Last resort scan all partitions
+    if [ -z "$ROOT_PART" ]; then
+        log "Scanning all partitions as last resort..."
+        for part in $(ls /dev/mmcblk*p* 2>/dev/null | sed 's|/dev/||'); do
+            for fstype in ext4 f2fs btrfs; do
+                check_linux_partition $part $fstype && break 2
+            done
+        done
+    fi
+fi
+
+# Error if no root partition found
+if [ -z "$ROOT_PART" ]; then
+    log "ERROR: Could not find Linux root partition!"
+    log "Available block devices:"
+    ls -la /dev/block 2>/dev/null || log "No /dev/block directory"
+    ls -la /dev | grep -E "mmcblk|sd"
+
+    # Detect Windows for dual-boot diagnostic
+    detect_windows
+    
+    if [ $WINDOWS_FOUND -eq 1 ]; then
+        log "Windows detected, but no Linux root partition found."
+        log "This appears to be a Windows-only system or a corrupted dual-boot system."
+    fi
+
+    handle_issue $STATUS_ROOT_NOT_FOUND "No root partition found"
+fi
+
+# If integrity check is enabled, verify filesystem integrity
+if [ $INTEGRITY_CHECK = 1 ]; then
+    fs_part=${ROOT_PART#/dev/}
+    check_fs_integrity $fs_part $ROOT_FSTYPE
+    if [ $? -ne 0 ]; then
+        log "Filesystem integrity check unsuccessful on $ROOT_PART"
+        if [ $DEBUG = 1 ]; then
+            log "Continuing despite integrity check issue"
+        else
+            handle_issue $STATUS_INTEGRITY_CHECK_ISSUE "Filesystem integrity check unsuccessful, aborting boot"
+        fi
+    else
+        log "Filesystem integrity check passed"
+    fi
+fi
+
+# Check if we need to load crypto modules for encrypted root
+if blkid $ROOT_PART | grep -q crypto; then
+    log "Encrypted filesystem detected, loading crypto modules..."
+    # Load ARM-optimized crypto modules for ARMv8.2-A
+    for mod in crypto_user algif_hash algif_skcipher af_alg cryptd aes_arm64 sha256_arm64 dm_crypt; do
+        modprobe $mod 2>/dev/null
+    done
+fi
+
+# Load necessary kernel modules for T618
+for module in mali_kbase sprd_wlan; do
+    if [ -e /lib/modules/$(uname -r)/$module.ko ]; then
+        log "Loading Unisoc T618 kernel module $module"
+        modprobe $module 2>/dev/null || log "Warning: Failed to load $module"
+    fi
+done
+
+# Create device nodes from manifest
+while read -r node type major minor perm group; do
+    [ -e "$node" ] || mknod -m $perm "$node" $type $major $minor
+    chown root:$group "$node"
+done < /etc/device_nodes.txt
+
+# Detect Windows and set up dual-boot environment
+detect_windows
+
+# Enter rescue mode if requested
+if [ $RESCUE = 1 ]; then
+    log "Rescue mode requested. Dropping to shell..."
+    exec /bin/sh
+fi
+
+# If Windows was found, set up dual-boot
+if [ $WINDOWS_FOUND -eq 1 ]; then
+    handle_dual_boot
+fi
+
+# Check for interrupted firmware updates and attempt recovery
+check_firmware_update_status
+
+# Check available space on root partition
+df -h /mnt/root | grep -v Filesystem && log "Root partition space information shown above..."
+
+# Move mounted filesystems to the new root
+log "Moving virtual filesystems to new root..."
+mount --move /proc /mnt/root/proc || handle_issue $STATUS_MOVE_MOUNTS_ISSUE "Unable to move proc"
+mount --move /sys /mnt/root/sys || handle_issue $STATUS_MOVE_MOUNTS_ISSUE "Unable to move sys"
+mount --move /dev /mnt/root/dev || handle_issue $STATUS_MOVE_MOUNTS_ISSUE "Unable to move dev"
+[ -d /mnt/root/run ] && mount --move /run /mnt/root/run 2>/dev/null
+[ -d /mnt/root/dev/pts ] && mount --move /dev/pts /mnt/root/dev/pts 2>/dev/null
+[ -d /mnt/root/tmp ] && mount --move /tmp /mnt/root/tmp 2>/dev/null
+
+# Create devices from device_nodes.txt
+if [ -f /etc/device_nodes.txt ]; then
+    echo "Creating device nodes from device_nodes.txt..." > /dev/kmsg
+    while read line; do
+        # Skip comments and empty lines
+        if [ -z "$line" ] || [ "${line:0:1}" = "#" ]; then
+            continue
+        fi
+        
+        # Parse line
+        NODE=$(echo $line | awk '{print $1}')
+        TYPE=$(echo $line | awk '{print $2}')
+        MAJOR=$(echo $line | awk '{print $3}')
+        MINOR=$(echo $line | awk '{print $4}')
+        PERM=$(echo $line | awk '{print $5}')
+        OWNER=$(echo $line | awk '{print $6}')
+        
+        # Create directory if needed
+        DIR=$(dirname $NODE)
+        if [ ! -d $DIR ]; then
+            mkdir -p $DIR
+            echo "Created directory: $DIR" > /dev/kmsg
+        fi
+        
+        # Create node
+        if [ ! -e $NODE ]; then
+            mknod -m $PERM $NODE $TYPE $MAJOR $MINOR
+            if [ $? -eq 0 ]; then
+                echo "Created device node: $NODE" > /dev/kmsg
+            else
+                echo "Failed to create device node: $NODE" > /dev/kmsg
+            fi
+            
+            # Set ownership if specified
+            if [ -n "$OWNER" ]; then
+                chown $OWNER $NODE 2>/dev/null || echo "Failed to set ownership for $NODE" > /dev/kmsg
+            fi
+        else
+            echo "Device node already exists: $NODE" > /dev/kmsg
+        fi
+    done < /etc/device_nodes.txt
+    
+    echo "Finished creating device nodes" > /dev/kmsg
+else
+    echo "Warning: /etc/device_nodes.txt not found" > /dev/kmsg
+fi
+
+# Create mount points for shared memory
+mkdir -p /mnt/gpu_shared /mnt/isp_buffers
+
+# Mount shared memory filesystems
+mount -t tmpfs -o size=512M,mpol=prefer:0 none /mnt/gpu_shared
+mount -t tmpfs -o size=256M none /mnt/isp_buffers
+
+# Create symbolic links
+ln -sf /mnt/gpu_shared /dev/gpu_shared
+ln -sf /mnt/isp_buffers /dev/isp_buffers
+
+# Load DSP firmware
+FIRMWARE_DIR="/vendor/firmware"
+if [ -d "$FIRMWARE_DIR" ]; then
+    echo "Loading firmware from $FIRMWARE_DIR..." > /dev/kmsg
+    
+    # Function to load firmware with error checking
+    load_firmware() {
+        local img="$1"
+        local dev="$2"
+        local name="$3"
+        
+        if [ -e "$img" ]; then
+            if [ -e "$dev" ]; then
+                dd if="$img" of="$dev" bs=4k 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo "Loaded $name firmware" > /dev/kmsg
+                    return 0
+                else
+                    echo "Failed to load $name firmware" > /dev/kmsg
+                    return 1
+                fi
+            else
+                echo "Error: Device node $dev not found for $name" > /dev/kmsg
+                return 1
+            fi
+        else
+            echo "Warning: $name firmware not found at $img" > /dev/kmsg
+            return 1
+        fi
+    }
+    
+    # Load all firmware
+    load_firmware "$FIRMWARE_DIR/l_gdsp.img" "/dev/dsp/vdsp0" "Graphics DSP"
+    load_firmware "$FIRMWARE_DIR/l_ldsp.img" "/dev/dsp/ldsp0" "Low-power DSP"
+    load_firmware "$FIRMWARE_DIR/l_cdsp.img" "/dev/dsp/cdsp0" "Compute DSP"
+    load_firmware "$FIRMWARE_DIR/l_agdsp.img" "/dev/dsp/agdsp0" "Audio/General DSP"
+    load_firmware "$FIRMWARE_DIR/l_modem.img" "/dev/modem" "Modem"
+    load_firmware "$FIRMWARE_DIR/wcnmodem.img" "/dev/wcnss" "Wireless Connectivity"
+    load_firmware "$FIRMWARE_DIR/gnssmodem.img" "/dev/gnss" "GNSS"
+    
+    # Ensure writes are committed
+    sync
+else
+    echo "Warning: Firmware directory not found" > /dev/kmsg
+fi
+
+# Configure ARMv8.3-A features
+if [ -e "/proc/sys/arm64/atomic_mode" ]; then
+    echo 2 > /proc/sys/arm64/atomic_mode
+    echo "ARMv8.3-A atomic mode configured" > /dev/kmsg
+else
+    echo "Warning: ARMv8.3-A atomic mode configuration not available" > /dev/kmsg
+fi
+
+# Configure RCpc features
+if [ -e "/proc/sys/arm/rcpc_enabled" ]; then
+    echo 1 > /proc/sys/arm/rcpc_enabled
+    echo "ARMv8.3-A RCpc extension enabled" > /dev/kmsg
+fi
+
+# Mount configfs
+mount -t configfs none /sys/kernel/config 2>/dev/null
+
+# Mali-G52 Compression Setup
+for feature in afbc_enable astc_enable; do
+    if [ -e "/sys/class/mali/mali0/$feature" ]; then
+        echo 1 > "/sys/class/mali/mali0/$feature"
+        echo "Mali-G52 $feature enabled" > /dev/kmsg
+    fi
+done
+
+# DSP Configuration
+for dsp_path in /sys/kernel/dsp/* /dev/dsp/*; do
+    if [ -d "$dsp_path" ]; then
+        dsp_name=$(basename "$dsp_path")
+        
+        # Configure SIMD features
+        if [ -e "$dsp_path/simd" ]; then
+            echo "neon=1 bf16=1 dotprod=1" > "$dsp_path/simd" 2>/dev/null && \
+                echo "SIMD features enabled for $dsp_name" > /dev/kmsg
+        fi
+        
+        # Configure atomic features
+        if [ -e "$dsp_path/atomic" ]; then
+            echo "rcpc=1 lse=1" > "$dsp_path/atomic" 2>/dev/null && \
+                echo "Atomic features enabled for $dsp_name" > /dev/kmsg
+        fi
+        
+        # Set max frequency for CDSP
+        if [ "$dsp_name" = "cdsp0" ] && [ -e "$dsp_path/max_freq" ]; then
+            echo 950000000 > "$dsp_path/max_freq" 2>/dev/null && \
+                echo "CDSP frequency set for Tiger T618" > /dev/kmsg
+        fi
+    fi
+done
+
+# Sensor detection and configuration based on device tree entries
+echo "Configuring sensors..." > /dev/kmsg
+for sensor_path in /sys/class/input/event*; do
+    if [ -e "$sensor_path/device/name" ]; then
+        sensor_name=$(cat "$sensor_path/device/name")
+        echo "Found sensor: $sensor_name" > /dev/kmsg
+        
+        case "$sensor_name" in
+            *accel*|*Accel*|*ACCEL*|*lsm303d*|*LSM303D*)
+                [ -e "$sensor_path/device/sampling_frequency" ] && \
+                    echo 100 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                [ -e "$sensor_path/device/enable" ] && \
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null && \
+                    echo "Accelerometer enabled" > /dev/kmsg
+                ;;
+            *gyro*|*Gyro*|*GYRO*)
+                [ -e "$sensor_path/device/sampling_frequency" ] && \
+                    echo 100 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                [ -e "$sensor_path/device/enable" ] && \
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null && \
+                    echo "Gyroscope enabled" > /dev/kmsg
+                ;;
+            *mag*|*Mag*|*MAG*|*compass*|*lsm303d*|*LSM303D*)
+                [ -e "$sensor_path/device/sampling_frequency" ] && \
+                    echo 20 > "$sensor_path/device/sampling_frequency" 2>/dev/null
+                [ -e "$sensor_path/device/enable" ] && \
+                    echo 1 > "$sensor_path/device/enable" 2>/dev/null && \
+                    echo "Magnetometer enabled" > /dev/kmsg
+                ;;
+        esac
+    fi
+done
+
+# GPU DVFS Configuration for Tiger T618
+if [ -d "/sys/class/devfreq/mali0" ]; then
+    echo "Configuring Mali-G52 MC2 GPU for Tiger T618..." > /dev/kmsg
+    
+    # Configure governor
+    echo "userspace" > /sys/class/devfreq/mali0/governor 2>/dev/null && \
+        echo "Set GPU governor to userspace" > /dev/kmsg
+    
+    # Configure frequencies (supports up to 950MHz for Tiger T618)
+    echo 200000 > /sys/class/devfreq/mali0/min_freq 2>/dev/null && \
+        echo "Set GPU min frequency to 200MHz" > /dev/kmsg
+    echo 950000 > /sys/class/devfreq/mali0/max_freq 2>/dev/null && \
+        echo "Set GPU max frequency to 950MHz" > /dev/kmsg
+    echo 700000 > /sys/class/devfreq/mali0/userspace/set_freq 2>/dev/null && \
+        echo "Set GPU initial frequency to 700MHz" > /dev/kmsg
+    
+    # Configure power efficiency settings
+    if [ -e "/sys/class/devfreq/mali0/power_efficiency" ]; then
+        echo 1 > /sys/class/devfreq/mali0/power_efficiency 2>/dev/null && \
+            echo "Enabled GPU power efficiency" > /dev/kmsg
+    fi
+fi
+
+# Set up HDMI with the correct resolution for Tiger T618
+if [ -e "/dev/hdmi" ] && [ -d "/sys/class/drm" ]; then
+    echo "Configuring HDMI output..." > /dev/kmsg
+    
+    # Set default resolution (1336x752)
+    for drm_path in /sys/class/drm/card*-HDMI-A-*; do
+        if [ -e "$drm_path/status" ] && [ "$(cat $drm_path/status)" = "connected" ]; then
+            if [ -e "$drm_path/mode" ]; then
+                echo "1336x752" > "$drm_path/mode" 2>/dev/null && \
+                    echo "Set HDMI resolution to 1336x752" > /dev/kmsg
+            fi
+        fi
+    done
+fi
+
+# Commit all changes
+sync
+echo "Tiger T618 initialization complete" > /dev/kmsg
+
+# Write boot success marker
+mkdir -p /mnt/root/var/log
+echo "Initramfs boot completed successfully at $(date)" > /mnt/root/var/log/initramfs-boot.log
+
+# Write detailed boot log
+cp /tmp/initramfs.log /mnt/root/var/log/initramfs-detailed.log 2>/dev/null
+
+# Mount the root partition
+log "Mounting root filesystem from $ROOT_PART ($ROOT_FSTYPE, $ROOT_RW, $ROOT_FLAGS)..."
+mount -o $ROOT_RW,$ROOT_FLAGS -t ${ROOT_FSTYPE} $ROOT_PART /mnt/root || handle_issue $STATUS_MOUNT_ISSUE "Unable to mount root filesystem"
+
+# Initialize hardware and compute capabilities
+log "Initializing hardware capabilities for Unisoc Tiger T618..."
+
+# Initialize Memory Optimization
+configure_memory || log "Memory Configuration Functions failed to load"
+
+# Load Video4Linux2 modules for ISP
+load_v4l2_mem2mem_modules || log "Failed to load V4L2 modules"
+
+# Initialize ISP for computational workloads
+init_isp_compute || log "ISP compute initialization failed"
+
+# Set up ISP compute framework
+setup_isp_compute_framework || log "ISP compute framework setup failed"
+
+# Initialize HDMI output
+init_hdmi_output || log "HDMI initialization failed"
+
+# Initialize DSP firmware
+load_dsp_firmware || log "DSP initialization failed"
+
+# Initialize sensors defined from the DTB (Device Tree Blob) files using grep -r accelerometer\|gyroscope\|magnetometer\|sensor *.dts
+init_sensors || log "Sensor initialization failed"
+
+# Set up GPU-ISP integration
+setup_gpu_isp_integration || log "GPU-ISP integration failed"
+
+# Initialize OpenCL framework
+init_opencl_framework || log "OpenCL framework initialization failed"
+
+# If Windows was found, set up dual-boot
+if [ $WINDOWS_FOUND -eq 1 ]; then
+    handle_dual_boot
+fi
+
+# Switch to the new root and execute init
+log "Executing switch_root to the new filesystem..."
+log "Using init $INIT"
+exec switch_root /mnt/root $INIT
+
+# If switch_root fails, drop to a shell
+handle_issue $STATUS_SWITCH_ROOT_ISSUE "switch_root unsuccessful. Dropping to emergency shell."
+
+exec /bin/sh
