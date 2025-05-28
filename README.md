@@ -3,7 +3,13 @@
 I recommend a linux handheld (more versatility to play Windows, Android and Linux games with ease if setup properly)
 
 Device Info: https://deviceinfohw.ru/devices/item.php?item=108681
-- Unisoc T618 with a ums512_1h10 board
+- Unisoc T618 with a ums512_1h10 board There's 6 other handhelds with similar specs:
+1. Retroid Pocket Flip https://retrocatalog.com/retro-handhelds/retroid-pocket-flip
+2. PowKiddy X18S https://handheldsarena.com/devices/powkiddy/x18s/
+3. Powkidding X28 https://handheldsarena.com/devices/powkiddy/x28/
+4. RG505 https://retrodb.info/console/rg505
+5. RG405M https://retrodb.info/console/rg405m
+6. RG-405V https://retrocatalog.com/retro-handhelds/rg-405v
 
 List of Smartphones with same board:
 - ZTE Blade V30
@@ -72,4 +78,95 @@ Because you don't have access to /data due to encryption, you cannot install Kal
 
 
 
+## If anyone get's a different operating system running natively:
+- Check RAM usage (Can check in developer mode)
+- Test performance against past performance: https://www.google.com/search?sca_esv=bfd7f0276b7e69c9&q=%223.2+v1.r27p0-01eac0.bfc9f89b34c882ca6dc6566781e4f990%22&udm=2&fbs=ABzOT_CWdhQLP1FcmU5B0fn3xuWpA-dk4wpBWOGsoR7DG5zJBsxayPSIAqObp_AgjkUGqel3rTRMIJGV_ECIUB00muput9Zp8VMKUi0ZjqPs3JlrgNjQ9rOqRdXcDwEBQ82jIzIeJKF_t4xlLNL8OlcUPXuD4mOHi5CwSvqoRYVHDp8kIKIKk9txe0fwpxc-El6CFYl-jFdhssameWHw9C9RusrnI0QBZA&sa=X&ved=2ahUKEwjXxvX5n9iMAxUVATQIHRnNDP0QtKgLegQIGhAB
+# The plan?
+- ARM Compute Library https://github.com/ARM-software/ComputeLibrary
+# Windows:
+- ARM Server build https://betawiki.net/wiki/Windows_Server_2016_build_14282_(rs1_onecore_mqsrv_sc)
+- Lumia applications / drivers https://woa-project.github.io/LumiaWOA/
+- Visual Studio 2019 at minimum https://learn.microsoft.com/en-us/visualstudio/releases/2019/compatibility
+- MESA3D ARM 64 (https://github.com/mmozeiko/build-mesa/releases), .NET (https://learn.microsoft.com/en-us/dotnet/core/install/windows?WT.mc_id=dotnet-35129-website#install-with-windows-package-manager-winget)
+- GL4ES https://github.com/ptitSeb/gl4es
+- GLFW https://github.com/glfw/glfw
+- ARM64EC / ARM64X http://www.emulators.com/docs/abc_arm64ec_explained.htm
+- WoW64 https://en.wikipedia.org/wiki/WoW64
+- Vendor 2022 Product 3001 / Vendor_18d1_Product_5018 / Vendor_18d1_Product_0200 for device controls
+- Discord/BetterDiscord/Vencord https://github.com/Vencord/Vesktop
+- Nexus Mod https://github.com/Nexus-Mods/NexusMods
+- ShaderGlass: https://github.com/mausimus/ShaderGlass
+- Windows on ARM apps: https://www.worksonwoa.com/en
+- Battery Bar https://batterybarpro.com/
+- Reshade with shaderGlass https://itch.io/post/11717383
+- Syncthing
+- antstream
+- EA App
+- Emu Deck
+- Epic Games Launcher
+- Fightcade
+- Flashpoint Archive
+- Moonlight/GameStream Client
+- Sunshine/GameStream Server
+- Apollo and Artemis
+- GeForce NOW
+- GOG Galaxy
+- Itch.io
+- HumbleBumble
+- PICO-8
+- PS Remote Play
+- RetroArch
+- Steam
+- TCNO Account Switcher
+- Ubisoft Connect
+- TeknoParrot
+- TIC-80
+- Vircon32
+- Virtual Desktop Streamer
+- WireGuard
+
+
+# Linux:
+- VK hdr layer (yeah probably wasn't going to work but fk it) https://github.com/Zamundaaa/VK_hdr_layer
+- MangoHud https://github.com/flightlessmango/MangoHud
+- Bottles https://github.com/bottlesdevs/Bottles
+- Box64 https://github.com/ptitSeb/box64
+- FEX https://github.com/FEX-Emu/FEX
+- WireGuard https://rocknix.org/configure/vpn/
+- Limo Nexus Mod https://github.com/limo-app/limo
+- Waydroid https://github.com/waydroid/waydroid
+- https://github.com/GloriousEggroll/wine-ge-custom
+- https://github.com/Open-Wine-Components/umu-launcher
+- spotube https://github.com/KRTirtho/spotube
+- Wine Custom https://github.com/GloriousEggroll/wine-ge-custom
+- Umu launcher https://github.com/Open-Wine-Components/umu-launcher
+- GL4ES https://github.com/ptitSeb/gl4es
+- GLFW https://github.com/glfw/glfw
+- WineTrix
+- Syncthing
+- ReShade
+- antstream
+- EA App
+- Emu Deck
+- Epic Games Launcher
+- Fightcade
+- Flashpoint Archive
+- Moonlight/GameStream Client
+- Sunshine/GameStream Server
+- Apollo and Artemis
+- GeForce NOW
+- GOG Galaxy
+- Itch.io
+- HumbleBumble
+- PICO-8
+- PS Remote Play
+- RetroArch
+- Steam
+- TCNO Account Switcher
+- Ubisoft Connect
+- TeknoParrot
+- TIC-80
+- Vircon32
+- Virtual Desktop Streamer
+- WireGuard
 
