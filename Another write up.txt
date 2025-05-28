@@ -1,0 +1,836 @@
+
+Device specs:
+- Chipset: Unisoc Tiger T618 2.00 GHz.
+- CPU: 2(2.00 GHz. ARM Cortex-A75) & 6(2.00 GHz. ARM Cortex-A55)
+- GPU: ARM Mali-G52 MC2, 850 MHz
+- Resolution: 1336x752
+- RAM: 4 GB
+- Storage: 128 GB
+- eMMC 5.1
+- HDMI Out
+- ACCELEROMETER
+- MAGNETOMETER
+- GYROSCOPE
+- ARMv8.2-A architecture
+- RCpc AArch64 extension from ARMv8.3-A https://reviews.llvm.org/D36667
+- Adaptive Scalable Texture Compression https://soclabs.org/technology/mali-g52
+- Arm Frame Buffer Compression https://soclabs.org/technology/mali-g52
+- Open CL 3.0 ARMv8 Support (Supports Cortex-A72/Cortex-A53 and higher)
+- Advanced SIMD (Neon) 16-bit brain floating-point arithmetic intrinsics https://developer.arm.com/documentation/101028/0012/13--Advanced-SIMD--Neon--intrinsics?lang=en
+- ARM compute library https://github.com/ARM-software/ComputeLibrary
+
+=================================
+
+Extract files from payload.bin from latest RP3+:
+payload_dumper --partitions boot,dtbo,vendor payload.bin
+
+- system.img | The primary partition containing the Android operating system framework. This image includes the core Android applications, libraries, and runtime environments required for basic functionality
+- vendor.img | Contains vendor-specific customizations, drivers, and hardware abstraction layers (HALs) that allow Android to communicate with the device's hardware.
+- product.img | Holds product-specific customizations and pre-installed applications that differentiate one device from another, often containing carrier or manufacturer additions.
+- system_ext.img | An extension to the system partition introduced in newer Android versions, containing additional system components that aren't part of the core system.
+
+Boot-Related Partitions
+- uboot.img | Contains the bootloader (specifically U-Boot in this case), which is the software that initializes hardware components and loads the Android OS.
+- trustos.img | Houses the Trusted Execution Environment (TEE) operating system, which runs alongside the main OS but provides a secure environment for handling sensitive operations like cryptographic functions and secure key storage.
+- teecfg.img | Contains configuration data for the Trusted Execution Environment.
+- sml.img | Likely contains the Secure Monitor Layer, a component that helps manage transitions between secure and non-secure operating modes.
+
+Hardware Interface Partitions
+- dtbo.img | The Device Tree Blob Overlay partition contains hardware configuration information used by the bootloader to understand and initialize hardware components. It follows a specific structure defined in Android's documentation.
+- vbmeta.img (and related vbmeta_* files) | These files contain Verified Boot metadata used for Android Verified Boot, which ensures software integrity during the boot process. The various vbmeta files correspond to different partitions (system, vendor, product, etc.).
+
+Digital Signal Processor Partitions
+- l_gdsp.img | Graphics Digital Signal Processor firmware.
+- l_ldsp.img | Low-power Digital Signal Processor firmware.
+- l_cdsp.img | Compute Digital Signal Processor firmware.
+- l_agdsp.img | Audio/General Digital Signal Processor firmware.
+
+Modem and Connectivity Partitions
+- l_modem.img | Cellular modem firmware for mobile network communications (Radio Frequency, 3GPP standards, Sim Auth, Network battery usage).
+- wcnmodem.img | Wireless Connectivity Network modem firmware (Wi-Fi, Bluetooth, cellular radios, coexistence algorithms)
+- gnssmodem.img | Global Navigation Satellite System (GNSS) modem, Position calculation, Time sync.
+
+Device Identifier and Non-Volatile Storage
+- l_fixnv1.img and l_fixnv2.img | Identification information including IMEI numbers. The redundant copies (1 and 2) provide backup in case one becomes corrupted.
+- l_deltanv.img | Contains delta updates for non-volatile memory parameters.
+
+Other System Components
+- odmko.img and socko.img | Kernel object files specific to the Original Device Manufacturer (ODM) and System-on-Chip (SoC), respectively.
+- pm_sys.img | Likely related to power management subsystems.
+- mmcblk0boot0.img | Related to the eMMC boot partition, which contains critical boot code
+
+========================================================================
+
+Subfolder within the initramfs folder called "LINUX-PAC" has the following files:
+
+- init (init-Post.txt) file
+- isp_opencl_integration.h (isp_opencl_integration.txt) file
+- isp-compute-setup.sh (isp-compute-setup.txt) file.
+- create_devices.txt (create_devices.sh) file
+- run-devices-utilities-libraries.txt (run-devices-utilities-libraries.sh) file
+- verify_setup.txt (verify_setup.sh) file
+- boot.img | Payload.bin android zip file
+- vendor.img | Payload.bin android zip file
+- prodnv.img | Payload.bin android zip file
+- An xml file for ums512_1h10, called "ums512_1h10.xml" from a .pac file, same as BMAConfig.xml
+- An xml file for ums512_1h10, called "BMAConfig.xml" from a .pac file, same as ums512_1h10.xml
+- dtbo.img | Payload.bin android zip file
+- l_gdsp.img (Contains the Graphics Digital Signal Processor firmware.) My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- l_ldsp.img (Contains the Low-power Digital Signal Processor firmware.)My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- l_cdsp.img (Contains the Compute Digital Signal Processor firmware.)My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- l_agdsp.img (Contains the Audio/General Digital Signal Processor firmware.)My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- l_modem.img (can be renamed to l_modem_a.img) My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- wcnmodem.img (Houses the Wireless Connectivity Network modem firmware for technologies like Wi-Fi and Bluetooth.) My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- gnssmodem.img (Contains firmware for the Global Navigation Satellite System (GNSS) modem, handling GPS and other location services.) My init, isp_opencl_integration.h & isp-compute-setup.sh files uses it
+- vbmeta-sign.img (with AVB verification disabled) which I have from taking the vbmeta.img from my .pac file and used "python patch-vbmeta.py vbmeta.img" with patch-vbmeta.py from (https://github.com/WessellUrdata/vbmeta-disable-verification/blob/master/patch-vbmeta.py) to patch the AVB verification
+- fdl1-sign.bin (can be renamed to fdl1-dl.bin) | Payload.bin android zip file
+- fdl2-sign.bin (can be renamed to fdl2-dl.bin) | Payload.bin android zip file
+- u-boot-spl.bin (can be renamed to spl.bin) | Payload.bin android zip file
+- u-boot.bin (can be renamed to uboot.bin) | Payload.bin android zip file
+- system.img (renamed linux distro operating system .img file)
+- ums512-1h10.dts (from \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot\dts\sprd)
+- ums512-1h10.dtb (from \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot\dts\sprd)
+- ums512.dtsi (from \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot\dts\sprd)
+- Image (\\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot)
+- .config (\\wsl$\Ubuntu\home\{username}\ums512_kernel\linux)
+
+===========================================
+
+BMAConfig.xml/ums512_1h10.xml files
+
+Change the "super" partition size from 4300MB to storage size
+<Partition id="super" size="4300"/>
+
+If partitioned:
+<Partition id="super" size="131072"/> (128GB)
+<Partition id="super" size="65536"/> (64GB)
+Change the "userdata" partition from using all remaining space to a fixed 64GB size:
+<Partition id="userdata" size="0xFFFFFFFF"/> to <Partition id="userdata" size="65536"/>
+
+system.img → mapped to "super" partition (via the Linux_Root alias)
+l_modem.img → mapped to "l_modem_a" partition
+l_gdsp.img → mapped to "l_gdsp_a" partition
+l_ldsp.img → mapped to "l_ldsp_a" partition
+l_agdsp.img → mapped to "l_agdsp_a" partition
+l_cdsp.img → mapped to "l_cdsp_a" partition
+boot.img → mapped to "boot_a" partition
+dtbo.img → mapped to "dtbo_a" partition
+vbmeta-sign.img → mapped to "vbmeta_a" partition
+wcnmodem.img → mapped to "wcnmodem_a" partition
+gnssmodem.img → mapped to "gnssmodem_a" partition
+prodnv.img → mapped to "prodnv" partition
+uboot.bin → mapped to "uboot_a" partition
+spl.bin → mapped to "splloader" partition
+fdl1-dl.bin → mapped to FDL
+fdl2-dl.bin → mapped to FDL2
+
+--------
+Partition's left:
+
+- prodnv
+- uboot_a
+- uboot_log
+- logo
+- fbootlogo
+- l_fixnv1_a
+- l_fixnv2_a
+- gnssmodem_a
+- wcnmodem_a
+- persist
+- l_modem_a
+- l_gdsp_a
+- l_ldsp_a
+- l_agdsp_a
+- l_cdsp_a
+- dtbo_a
+- super
+- vbmeta_a
+- userdata
+
+Check Flag
+CheckFlag=0
+- Optional validation, no integrity checks, apply to non-critical components 
+CheckFlag=1
+- Mandatory validation, aborts on failure (flashing stop), apply to critical components (bootloaders, device functionality)
+CheckFlag=2
+- No packaging check, may still be checked during runtime.
+
+
+Value changes:
+<Scheme name="ums512_1h10">
+- VBmeta & DSP_LTE_GGE from 2 to 0.
+
+
+========================================================================
+
+List of sensors used on their device according to DTBO from payload.bin
+
+- Required files in Ubuntu WSL environment:
+sudo apt-get update
+sudo apt-get install device-tree-compiler
+- Locate DTB
+cd dtbo
+ls -la *.dtb
+- Convert DTB to DTS format
+dtc -I dtb -O dts -o output.dts input.dtb
+- Sensor information in DTS file"
+grep -r "accelerometer\|gyroscope\|magnetometer\|sensor" *.dts
+
+
+========================================================================
+
+Init file
+Core Script Structure and Basic Operations
+- Status Code System
+- Logging Function
+- Global Variable Initialization
+Modem and DSP Firmware Management
+- Modem Driver Loading
+- Modem Firmware Initialization
+- DSP Initialization Loop
+- Firmware Verification
+Power and Thermal Management
+- Modem DVFS Configuration using 6 frequency steps
+- Thermal Throttling Policy with three trip points
+- Thermal Hysteresis
+- Cooling Device Integration with 6 upper and 2 lower thermal limit states
+Memory Optimization for ARMv8.2-A
+- ZRAM Configuration using LZ4 compression algorithm
+- Swap Prioritization
+- Hybrid Memory Management
+- Compression Stream Optimization
+- Task Affinity Control
+- Energy-Aware Scheduling
+Cache and Storage Optimization
+- L3 Cache Partitioning
+- Cortex-A75 Memory Prioritization
+- eMMC 5.1 Optimization
+- Write Cache Enhancement
+GPU Memory Management
+- Dynamic CMA Optimization
+- ASTC/AFBC Support for Mali-G52
+- Memory Pool Configuration for optimal ASTC/AFBC buffer handling
+- CMA Reclaim Thresholds with three-tier threshold
+ARMv8.2-A Specific Optimizations
+- RCPC Enablement extension from ARMv8.3-A
+- BF16 Operations
+- CRC32 Acceleration
+- THP Configuration
+HDMI Management
+- Dynamic HDMI Detection
+- EDID Processing
+- Audio Configuration
+- CEC Support
+- Resolution Management
+- xrandr Integration
+- Mali-G52 Resolution Validation
+- OpenCL Context Update
+- Display Mode Management
+Wireless Connectivity
+- WiFi/BT Coordination
+- Coexistence Management
+- GNSS Support
+- Coordination Pipes:
+Thermal-Aware System Management
+- Temperature-Based Memory Configuration to increase swappiness and reduce cache pressure at high temperatures
+- Thermal Hysteresis to prevent policy oscillation during temperature fluctuations
+- Event Logging
+- Adaptive Performance Scaling
+Error Recovery and Debugging
+- Comprehensive Issue Handling
+- Recovery Menu
+- Filesystem Integrity Checking
+- ARM-Optimized Filesystem Support
+
+-----------
+
+Image signal processor file
+
+OpenCL 3.0 Environment Initialization
+- Vendor-Specific ICD Loading
+- ARMv8.2-A Instruction Enablement activates BF16/FP16 support via CL_ARM_bf16 and CL_ARM_fp16 extensions
+- Mali-G52 Workgroup Optimization
+- DVFS Governor Configuration implements 6 frequency tiers
+DSP Firmware Management System
+- Compute DSP (cDSP) Initialization
+- GPU-DSP Shared Memory
+- BF16 Acceleration
+- DSP Core Affinity binds cDSP workloads
+- ARMv8.3-A RCpc Support enables release consistency
+- CMA Partitioning allocates for Mali-G52 with 3-tier reclaim thresholds
+- Zswap/ZRAM Hybrid
+- Cache Hierarchy Control implements DSU PMU L3 partitioning
+Thermal/Power Management
+- Dynamic Voltage Scaling implements 5-stage DVFS thermal triggers
+- Modem-GPU Coordination
+- Compute Throttling Policy
+- Memory Thermal Response
+HDMI 2.2 Advanced Features
+Sensor Fusion Framework
+- IMU Data Pooling combines LSM6DSO accelerometer + LSM303D magnetometer via 8MB sensorhub buffer
+- OpenCL Sensor Kernels implements process_sensor_data kernel with 3 quality tiers (5pt/3pt/1pt filtering)
+- Gyro Compensation
+- Context-Aware Sampling
+- AFBC Superblock Configuration sets 16x16 blocks with CL_IMAGE_ARM_AFBC_MODE_SPARSE
+- ASTC LDR/HDR Support enables 4x4 blocks + 3D textures via CL_ARM_astc_ldr_3d
+- Tile-Based Rendering
+- Memory Compression Ratios achieves 4:1 (AFBC) and 6:1 (ASTC) via hardware-accelerated pipelines
+Advanced Debugging/Recovery
+- OpenCL Context Checkpointing ocl_context_snapshots saves
+- DSP Core Debugger exposes cdsp_gdb interface via J-Link OB firmware
+- Memory Error Injection
+- Secure Boot Bypass: Implements patch-vbmeta.py workflow with AVB 2.0 key revocation
+Cross-Component Synchronization
+- Modem-GPU Fence Sync uses sync_file with DMA_BUF_IOCTL_EXPORT for IPC
+- Sensor Fusion Latency implements 2ms precision via CLOCK_BOOTTIME alignment
+- Display Pipeline Sync coordinates Mali-G52 vs. HDMI timing via DRM_IOCTL_WAIT_VBLANK
+ARMv8.2-A Specific Optimizations
+- CRC32 Acceleration
+- SVE Fallback Strategy emulating SVE2 via NEON when CL_ARM_sve2 unavailable
+- Pointer Authentication for OpenCL kernels
+- Memory Tagging
+
+-----------
+
+Image signal processor for Open Computing Language
+
+HDMI 2.2 Advanced Feature Management
+Mali-G52 GPU Optimization Layer
+- Workgroup Configuration for Mali-G52's 128-wide SIMD architecture
+- AFBC Superblocks
+- ASTC 3D Textures
+- Tile-Based Rendering
+- DVFS Governor implements 6 frequency tiers with workload-adaptive scaling
+Sensor Fusion Framework
+- Tier System for scaling, filtering and sampling
+- ARM NEON Intrinsics
+- Context-Aware Sampling
+DSP Acceleration Infrastructure
+- Compute DSP (cDSP) Integration
+- ION Memory Pools
+- Firmware Validation implements 3-stage checks (CRC32 → header magic → signature) with fallback to recovery images
+Modem-GPU Coordination System
+- Shared Thermal Budget for dynamic power allocation
+- 5G LDPC Decoding using arm_dot() intrinsics
+- CRC32 Acceleration for packet verification
+ARMv8.2-A Specific Optimizations
+- BF16 Support
+- RCpc Memory Model
+- SVE2 Emulation simulates 128-bit SVE vectors using NEON intrinsics when hardware is unavailable
+Memory Architecture
+- Hybrid ZRAM/Zswap using z3fold allocator
+- CMA Partitioning with 3-tier reclaim thresholds
+- L3 Cache Allocation via DSU PMU controls
+Advanced Compression Pipelines
+- AFBC Frame Buffers
+- ASTC LDR/HDR
+- DSP-Assisted Codecs
+Power/Thermal Management
+- 5-Stage DVFS
+- Compute Throttling
+- Memory Thermal Response adjusts swappiness and vfs_cache_pressure at high temps
+Recovery & Debugging
+- OpenCL Context Snapshots for GPU state restoration
+- DSP Core Debugger
+- ECC Error Injection
+
+-----------
+
+Device_nodes
+- Modem and DSP Control Nodes
+- Wireless Connectivity Nodes
+- Memory Management Nodes
+- Sensor Interfaces
+- Display and GPU Nodes
+- Storage and Filesystem Nodes
+- Security and Verification Nodes
+- Debug and Recovery Nodes
+
+
+========================================================================
+
+
+Build updated linux kernel
+
+sudo apt update
+sudo apt install -y build-essential git make gcc g++ flex bison libncurses-dev libssl-dev libelf-dev bc dwarves binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu zlib1g-dev cpio pahole wget curl pkg-config
+
+rm -rf ~/ums512_kernel && mkdir -p ~/ums512_kernel && cd ~/ums512_kernel
+
+# 1. Environment setup
+export ARCH=arm64
+export CROSS_COMPILE=aarch64-linux-gnu-
+
+# 2. Clone with forced cleanup
+git clone --depth=1 --branch=v6.14 https://github.com/torvalds/linux.git || \
+(rm -rf linux && git clone --depth=1 --branch=v6.14 https://github.com/torvalds/linux.git)
+
+# 3. Configuration
+cd linux
+make defconfig
+
+# 4. Menuconfig workaround
+if ! make menuconfig; then
+echo "Installing missing ncurses dependencies..."
+sudo apt install -y libncurses5-dev libncursesw5-dev
+make menuconfig
+fi
+
+https://www.kernelconfig.io/search?q=Spreadtrum&kernelversion=6.13.9&page=0
+
+Linux Kernel Configuration
+└─>General setup
+└─>Configure standard kernel features (expert users)) option
+
+Linux Kernel Configuration
+└─>Library Routines
+└─>Default contiguous memory area size
+128 - 256 Size in Megabytes
+
+Linux Kernel Configuration
+└─>Enable the block layer
+└─>Enable inline encryption support in block layer
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Device Tree and Open Firmware support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Input device support
+└─>Touchscreens
+Hynitron touchscreen support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Input device support
+└─>Horizontal screen resolution
+└─>Vertical screen resolution
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Input device support
+└─>Joysticks/Gamepads
+└─>Xbox gamepad support
+└─>Xbox gamepad rumble support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Input device support
+└─>Joysticks/Gamepads
+└─>PlayStation 1/2 joypads
+└─>PlayStation 1/2 joypads force feedback
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Graphics support
+└─>Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)
+└─>Device Tree and Open Firmware support
+└─>LIMA (DRM support for ARM Mali 400/450 GPU)
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Graphics support
+└─>Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)
+└─>ARM devices
+└─>Device Tree and Open Firmware support
+└─>ARM Mali Display Processor
+
+Device Drivers
+└─>Mailbox Hardware Support
+└─>Spreadtrum Mailbox
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>GPIO Support
+└─>Memory mapped GPIO drivers
+└─>Spreadtrum GPIO support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>IOMMU Hardware Support
+└─>Unisoc IOMMU Support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Thermal drivers
+└─>Temperature sensor on Spreadtrum SoCs
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>DMA Engine support
+└─>Spreadtrum DMA support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Watchdog Timer Support
+└─>Spreadtrum watchdog support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>WireGuard secure network tunnel
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Network device support
+└─>IEEE 802.1AE
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Pulse-Width Modulation (PWM) Support
+└─>Spreadtrum PWM support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Hardware Spinlock drivers
+└─>SPRD Hardware Spinlock device
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>MMC/SD/SDIO card support
+└─>Spreadtrum SDIO host Controller
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>NVMEM Support
+└─>Spreadtrum SoC eFuse Support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>MMC/SD/SDIO card support
+└─>MMC Crypto Engine Support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>CEC support
+└─>HDMI CEC drivers
+└─>Generic GPIO-based CEC driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>I2C support
+└─>I2C Hardware Bus support
+└─>Spreadtrum I2C interface
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Sound card support
+└─>Advanced Linux Sound Architecture
+└─>ALSA for SoC audio support
+└─>SoC Audio for the Spreadtrum SoC chips
+└─>Spreadtrum multi-channel data transfer support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>SPI support
+└─>Spreadtrum SPI controller
+└─>Spreadtrum ADI controller
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Pin controllers
+└─>Device Tree and Open Firmware support
+└─>Spreadtrum SC9860 pinctrl driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Multifunction device drivers
+└─>Spreadtrum SC27xx PMICs
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Input device support
+└─>Miscellaneous devices
+└─>Spreadtrum sc27xx vibrator support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Power supply class support
+└─>Spreadtrum SC2731 charger driver
+└─>Spreadtrum SC27XX fuel gauge driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>NVMEM Support
+└─>Spreadtrum SoC eFuse Support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>MMC/SD/SDIO card support
+└─>Spreadtrum SDIO host Controller
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Pulse-Width Modulation
+└─>Spreadtrum PWM support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Universal Flash Storage Controller
+└─>Unisoc specific hooks to UFS controller platform driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Sound card support
+└─>Advanced Linux Sound Architecture
+└─>ALSA for SoC audio support
+└─>SoC Audio for the Spreadtrum SoC chips
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Sound card support
+└─>Advanced Linux Sound Architecture
+└─>ALSA for SoC audio support
+└─>SoC Audio for the Spreadtrum SoC chips
+└─>Spreadtrum multi-channel data transfer support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Common Clock Framework
+└─>Clock support for Spreadtrum SoCs
+└─>Support for the Spreadtrum UMS512 clocks
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>IOMMU Hardware Support
+└─>Unisoc IOMMU Support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Mailbox Hardware Support
+└─>Spreadtrum Mailbox
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Thermal drivers
+└─>Temperature sensor on Spreadtrum SoCs
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Clock Source drivers
+└─>Spreadtrum timer driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Watchdog Timer Support
+└─>Spreadtrum watchdog support
+
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Character devices
+└─>Serial drivers
+└─>Support for Spreadtrum serial
+└─>Spreadtrum UART console support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Voltage and Current Regulator Support
+└─>Spreadtrum SC2731 power regulator driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Industrial I/O support
+└─>Analog to digital converters
+└─>Spreadtrum SC27xx series PMICs ADC
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Graphics support
+└─>Direct Rendering Manager (XFree86 4.1.0 and higher DRI support)
+└─>Panfrost (DRM support for ARM Mali Midgard/Bifrost GPUs)
+└─>DRM Support for Unisoc SoCs Platform
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Graphics support
+└─>Backlight & LCD device support
+└─>Lowlevel LCD controls
+└─>Generic GPIO based Backlight Driver
+└─>Generic LED based Backlight Driver
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Graphics support
+└─>Console display driver support
+└─>Framebuffer Console Rotation
+
+Linux Kernel Configuration
+└─>Compute Acceleration Framework
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Microsoft Surface Platform-Specific Device Drivers
+└─>Power/home/volume buttons driver for Microsoft Surface Pro 3/4 tablet
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Industrial I/O support
+└─>Accelerometers
+└─>Magnetometer
+└─>Inertial measurement units
+└─>Digital gyroscope sensors
+└─>Digital to analog converters
+STMicroelectronics
+Modularize
+
+Linux Kernel Configuration
+└─>File systems
+└─>DOS/FAT/EXFAT/NT Filesystems
+└─>exFAT filesystem support
+└─>NTFS Read-Write file system support
+└─>NTFS file system support
+
+Linux Kernel Configuration
+└─>Device Drivers
+└─>Android
+└─>Android Binder IPC Driver
+
+----------------------------
+
+
+Following files from the following folders:
+
+DTB: \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot\dts\sprd
+- ums512-1h10.dtb
+- ums512-1h10.dts
+- ums512.dtsi
+Kernal Image: \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux\arch\arm64\boot
+- Image
+.config: \\wsl$\Ubuntu\home\{username}\ums512_kernel\linux
+- .config
+
+--------
+
+If you need to update your configuration and let the build system handle the rest:
+
+cd ~/ums512_kernel/linux
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- menuconfig
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- clean
+make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- all dtbs modules
+sudo make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_install
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- dtbs
+sudo make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- install
+dtc -I dtb -O dts -o extracted.dts arch/arm64/boot/dts/sprd/ums512-1h10.dtb
+grep -E 'mali|gpu|hdmi' extracted.dts
+cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/sprd/ums512-1h10.dtb > ~/Image
+ls -la ~/boot_image
+
+
+========================================================================
+
+
+Instructions I was given to do in Linux cmd line:
+
+
+
+1. Directory setup with file list
+2. Create device nodes and install system files, copy the file into place
+3. Building a Static ARM64 Busybox using a dockerfile to run busy box, library setup, directory structure, configuration file and Hardware-Specific Symlinks
+4. Copy Hardware-Specific Files
+- Kernel Modules: Copy modules from ~/ums512_kernel/linux/drivers/**/*.ko
+- Firmware Files: Copy DSP firmware files (l_gdsp.img, l_ldsp.img, l_cdsp.img, l_agdsp.img)
+- Modem Firmware: Include modem files (l_modem.img, wcnmodem.img, gnssmodem.img)
+5. Configure System Integration based on init script, isp_opencl_integration.h and isp-compute-setup.sh
+- Create fstab: Implement UUID-based partition identification with write barriers for root filesystem and Implement ARM64-specific rootfstype handling for ext4 optimization
+6. Package the Initramfs
+- Verify Structure: Ensure all directories, files, and permissions are correct
+- Create Archive: Use find . | cpio -H newc -o | gzip > ../new-initrd.img from initramfs directory
+- Compression optimization
+- Validate Archive: Test extraction structure to verify integrity of the packaged initramfs
+- Dependencies: Requires all previous steps to be completed successfully
+7. Create the New Boot Image
+- Combine Components: Use abootimg to combine:
+Linux kernel (Image from ~/ums512_kernel/linux/arch/arm64/boot)
+Device tree (ums512-1h10.dtb)
+New initramfs (new-initrd.img)
+- Boot Configuration: Set proper kernel command line parameters and load addresses
+- Verify Image: Test boot image integrity with abootimg -i
+- Dependencies: Requires kernel Image, device tree blob, and packaged initramfs
+8. Set Up System.img
+- Format Image: Create and format system.img as ext4 with optimizations for ARM64, formatting for eMMC 5.1
+- Configure Filesystem
+- UUID Assignment for stable partition identification
+- Copy System: Transfer Linux distribution files to mounted system.img
+- Custom Configuration: Add device-specific configuration for T618 hardware
+- Dependencies: Requires ext4 filesystem tools and Linux distribution files
+
+====================
+
+HDMI command lines
+
+--resolution <WIDTHxHEIGHT>        # Set base resolution (e.g., 1336x752)
+--refresh <RATE>                   # Refresh rate (48-120Hz)
+--color-depth <8|10|12>            # Color depth in bits
+--color-format <0-3>               # 0=RGB,1=YCbCr422,2=YCbCr444,3=YCbCr420
+--hdr                              # Enable HDR (SMPTE 2084/2086)
+--vrr                              # Variable Refresh Rate (48-120Hz range)
+--llm                              # Low Latency Mode (<8ms input lag)
+--qms                              # Quick Media Switching
+--qft                              # Quick Frame Transport
+--hec                              # HDMI Ethernet Channel
+--allm                             # Auto Low Latency Mode
+--dsc                              # Display Stream Compression
+--afbc <0|1>                       # ARM Frame Buffer Compression
+--astc <0|1>                       # Adaptive Scalable Texture Compression
+--tiling <0-3>                     # 0=X-major,1=Y-major,2=AFBC,3=ASTC
+--gpu-priority <1-100>             # Mali-G52 memory access priority
+--gpu-thermal-limit <TEMP>         # GPU thermal throttling threshold (60-90°C)
+--hdmi-power <low|med|high>        # HDMI PHY power profile
+--vtotal <VALUE>                   # Vertical total for power savings
+--audio-channels <2-32>            # HDMI audio channel count
+--audio-format <PCM|DTS|DOLBY>     # Audio compression format
+--earc                             # Enhanced Audio Return Channel
+--edid-force <FILE>                # Force specific EDID file
+--crc-window <1-64>                # CRC validation window size
+--afe-calibration                  # Run analog front-end calibration
+--phy-eye-scan                     # Perform HDMI PHY eye scan
+--extend                           # Extended display mode
+--duplicate                        # Mirror display mode
+--internal-only                    # Disable HDMI output
+--hdmi-only                        # Disable internal display
+--preferred                        # Use EDID preferred mode
+--rcpc                             # Enable RCpc memory model
+--bf16                             # Use bfloat16 for processing
+--neon-sched                       # NEON instruction scheduling (0-2)
+--cache-part <COMPUTE,GFX,MODEM>   # L3 cache partitioning ratios
+
+
+Run BEFORE HDMI connection
+--edid-force </path/to/edid.bin>  # Must apply before connecting HDMI
+--cache-part <compute_ratio>,<gfx_ratio>,<modem_ratio>  # Example: --cache-part 45,35,20
+--rcpc [0|1]  # Enable RCpc memory model (ARMv8.3-A extension)
+--bf16 [0|1]  # Configure bfloat16 support at driver level
+--phy-eye-scan  # Perform PHY calibration (requires 30s, run once after boot)
+--afe-calibration  # Run AFE calibration (requires reboot)
+--hdmi-power <low|med|high>  # Set in U-Boot environment
+
+Can run AFTER HDMI connection
+--resolution <WIDTHxHEIGHT> --refresh <RATE>  # Requires xrandr 1.6+
+--hdr [0|1|pq|hlg]  # SMPTE 2084 (pq) or HLG (hlg)
+--vrr <min-max>  # --vrr 48-120 (Mali-G52 needs 48Hz floor)
+--llm [0|1|auto]  # auto=enable when game mode detected
+--gpu-thermal-limit <TEMP>  # 85°C recommended for sustained loads
+--tiling <mode>  # 3=ASTC optimized for 16x16 blocks
+--crc-window <1-64>  # 32 recommended for 4K60
+--audio-channels <count> --audio-format <format>  # PCM for low latency
+--extend/--duplicate/--preferred  # Display topology
+
+Multi-Argument Execution Examples
+--resolution <WIDTHxHEIGHT> --refresh <RATE>  # Requires xrandr 1.6+
+--hdr [0|1|pq|hlg]  # SMPTE 2084 (pq) or HLG (hlg)
+--vrr <min-max>  # --vrr 48-120 (Mali-G52 needs 48Hz floor)
+--llm [0|1|auto]  # auto=enable when game mode detected
+--gpu-thermal-limit <TEMP>  # 85°C recommended for sustained loads
+--tiling <mode>  # 3=ASTC optimized for 16x16 blocks
+--crc-window <1-64>  # 32 recommended for 4K60
+--audio-channels <count> --audio-format <format>  # PCM for low latency
+--extend/--duplicate/--preferred  # Display topology
+
+
+
+
+
+
+
+
