@@ -6,6 +6,7 @@ Device specs:
 - Resolution: 1336x752
 - RAM: 4 GB
 - Storage: 128 GB
+- SD Slot
 - eMMC 5.1
 - HDMI Out
 - ACCELEROMETER
