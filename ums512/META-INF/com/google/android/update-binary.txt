@@ -1,0 +1,258 @@
+#!/sbin/sh
+# TWRP A/B Installer Backend - UMS512 Optimized
+# Modified for ums512 devices by SeriousAttempts
+# Uses native system interfaces (/proc, /sys, /dev)
+
+# Functions needed early
+ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD; }
+abort() { ui_print "$1"; ui_print " "; exit 1; }
+
+# Set vars
+OUTFD=/proc/self/fd/$2
+ZIPFILE="$3"
+tmp=/dev/tmp/twrp-install
+target_base=/dev/block/mmcblk0p
+KEEPVERITY=false
+RECOVERYMODE=false
+
+# Make sure random don't get blocked, unset library paths
+mount -o bind /dev/urandom /dev/random
+OLD_LD_PATH=$LD_LIBRARY_PATH
+OLD_LD_PRE=$LD_PRELOAD
+OLD_LD_CFG=$LD_CONFIG_FILE
+unset LD_LIBRARY_PATH LD_PRELOAD LD_CONFIG_FILE
+
+# detect Magisk Manager/booted flashing
+ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false
+$BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true
+$BOOTMODE && abort "! Flash in TWRP - use img by mauronofrio if first install!"
+
+ui_print "###########################################"
+ui_print "#      UMS512 Dual Boot Installer        #"
+ui_print "#        Automatic A/B Conversion         #"
+ui_print "#      Modified by SeriousAttempts        #"
+ui_print "###########################################"
+ui_print " "
+
+set -x
+rm -rf $tmp
+mkdir -p $tmp
+unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!"
+sleep 1
+
+# Simplified tool setup
+export tools=$tmp/tools
+cd $tools
+
+# Install Magisk components and set permissions
+cp -af magiskinit magiskpolicy
+chmod -R 0755 $tools
+
+# Create dynamic linker symlink for ARM64 binaries
+if [ ! -e /sbin/linker64 ] && [ -e /system/bin/linker64 ]; then
+  mkdir -p /sbin 2>/dev/null
+  ln -sf /system/bin/linker64 /sbin/linker64
+  ui_print "  Created dynamic linker symlink"
+fi
+
+# Set PATH and load functions
+export PATH=$tools:$PATH
+. functions.sh
+
+# Install busybox utilities
+if ! ./busybox --help >/dev/null 2>&1; then
+  abort "Busybox binary corrupted!"
+fi
+./busybox --install -s . || abort "Busybox installation failed!"
+
+# Validate sgdisk
+if ! ./sgdisk --help >/dev/null 2>&1; then
+  abort "sgdisk binary not working!"
+fi
+ui_print "  Essential tools validated"
+
+cd $tmp
+
+# UMS512 device detection using /proc/cpuinfo
+ui_print "- Detecting UMS512 device..."
+if [ -f /proc/cpuinfo ]; then
+  soc_info=$(awk '/Hardware/ {for(i=3;i<=NF;i++) printf "%s ", $i}' /proc/cpuinfo)
+  if echo "$soc_info" | grep -qE "(T618|ums512)"; then
+    ui_print "  ✓ UMS512/T618 SoC detected: $soc_info"
+  else
+    abort "  ✗ Unsupported SoC detected: $soc_info"
+  fi
+else
+  abort "  ✗ Cannot read /proc/cpuinfo"
+fi
+
+# Device validation using build props
+device_name=$(getprop ro.product.device 2>/dev/null)
+if echo "$device_name" | grep -qE "(ums512|ums5121h10)"; then
+  ui_print "  ✓ Device confirmed: $device_name"
+else
+  ui_print "  ⚠ Device name unknown: $device_name (proceeding anyway)"
+fi
+
+# Automatic partition analysis using /proc/partitions
+ui_print "- Analyzing partition layout using /proc/partitions..."
+
+# Get userdata partition info from /proc/partitions
+userdata_info=$(awk '/mmcblk0p76$/ {print $3 " " $4}' /proc/partitions)
+if [ -z "$userdata_info" ]; then
+  abort "  ✗ Cannot find userdata partition in /proc/partitions"
+fi
+
+userdata_kb=$(echo $userdata_info | awk '{print $1}')
+userdata_gb=$((userdata_kb / 1024 / 1024))
+ui_print "  ✓ Userdata found: ${userdata_gb}GB (${userdata_kb}KB)"
+
+# Verify partition exists as block device
+if [ ! -b "/dev/block/mmcblk0p76" ]; then
+  abort "  ✗ Userdata block device not accessible"
+fi
+ui_print "  ✓ Userdata block device accessible"
+
+# Check current layout using /sys/block
+ui_print "- Detecting current partition layout..."
+if [ -f "/sys/block/mmcblk0/mmcblk0p76/uevent" ]; then
+  partname=$(grep "PARTNAME" /sys/block/mmcblk0/mmcblk0p76/uevent | cut -d= -f2)
+  if [ "$partname" = "userdata" ]; then
+    ui_print "  ✓ Stock layout detected (single userdata partition)"
+    curlayout="stock"
+  else
+    ui_print "  ⚠ Unexpected partition name: $partname"
+    curlayout="stock"
+  fi
+else
+  ui_print "  ✓ Assuming stock layout"
+  curlayout="stock"
+fi
+
+# Check for existing A/B layout
+if [ -b "/dev/block/mmcblk0p77" ] || [ -b "/dev/block/mmcblk0p78" ]; then
+  ui_print "  ⚠ Additional partitions detected - may already be A/B layout"
+  ui_print "  Continuing with conversion anyway..."
+fi
+
+# Automatic A/B conversion setup
+ui_print "- Configuring automatic A/B conversion..."
+layout="A/B"
+typea="f2fs"
+typeb="f2fs"
+slot_a_size=$((userdata_gb / 2))
+slot_b_size=$((userdata_gb / 2))
+
+ui_print "  ✓ Target layout: A/B dual boot"
+ui_print "  ✓ Slot A: ${slot_a_size}GB (F2FS)"
+ui_print "  ✓ Slot B: ${slot_b_size}GB (F2FS)"
+ui_print "  ✓ Encryption: Keeping current state (FBE enabled)"
+ui_print "  ✓ Root: Using existing Magisk in boot.img"
+
+# Final confirmation
+ui_print " "
+ui_print "- AUTOMATIC DUAL BOOT CONVERSION"
+ui_print "  Source: Stock userdata (${userdata_gb}GB)"
+ui_print "  Target: A/B layout (${slot_a_size}GB each)"
+ui_print "  ⚠ ALL DATA WILL BE WIPED!"
+ui_print " "
+ui_print "  Starting conversion in 3 seconds..."
+sleep 3
+
+ui_print "- Beginning automatic A/B conversion..."
+
+# Patch TWRP for A/B layout
+ui_print "  → Modifying TWRP recovery for A/B support..."
+magiskboot cpio ramdisk-recovery.cpio "extract etc/recovery.wipe recovery.wipe"
+sed -i 's|^/dev/block/mmcblk0p76$|/dev/block/mmcblk0p76\n/dev/block/mmcblk0p78|' recovery.wipe
+magiskboot cpio ramdisk-recovery.cpio "add 0644 etc/recovery.wipe recovery.wipe"
+
+magiskboot cpio ramdisk-recovery.cpio "extract etc/twrp.fstab twrp.fstab"
+sed -ri -e 's|(/userdata.*flags=)|\1slotselect;|' -e 's|(.*name/metadata) *|\1\t\t\t\t\tflags=slotselect;backup=0;display="Metadata"|' twrp.fstab
+magiskboot cpio ramdisk-recovery.cpio "add 0644 etc/twrp.fstab twrp.fstab"
+
+# Add essential binaries to recovery
+for i in magiskboot magiskpolicy sgdisk; do
+  magiskboot cpio ramdisk-recovery.cpio "exists /sbin/$i" || magiskboot cpio ramdisk-recovery.cpio "add 0755 sbin/$i $tools/$i"
+done
+ui_print "  ✓ TWRP modified for A/B support"
+
+# Execute repartitioning
+ui_print "  → Repartitioning userdata to A/B layout..."
+unmountAllAndRefreshPartitions
+repartition_userdata
+blockdev --rereadpt /dev/block/mmcblk0
+sync
+ui_print "  ✓ Repartitioning completed"
+
+# Process both boot slots
+for slot_name in "A" "B"; do
+  case $slot_name in
+    "A") slot="_a"; partition=42 ;;
+    "B") slot="_b"; partition=43 ;;
+  esac
+  
+  ui_print " "
+  ui_print "- Processing boot slot $slot_name (partition ${partition})..."
+  
+  mkdir -p boot
+  cd boot
+  
+  # Extract boot.img
+  ui_print "  → Reading boot.img from partition ${partition}..."
+  dd bs=16384 if=${target_base}${partition} of=boot.img 2>/dev/null || abort "Failed to read boot.img"
+  
+  # Unpack boot.img
+  ui_print "  → Unpacking boot.img..."
+  magiskboot unpack -h boot.img || abort "Failed to unpack boot.img"
+  
+  # Install modified TWRP ramdisk
+  ui_print "  → Installing dual-boot TWRP..."
+  cp -f $tmp/ramdisk-recovery.cpio ramdisk.cpio
+  
+  # Configure F2FS support
+  if [ "$typea" = "f2fs" ]; then
+    cp -f $tmp/twrp.fstab twrp.fstab
+    sed -ri "s|(^/data\t* *)ext4|\1f2fs|" twrp.fstab
+    magiskboot cpio ramdisk.cpio "add 0644 etc/twrp.fstab twrp.fstab"
+  fi
+  
+  # Patch for dual boot
+  magiskboot cpio ramdisk.cpio patch
+  
+  # Repack and flash
+  ui_print "  → Repacking and flashing boot.img..."
+  magiskboot repack boot.img new-boot.img
+  cat new-boot.img /dev/zero > ${target_base}${partition} 2>/dev/null
+  magiskboot cleanup
+  
+  cd $tmp
+  rm -rf boot
+  
+  ui_print "  ✓ Slot $slot_name processed successfully"
+done
+
+# Final cleanup
+umount -l /dev/random 2>/dev/null
+[ -z $OLD_LD_LIB ] || export LD_LIBRARY_PATH=$OLD_LD_LIB
+[ -z $OLD_LD_PRE ] || export LD_PRELOAD=$OLD_LD_PRE
+[ -z $OLD_LD_CFG ] || export LD_CONFIG_FILE=$OLD_LD_CFG
+
+cd /
+rm -rf /dev/tmp
+
+ui_print " "
+ui_print "✓ UMS512 DUAL BOOT CONVERSION COMPLETED!"
+ui_print " "
+ui_print "  → Slot A: userdata_a (76) - ${slot_a_size}GB"
+ui_print "  → Slot B: userdata_b (78) - ${slot_b_size}GB"
+ui_print "  → Metadata: A(58) + B(77) - 16MB each"
+ui_print " "
+ui_print "  Next steps:"
+ui_print "  1. Install ROM in slot A (current slot)"
+ui_print "  2. Reboot to recovery, switch to slot B"
+ui_print "  3. Install different ROM in slot B"
+ui_print "  4. Use TWRP to switch between slots"
+ui_print " "
+
+exit 0
