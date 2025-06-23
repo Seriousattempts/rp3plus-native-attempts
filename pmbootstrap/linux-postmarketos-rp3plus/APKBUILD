@@ -1,0 +1,321 @@
+pkgname=linux-postmarketos-rp3plus
+pkgver=4.14.199
+pkgrel=1
+pkgdesc="Alldocube UMS512 Tiger T618 kernel fork for Retroid Pocket 3 Plus"
+arch="aarch64"
+_carch="arm64"
+_flavor="postmarketos-rp3plus"
+url="https://github.com/Mashopy/android_kernel_alldocube_ums512"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="
+	bash
+	bc
+	bison
+	devicepkg-dev
+	findutils
+	flex
+	openssl-dev
+	perl
+	dtc
+	kmod
+	python3
+	clang
+	lld
+	llvm
+	mkbootimg
+	musl-dev
+	compiler-rt
+	linux-headers
+	xz
+	xz-doc
+"
+
+# Alldocube UMS512 kernel source
+_repository="android_kernel_alldocube_ums512"
+_commit="aa55f2998e77b9f3776091cebb625bc1dced1ca6"
+_config="config-${_flavor}.${arch}"
+
+source="
+	${_repository}-${_commit}.tar.gz::https://github.com/Mashopy/${_repository}/archive/${_commit}.tar.gz
+	${_config}
+"
+
+builddir="$srcdir/${_repository}-${_commit}"
+_outdir="out"
+
+prepare() {
+	# XDA Moto G Power approach - aggressive warning suppression for 4.14.199 + Clang
+	export CFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything"
+	export CXXFLAGS="-w -Wall -fcommon -fno-strict-aliasing -Wno-everything"
+	export KCFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything"
+	export LDFLAGS="-fcommon -Wl,-allow-multiple-definition"
+	export REPLACE_GCCH=0
+
+	default_prepare
+	. downstreamkernel_prepare
+	
+	# Copy configuration
+	cp "${srcdir}/${_config}" "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig"
+	
+	# DISABLE EFI STUB - Fix __efistub relocation errors
+	echo "=== DISABLING EFI STUB TO FIX RELOCATION ERRORS ==="
+	sed -i '/CONFIG_EFI/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_EFI_STUB/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_EFI_MIXED/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_EFI_RUNTIME_MAP/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# EFI support completely disabled to fix relocation errors
+# CONFIG_EFI is not set
+# CONFIG_EFI_STUB is not set
+# CONFIG_EFI_MIXED is not set
+# CONFIG_EFI_RUNTIME_MAP is not set
+# CONFIG_EFI_LIB is not set
+EOF
+	
+	# COMPREHENSIVE ION AND SPRD ION DISABLING
+	echo "=== DISABLING ION ALLOCATOR AND SPRD ION EXTENSIONS ==="
+	sed -i '/CONFIG_ION/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_ION_SPRD/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_SPRD_ION/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# ION allocator completely disabled to fix undefined symbols
+# CONFIG_ION is not set
+# CONFIG_ION_SPRD is not set
+# CONFIG_SPRD_ION is not set
+EOF
+	
+	# DISABLE SPRD DRM/GEM DRIVERS THAT DEPEND ON ION
+	echo "=== DISABLING SPRD GPU DRIVERS THAT DEPEND ON ION ==="
+	sed -i '/CONFIG_DRM_SPRD/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_DRM_SPRD_HDMI/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# SPRD DRM drivers disabled due to ION dependency
+# CONFIG_DRM_SPRD is not set
+# CONFIG_DRM_SPRD_HDMI is not set
+EOF
+	
+	# DISABLE SPRD IOMMU THAT DEPENDS ON ION
+	echo "=== DISABLING SPRD IOMMU THAT DEPENDS ON ION ==="
+	sed -i '/CONFIG_SPRD_IOMMU/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# SPRD IOMMU disabled due to ION dependency
+# CONFIG_SPRD_IOMMU is not set
+EOF
+	
+	# COMPREHENSIVE USB GADGET DISABLING - Fix gadget_count error
+	echo "=== DISABLING ALL USB GADGET FUNCTIONALITY ==="
+	sed -i '/CONFIG_USB_GADGET/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_CONFIGFS/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_LIBCOMPOSITE/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_F_/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_CONFIGFS_F_/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_G_/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_ETH/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_USB_MASS_STORAGE/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# USB Gadget completely disabled to fix build errors
+# CONFIG_USB_GADGET is not set
+# CONFIG_USB_CONFIGFS is not set
+# CONFIG_USB_LIBCOMPOSITE is not set
+# CONFIG_USB_CONFIGFS_F_FS is not set
+# CONFIG_USB_CONFIGFS_MASS_STORAGE is not set
+# CONFIG_USB_ETH is not set
+# CONFIG_USB_G_SERIAL is not set
+EOF
+	
+	# Remove problematic USB gadget files
+	if [ -f "${builddir}/drivers/usb/gadget/configfs.c" ]; then
+		echo "Backing up and removing problematic configfs.c"
+		mv "${builddir}/drivers/usb/gadget/configfs.c" "${builddir}/drivers/usb/gadget/configfs.c.disabled"
+	fi
+	
+	# Disable compilation of the entire USB gadget directory
+	if [ -f "${builddir}/drivers/usb/Makefile" ]; then
+		sed -i 's/obj-$(CONFIG_USB_GADGET)/# obj-$(CONFIG_USB_GADGET) # Disabled due to build errors/' "${builddir}/drivers/usb/Makefile"
+	fi
+	
+	# DISABLE SPRD AUDIO DRIVERS
+	echo "=== DISABLING SPRD AUDIO DRIVERS ==="
+	sed -i '/CONFIG_SND_SOC_SPRD/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	sed -i '/CONFIG_SPRD_AUDIO/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# SPRD Audio drivers disabled due to undefined symbols
+# CONFIG_SND_SOC_SPRD is not set
+# CONFIG_SND_SOC_SPRD_SHARKLE is not set
+# CONFIG_SPRD_AUDIO_MEMORY_MANAGER is not set
+# CONFIG_SPRD_AUDIO_MCDT is not set
+EOF
+	
+	# PATCH SPRD MAKEFILES TO PREVENT COMPILATION
+	if [ -f "${builddir}/drivers/gpu/drm/sprd/Makefile" ]; then
+		echo "Disabling SPRD DRM driver compilation"
+		sed -i 's/sprd_gem.o/# sprd_gem.o # Disabled due to ION dependency/' "${builddir}/drivers/gpu/drm/sprd/Makefile"
+	fi
+	
+	if [ -f "${builddir}/drivers/soc/sprd/iommu/Makefile" ]; then
+		echo "Disabling SPRD IOMMU driver compilation"
+		sed -i 's/sprd_iommu.o/# sprd_iommu.o # Disabled due to ION dependency/' "${builddir}/drivers/soc/sprd/iommu/Makefile"
+	fi
+	
+	# DISABLE EFI STUB IN MAKEFILE
+	if [ -f "${builddir}/drivers/firmware/efi/Makefile" ]; then
+		echo "Disabling EFI stub compilation"
+		sed -i 's/obj-$(CONFIG_EFI_STUB)/# obj-$(CONFIG_EFI_STUB) # Disabled/' "${builddir}/drivers/firmware/efi/Makefile"
+	fi
+	
+	# Fix stpcpy undefined symbol
+	echo "Adding stpcpy kernel implementation..."
+	if [ -f "${builddir}/lib/string.c" ]; then
+		cat >> "${builddir}/lib/string.c" << 'EOF'
+
+#ifndef __HAVE_ARCH_STPCPY
+char *stpcpy(char *dest, const char *src)
+{
+	while ((*dest++ = *src++) != '\0')
+		/* nothing */;
+	return --dest;
+}
+EXPORT_SYMBOL(stpcpy);
+#endif
+EOF
+	fi
+	
+	if [ -f "${builddir}/include/linux/string.h" ]; then
+		if ! grep -q "char \*stpcpy" "${builddir}/include/linux/string.h"; then
+			echo "extern char *stpcpy(char *dest, const char *src);" >> "${builddir}/include/linux/string.h"
+		fi
+	fi
+	
+	# Enable basic GPU support instead of SPRD
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+# Basic DRM support without SPRD-specific drivers
+CONFIG_DRM=y
+CONFIG_DRM_PANEL=y
+CONFIG_DRM_BRIDGE=y
+CONFIG_DRM_SIMPLE_PANEL=y
+EOF
+	
+	# Fix backlight dependency warning
+	echo "Fixing backlight dependency warnings..."
+	sed -i '/CONFIG_BACKLIGHT_LCD_SUPPORT/d' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" || true
+	cat >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig" << 'EOF'
+CONFIG_BACKLIGHT_LCD_SUPPORT=y
+CONFIG_BACKLIGHT_CLASS_DEVICE=y
+CONFIG_HAS_IOMEM=y
+EOF
+	
+	# Clang compatibility fixes
+	echo "Adding Clang compatibility fixes for 4.14.199..."
+	cat >> "${builddir}/include/linux/compiler.h" << 'EOF'
+
+#ifndef __printf
+#define __printf(a, b) __attribute__((format(printf, a, b)))
+#endif
+#ifndef __cold
+#define __cold __attribute__((__cold__))
+#endif
+#ifndef __noreturn
+#define __noreturn __attribute__((noreturn))
+#endif
+#ifndef __deprecated
+#define __deprecated __attribute__((deprecated))
+#endif
+#ifndef __weak
+#define __weak __attribute__((weak))
+#endif
+#ifndef __alias
+#define __alias(symbol) __attribute__((alias(#symbol)))
+#endif
+#ifndef __packed
+#define __packed __attribute__((packed))
+#endif
+EOF
+	
+	# Fix compiler-gcc.h protection
+	if [ -f "${builddir}/include/linux/compiler-gcc.h" ]; then
+		sed -i '/#error.*include.*compiler\.h.*instead/d' "${builddir}/include/linux/compiler-gcc.h"
+	fi
+	
+	# DTC fixes
+	if [ -f "${builddir}/scripts/dtc/dtc-lexer.lex.c_shipped" ]; then
+		sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' "${builddir}/scripts/dtc/dtc-lexer.lex.c_shipped"
+	fi
+	
+	# Tiger T618 optimizations
+	if [ -f "${builddir}/arch/arm64/Makefile" ]; then
+		sed -i 's/-mfix-cortex-a53-835769//g' "${builddir}/arch/arm64/Makefile"
+		sed -i 's/-mfix-cortex-a53-843419//g' "${builddir}/arch/arm64/Makefile"
+		sed -i 's/--fix-cortex-a53-843419//g' "${builddir}/arch/arm64/Makefile"
+	fi
+	
+	# Fix script permissions
+	find "${builddir}" -name "*.sh" -type f -exec chmod +x {} \;
+	
+	echo "=== ALL PATCHING COMPLETE ==="
+}
+
+build() {
+	unset LDFLAGS
+	
+	# Generate configuration for UMS512 platform
+	LLVM=1 LLVM_IAS=1 make O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		"${_flavor}_defconfig"
+	
+	# Build with Tiger T618 optimizations (XDA approach + UMS512)
+	LLVM=1 LLVM_IAS=1 make O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		LD=ld.lld \
+		AR=llvm-ar \
+		NM=llvm-nm \
+		OBJCOPY=llvm-objcopy \
+		OBJDUMP=llvm-objdump \
+		STRIP=llvm-strip \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		KCFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything -march=armv8.2-a+crypto+fp+simd+crc+dotprod -mtune=cortex-a75 -O2 -fno-strict-aliasing" \
+		HOSTCFLAGS="-w -Wno-error -Wno-everything" \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1))-postmarketOS" \
+		KBUILD_BUILD_USER="pmbootstrap" \
+		KBUILD_BUILD_HOST="postmarketos" \
+		-j$(nproc) \
+		Image dtbs modules
+}
+
+package() {
+	downstreamkernel_package "${builddir}" "${pkgdir}" "${_carch}" \
+		"${_flavor}" "${_outdir}"
+
+	# Install device trees (UMS512 platform critical)
+	LLVM=1 LLVM_IAS=1 make dtbs_install O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		INSTALL_DTBS_PATH="${pkgdir}/boot/dtbs"
+	
+	# Install modules to correct path (/lib/modules)
+	LLVM=1 LLVM_IAS=1 make modules_install O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		INSTALL_MOD_PATH="${pkgdir}" \
+		INSTALL_MOD_STRIP=1
+	
+	# Remove development symlinks
+	rm -f "${pkgdir}/lib/modules"/*/{build,source}
+}
+
+sha512sums="
+72b5e93018022a9d011127822518b7c7379a1f067258c5ce5cedecc7521844adcc95a51d7c628ee637d375fc4ed9095fbe54694eae0148d6ba3cf66c85916300  android_kernel_alldocube_ums512-aa55f2998e77b9f3776091cebb625bc1dced1ca6.tar.gz
+eba70c9e77482cf31df5e2dcb2bea55de3773b6ae80a8b5049d74b2c93ee56ccfc398504483663b016e421a6228c93c4c9295b2bb8f3d6b61822331049c3bf50  config-postmarketos-rp3plus.aarch64
+"
