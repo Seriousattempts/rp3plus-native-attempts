@@ -1,0 +1,60 @@
+# Reference: <https://postmarketos.org/deviceinfo>
+deviceinfo_format_version="0"
+deviceinfo_name="Retroid Pocket 3 Plus"
+deviceinfo_manufacturer="Moorechip"
+deviceinfo_codename="postmarketos-rp3plus"
+deviceinfo_year="2022"
+deviceinfo_dtb="sprd/ums512-1h10"
+deviceinfo_arch="aarch64"
+
+# Device related
+deviceinfo_chassis="handset"
+deviceinfo_external_storage="true"
+deviceinfo_kernel_version="6.15.0-rc2"
+deviceinfo_screen_width="1336"
+deviceinfo_screen_height="752"
+deviceinfo_dev_touchscreen="/dev/input/event1"
+
+# Bootloader related - TWRP optimized for UMS512
+deviceinfo_flash_method="fastboot"
+deviceinfo_kernel_cmdline="console=ttyS1,115200n8 console=tty0 earlyprintk=sprd_uart,0x70100000 loglevel=8 ignore_loglevel androidboot.selinux=permissive androidboot.hardware=ums512 root=/dev/mmcblk0p50 rootwait rw init=/sbin/init androidboot.force_normal_boot=1"
+deviceinfo_kernel_cmdline_append="clk_ignore_unused pd_ignore_unused androidboot.fstab_suffix=_a"
+deviceinfo_generate_bootimg="true"
+deviceinfo_flash_pagesize="2048"
+deviceinfo_header_version="2"
+deviceinfo_append_dtb="true"
+deviceinfo_dtb_second="false"
+
+# Flash offsets (verified from Tiger T618 partition layout)
+deviceinfo_flash_offset_dtb="0x01f00000"
+deviceinfo_flash_offset_base="0x00000000"
+deviceinfo_flash_offset_kernel="0x00008000"
+deviceinfo_flash_offset_ramdisk="0x05400000"
+deviceinfo_flash_offset_second="0x00000000"
+deviceinfo_flash_offset_tags="0x00000100"
+
+# Android 11 Dynamic Partition Support (UMS512 specific)
+deviceinfo_super_partitions="super"
+deviceinfo_flash_sparse="true"
+deviceinfo_rootfs_image_sector_size="4096"
+
+# TWRP Recovery installation settings (Android 11 optimized)
+deviceinfo_recovery_install_partition="super"
+deviceinfo_recovery_use_sparse="true"
+deviceinfo_recovery_fstab="/system/etc/recovery.fstab"
+deviceinfo_flash_android_recovery_zip="true"
+
+# Device Tree configuration for UMS512
+deviceinfo_generate_dtbo="true"
+deviceinfo_flash_fastboot_partition_dtbo="dtbo_a"
+deviceinfo_flash_fastboot_partition_kernel="boot_a"
+deviceinfo_flash_fastboot_partition_rootfs="super"
+deviceinfo_flash_fastboot_partition_userdata="userdata"
+
+# Partition mappings (from your Tiger T618 layout)
+deviceinfo_userdata_path="/dev/mmcblk0p76"
+deviceinfo_boot_filesystem="ext4"
+deviceinfo_root_filesystem="ext4"
+
+# UMS512 specific settings
+deviceinfo_modules_initfs_recovery="sprd_serial sprd_drm sprd_dsi touchscreen input_core evdev"

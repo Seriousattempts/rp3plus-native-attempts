@@ -1,0 +1,61 @@
+# Core platform drivers
+sprd_iommu
+sprd_dma
+sprd_cproc
+sprd_sipc
+
+# Storage access
+mmc_core
+mmc_block
+sdhci
+sdhci_sprd
+
+# Console and display
+sprd_serial
+sprd_drm
+sprd_dsi
+
+# USB networking for debug access
+dwc3
+dwc3_sprd
+usb_storage
+usb_gadget
+g_ether
+
+# Input
+input_core
+evdev
+joydev
+uinput
+hid_generic
+touchscreen
+
+# Critical thermal protection
+sprd_thermal
+thermal_sys
+
+# Basic CPU frequency (prevent boot throttling)
+cpufreq_dt
+
+# Essential memory management for 4GB RAM
+zram
+
+# Minimal power management (prevent boot hang)
+cpuidle_governors
+
+# Platform-specific drivers for UMS512
+sprd_pinctrl
+sprd_gpio
+sprd_efuse
+sprd_hwfeature
+sprd_mailbox
+sprd_hwspinlock
+
+# Recovery-specific modules
+ext4
+f2fs
+vfat
+
+# Android 11 dynamic partition support
+dm_mod
+dm_verity
