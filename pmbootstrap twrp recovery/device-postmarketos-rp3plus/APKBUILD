@@ -1,0 +1,50 @@
+# Reference: <https://postmarketos.org/devicepkg>
+pkgname=device-postmarketos-rp3plus
+pkgdesc="Retroid Pocket 3 Plus (Tiger T618 UMS512)"
+pkgver=1
+pkgrel=5
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="
+	linux-postmarketos-rp3plus
+	postmarketos-base
+	postmarketos-mkinitfs
+	mkbootimg
+	postmarketos-android-recovery-installer
+	e2fsprogs-extra
+	dosfstools
+	android-tools
+"
+makedepends="devicepkg-dev"
+source="
+	deviceinfo
+	modules-initfs
+	load-firmware.sh
+	90-firmware-loader.rules
+"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+	
+	# Install firmware loading rules
+	install -Dm644 "$srcdir"/90-firmware-loader.rules \
+		-t "$pkgdir"/usr/lib/udev/rules.d
+	
+	# Install firmware loading script
+	install -Dm755 "$srcdir"/load-firmware.sh \
+		"$pkgdir"/usr/libexec/postmarketos-rp3plus-firmware.sh
+}
+
+sha512sums="
+a757fdab942538285d85cabe4bf1886118647b7207f3ee04427a786f9cf987f2ea24f9fa7f3b78e23e644cbcba66bc32eecaf8daf34c84e088c85cb929cf7621  deviceinfo
+1bde49387677b1b53ef657e3f3538665e13f0889e1bc397e05c4eaad8c2af91c1434b6097ccacad0f971af56b48f5e1439513e290358166b9f202e041eae6af1  modules-initfs
+b069b889e42a24f3e00ea9fd5574628ed3dbf98c6374ce9f4c9dc4cd6ec355883fdccca215ddc1ac58d144e2a9af135f73a6e29bb1746f2cad0ba3bb4b4a090f  load-firmware.sh
+77c1373c853ecf55a0cf513ea71989a18aecb0d803bf379285582c9dfcdc555bf0a5d137bc39826c87a7bc689baba0f41d9d0fb9116fe5783d58b343b1d1ed3a  90-firmware-loader.rules
+"
+

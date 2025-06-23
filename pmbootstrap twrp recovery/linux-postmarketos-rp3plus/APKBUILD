@@ -1,0 +1,200 @@
+pkgname=linux-postmarketos-rp3plus
+pkgver=6.15.0_rc2
+pkgrel=11=2
+pkgdesc="UMS512 Tiger T618"
+arch="aarch64"
+_carch="arm64"
+_flavor="postmarketos-rp3plus"
+url="https://github.com/Veynamer/linux-ums512"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="
+	bash
+	bc
+	bison
+	devicepkg-dev
+	findutils
+	flex
+	openssl-dev
+	perl
+	dtc
+	kmod
+	python3
+	clang
+	lld
+	llvm
+	mkbootimg
+	musl-dev
+	compiler-rt
+	linux-headers
+	xz
+	xz-doc
+"
+
+# Veynamer linux-ums512 kernel
+_repository="linux-ums512"
+_commit="c5f75ce55e654cc47bb61cb9cdbfb15354ae43ec"
+_config="config-${_flavor}.${arch}"
+
+source="
+	${_repository}-${_commit}.tar.gz::https://github.com/Veynamer/${_repository}/archive/${_commit}.tar.gz
+	${_config}
+"
+
+builddir="$srcdir/${_repository}-${_commit}"
+_outdir="out"
+
+prepare() {
+	# Aggressive warning suppression for modern Clang by using XDA forums Moto G Power 2021 example
+	export CFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything"
+	export CXXFLAGS="-w -Wall -fcommon -fno-strict-aliasing -Wno-everything"
+	export KCFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything"
+	export LDFLAGS="-fcommon -Wl,-allow-multiple-definition"
+	export REPLACE_GCCH=0
+
+	default_prepare
+	. downstreamkernel_prepare
+	
+	# Copy configuration
+	cp "${srcdir}/${_config}" "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig"
+	
+	# Fix GPU Kconfig missing file
+	if [ -f "${builddir}/drivers/gpu/arm/Kconfig" ]; then
+		# Comment out or remove problematic midgard include
+		sed -i 's/source.*midgard.*Kconfig/# source "drivers\/gpu\/arm\/midgard\/Kconfig" # DISABLED - missing file/' "${builddir}/drivers/gpu/arm/Kconfig"
+		echo "Fixed missing midgard Kconfig include"
+	fi
+
+	    # Enable Mali Bifrost GPU support
+    echo "CONFIG_DRM_MALI_BIFROST=y" >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig"
+    echo "CONFIG_DRM_MALI_BIFROST_G52=y" >> "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig"
+    
+    # Fix framebuffer console for TWRP
+    sed -i 's/CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER=y/# CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER is not set/' "${builddir}/arch/${_carch}/configs/${_flavor}_defconfig"
+	
+	# Remove midgard directory references if problematic
+	if [ -d "${builddir}/drivers/gpu/arm/midgard" ] && [ ! -f "${builddir}/drivers/gpu/arm/midgard/Kconfig" ]; then
+		echo "Disabling problematic midgard GPU directory"
+		mv "${builddir}/drivers/gpu/arm/midgard" "${builddir}/drivers/gpu/arm/midgard.disabled" 2>/dev/null || true
+	fi
+	
+	# Fix missing attribute definitions
+	echo "Fixing missing compiler attribute definitions..."
+	cat >> "${builddir}/include/linux/compiler.h" << 'EOF'
+
+/* Fix missing attribute definitions for old kernel + modern Clang */
+#ifndef __printf
+#define __printf(a, b) __attribute__((format(printf, a, b)))
+#endif
+
+#ifndef __cold
+#define __cold __attribute__((__cold__))
+#endif
+
+#ifndef __noreturn
+#define __noreturn __attribute__((noreturn))
+#endif
+
+#ifndef __deprecated
+#define __deprecated __attribute__((deprecated))
+#endif
+
+#ifndef __weak
+#define __weak __attribute__((weak))
+#endif
+
+#ifndef __alias
+#define __alias(symbol) __attribute__((alias(#symbol)))
+#endif
+EOF
+	
+	# Fix compiler-gcc.h direct inclusion errors
+	if [ -f "${builddir}/include/linux/compiler-gcc.h" ]; then
+		sed -i '/#error.*include.*compiler\.h.*instead/d' "${builddir}/include/linux/compiler-gcc.h"
+		echo "Removed compiler-gcc.h protection error"
+	fi
+	
+	# Dynamic integrated assembler fix
+	if [ -f "${builddir}/Makefile" ]; then
+		sed -i 's/CLANG_FLAGS += -no-integrated-as/# CLANG_FLAGS += -no-integrated-as/g' "${builddir}/Makefile"
+		echo "Applied integrated assembler fix"
+	fi
+	
+	# DTC multiple definition fix
+	if [ -f "${builddir}/scripts/dtc/dtc-lexer.lex.c_shipped" ]; then
+		sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' "${builddir}/scripts/dtc/dtc-lexer.lex.c_shipped"
+		echo "Applied DTC fix"
+	fi
+	
+	# Fix script permissions
+	find "${builddir}" -name "*.sh" -type f -exec chmod +x {} \;
+	
+	# Tiger T618 specific fixes
+	if [ -f "${builddir}/arch/arm64/Makefile" ]; then
+		sed -i 's/-mfix-cortex-a53-835769//g' "${builddir}/arch/arm64/Makefile"
+		sed -i 's/-mfix-cortex-a53-843419//g' "${builddir}/arch/arm64/Makefile"
+		sed -i 's/--fix-cortex-a53-843419//g' "${builddir}/arch/arm64/Makefile"
+		echo "Applied Tiger T618 ARM64 fixes"
+	fi
+}
+
+build() {
+	unset LDFLAGS
+	
+	# Generate configuration
+	LLVM=1 LLVM_IAS=1 make O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		"${_flavor}_defconfig"
+	
+	# Build with maximum error suppression using XDA forums Moto G Power 2021 example
+	LLVM=1 LLVM_IAS=1 make O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		LD=ld.lld \
+		AR=llvm-ar \
+		NM=llvm-nm \
+		OBJCOPY=llvm-objcopy \
+		OBJDUMP=llvm-objdump \
+		STRIP=llvm-strip \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		KCFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-everything -march=armv8.2-a+crypto+fp+simd+crc+dotprod -mtune=cortex-a75 -O2 -fno-strict-aliasing" \
+		HOSTCFLAGS="-w -Wno-error -Wno-everything" \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1))-postmarketOS" \
+		KBUILD_BUILD_USER="pmbootstrap" \
+		KBUILD_BUILD_HOST="postmarketos" \
+		-j$(nproc) \
+		Image dtbs modules
+}
+
+package() {
+	downstreamkernel_package "${builddir}" "${pkgdir}" "${_carch}" \
+		"${_flavor}" "${_outdir}"
+
+	# Install device trees
+	LLVM=1 LLVM_IAS=1 make dtbs_install O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		HOSTCC=clang \
+		CLANG_TRIPLE=aarch64-linux-gnu- \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		INSTALL_DTBS_PATH="${pkgdir}/boot/dtbs"
+	
+	# Install modules to /lib/modules (NOT /usr/lib/modules)
+	LLVM=1 LLVM_IAS=1 make modules_install O="${_outdir}" ARCH="${_carch}" \
+		CC=clang \
+		CROSS_COMPILE=aarch64-alpine-linux-musl- \
+		INSTALL_MOD_PATH="${pkgdir}" \
+		INSTALL_MOD_STRIP=1
+	
+	# Remove symlinks
+	rm -f "${pkgdir}/lib/modules"/*/{build,source}
+}
+
+sha512sums="
+6a59b69049b032b6a261a128011e388094ce283c0dd8188c4106b448ef3ed8febae4098fe02328d10dd178c74c3ab2f69976cb1297d01a9df3d10a8bd6cdcbc2  linux-ums512-c5f75ce55e654cc47bb61cb9cdbfb15354ae43ec.tar.gz
+0f1bb5d96877765b277bec87983555de669cbd783edfe57b049efe5162c4e35afcdabee28724dfe247bceb8f5ffa1465c5132c895803554007718574c25f2ae6  config-postmarketos-rp3plus.aarch64
+"
+

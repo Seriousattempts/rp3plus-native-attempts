@@ -1,0 +1,76 @@
+ git clone https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git
+ cd pmbootstrap
+ mkdir -p ~/.local/bin
+ ln -s "$PWD/pmbootstrap.py" ~/.local/bin/pmbootstrap
+pmbootstrap -V
+3.5.0
+ pmbootstrap init
+ /home/ralt/pmos_work
+ /home/ralt/pmaports
+
+Same issue as above
+
+ postmarketos
+ rp3plus
+ Continue? (y/n) [y]: y
+ aarch64
+ Moorechip
+ Retroid Pocket 3 Plus
+ 2022
+ handset
+ Continue? (y/n) [y]: y
+ fastboot
+ /home/ralt/Downloads/twrp_custom.img
+ gnome
+ wpa_supplicant
+ xfce4
+ (y/n) [n]: n
+ mesa,vulkan-loader,openssl,gnupg,libsodium,zram-init,htop,cpufrequtils,xrandr,flatpak,cryptsetup,mesa-vulkan-panfrost,lm-sensors,i2c-tools,linux-tools-iio,libcec,mesa-utils,coreutils,upower,spi-tools,v4l-utils,perf,cpupower,conky,liblapack,openblas,mesa-gles,mesa-gl,ffmpeg-libs,ffmpeg,obs-studio,qemu-aarch64,libvirt,podman,opencl-headers,opencl-dev,linux-headers,musl-dev,gcc,pipewire,pipewire-alsa,pipewire-pulse,libvirt-daemon,virt-manager,numactl,zstd
+ (y/n) [y]: y
+ en_US         
+ 3plus                                            
+ (y/n) [y]: y
+[12:34:56] DONE!
+
+In different tabs in "Files", go to path:
+
+/home/ralt/pmaports/device/testing/linux-postmarketos-rp3plus
+/home/ralt/pmaports/device/testing/device-postmarketos-rp3plus
+~/.config/pmbootstrap.cfg
+
+You can manually edit the files without using terminal. Or in terminal
+
+ rm /home/ralt/pmaports/device/testing/linux-postmarketos-rp3plus/*.patch
+ cd ~/pmaports/device/testing/device-postmarketos-rp3plus
+ echo 'deviceinfo_dtb="sprd/ums512-1h10"' >> deviceinfo
+ tail -5 deviceinfo
+
+Create firmware script similar to jolla-c2's firmware usage
+ Create /home/ralt/pmaports/device/testing/firmware-postmarketos-rp3plus/APKBUILD
+ Update /home/ralt/pmaports/device/testing/device-postmarketos-rp3plus/APKBUILD to add firmware dependencies and scripts
+ Create 90-firmware-loader.rules
+ Create load-firmware.sh
+ Modify modules-initfs
+ pmbootstrap chroot -- adduser ralt
+ pmbootstrap chroot -- chown -R ralt:ralt /home/pmos/build
+
+You may have to manually copy
+
+/home/ralt/pmos_work/chroot_native/home/pmos/build/APKBUILD
+
+to the APKBUILD based on the checksum selected.
+
+Now to start building
+
+ pmbootstrap checksum linux-postmarketos-rp3plus
+ pmbootstrap checksum device-postmarketos-rp3plus
+ pmbootstrap checksum firmware-postmarketos-rp3plus
+ pmbootstrap kconfig check linux-postmarketos-rp3plus
+ pmbootstrap zap
+ pmbootstrap chroot --rootfs apk fix
+ pmbootstrap build linux-postmarketos-rp3plus --force
+ pmbootstrap build device-postmarketos-rp3plus --force
+ pmbootstrap build firmware-postmarketos-rp3plus --force
+ pmbootstrap install --android-recovery-zip --recovery-install-partition=data
+ pmbootstrap export
+ cp -v /tmp/postmarketOS-export/* ~/Downloads/

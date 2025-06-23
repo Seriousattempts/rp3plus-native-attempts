@@ -1,0 +1,75 @@
+# Maintainer: Your Name <your.email@example.com>
+pkgname=firmware-postmarketos-rp3plus
+pkgver=1.0
+pkgrel=1  # Increment for direct firmware inclusion
+pkgdesc="Moorechip RP3 Plus firmware (direct inclusion)"
+url="https://postmarketos.org"
+arch="aarch64"
+license="proprietary"
+options="!check !strip !archcheck !tracedeps pmb:cross-native"
+
+# Include all firmware files directly
+source="
+	EXEC_KERNEL_IMAGE.bin
+	gnssmodem.bin
+	SC9600_sharkl5pro_pubcp_modem.dat
+	sharkl5pro_pubcp_DM_DSP.bin
+	sharkl5pro_pubcp_LTEA_DSP.bin
+	sharkl5pro_pubcp_AGCP_DSP.bin
+	sharkl5pro_pubcp_CDMA_DSP.bin
+	sharkl5pro_cm4.bin
+	sharkl5pro_pubcp_customer_deltanv.bin
+	sharkl5pro_pubcp_customer_nvitem.bin
+	prodnv.img
+"
+
+package() {
+	# Base firmware package
+	mkdir -p "$pkgdir"
+}
+
+wcn() {
+	pkgdesc="Moorechip RP3 Plus WiFi, Bluetooth and GNSS firmware"
+	_fwdir="$subpkgdir"/lib/firmware/postmarketos/sprd
+
+	install -Dm644 "$srcdir"/EXEC_KERNEL_IMAGE.bin "$_fwdir"/wcnmodem.bin
+	install -Dm644 "$srcdir"/gnssmodem.bin -t "$_fwdir"
+}
+
+modem() {
+	pkgdesc="Moorechip RP3 Plus LTE modem firmware"
+	_fwdir="$subpkgdir"/lib/firmware/postmarketos/sprd
+
+	install -Dm644 "$srcdir"/SC9600_sharkl5pro_pubcp_modem.dat "$_fwdir"/l_modem.bin
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_customer_deltanv.bin "$_fwdir"/l_deltanv.bin
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_customer_nvitem.bin "$_fwdir"/l_fixnv.bin
+	install -Dm644 "$srcdir"/prodnv.img -t "$_fwdir"
+}
+
+dsp() {
+	pkgdesc="Moorechip RP3 Plus DSP firmware"
+	_fwdir="$subpkgdir"/lib/firmware/postmarketos/sprd
+
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_DM_DSP.bin "$_fwdir"/l_gdsp.bin
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_LTEA_DSP.bin "$_fwdir"/l_ldsp.bin
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_AGCP_DSP.bin "$_fwdir"/l_agdsp.bin
+	install -Dm644 "$srcdir"/sharkl5pro_pubcp_CDMA_DSP.bin "$_fwdir"/l_cdsp.bin
+	install -Dm644 "$srcdir"/sharkl5pro_cm4.bin "$_fwdir"/pm_sys.bin
+}
+
+subpackages="$pkgname-wcn:wcn $pkgname-modem:modem $pkgname-dsp:dsp"
+
+
+sha512sums="
+4fcbdfa6e6d3b869e0e73e468293a967017eb760b281e54515426a3b3ce00cfb35af87c4a0304b9010d321578df67c91f9669ace71f79140030540880e2dfcbf  EXEC_KERNEL_IMAGE.bin
+b639075a6bc6d629f1950b03f29c090602112f762f9ab025bf16da3ed22f25fcd33ca35c2013d82ce011d923d3f19cfcbe1144021f78f7b4aaf416b5225bb28f  gnssmodem.bin
+43dfea13c78f4f0b5252cc53ebaa13faf3af274e6c96c9c853ec5a2c94b5aa851677bf03fcbe48a41a2d722ad7f7a69c4aaa7295a72e74250b39e5e1531044e6  SC9600_sharkl5pro_pubcp_modem.dat
+0b813599a6930e36b123aebfa5366be4ee3ce233fe23a5cbd111dcd2077a475d4be5bb1427699d8cb0a0570966bd34ce4365701f6c4cbdb353fa9e8552ce2144  sharkl5pro_pubcp_DM_DSP.bin
+82fa59f2ed125b5f42fbfe8de4fba81f99bbe9a7ee47b073b98498ecddec07dec5c93d8cdcc38110cd689864c3e163e3c145ba0b989ec471a2c1f05e3396e7d0  sharkl5pro_pubcp_LTEA_DSP.bin
+e11c88cb358422fd12756341d93f6f7caea5cbb972db44e3ee435b205492fd6500c0aa9f24fdfd48b4e1403209a339da268c83dcddc4d9e46a435ec5c6cfc76a  sharkl5pro_pubcp_AGCP_DSP.bin
+e262e32e87386e8b46286708e8c5961ca29b05b2b09e96c43a0ccdf9eaaae60830b927bb6294982e2130177ba0a02729266c3c01904b4f96b4935f658a6b0a8d  sharkl5pro_pubcp_CDMA_DSP.bin
+362d7e622dd522bfb0dfbc554b494f8fa80b0e0c6cc2883d191a58f25b48ed0d08963bdbe003afe1df7a848c3377988b9678aaa5ef095aa839796f320351deaa  sharkl5pro_cm4.bin
+47311c4621dbe41be6fd7f9f1ff495dd14bc2e7c2b61c570b0ba486f043e633d35ced7ef9b37a59715c4e22cbc6ef7ae2e143446da8cd8ce0d28e3ae76362402  sharkl5pro_pubcp_customer_deltanv.bin
+e8b1679211206d89c06c52074c3eb3a655c726dbf15c3dbb879173420c1b8df840c7c04345aaf60a4200006eb44dfd5566511deb7f44c7c6dcd563b059a8f576  sharkl5pro_pubcp_customer_nvitem.bin
+2639d8cf122433259084910dae469031a09bf8e117833616749fdb4f6f7c5e5d5e58e1c7c5a399a59724829bf6799bd12319b0bac81d2686649505ba89ba46da  prodnv.img
+"
