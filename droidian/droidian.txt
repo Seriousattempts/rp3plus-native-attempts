@@ -1,0 +1,142 @@
+
+
+TEMPLATE:
+
+sudo apt update && sudo apt install dpkg-dev gpg apt-utils sudo apt install git-lfs sudo apt install gpg-agent pinentry-curses
+sudo apt install docker.io
+sudo systemctl start docker
+sudo systemctl enable docker
+ Synchronizing state of docker.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+ Executing: /usr/lib/systemd/systemd-sysv-install enable docker
+sudo usermod -aG docker $USER
+sudo reboot
+git lfs install
+git clone https://github.com/droidian-releng/droidian-build-tools/
+sudo reboot
+git lfs install
+cd droidian-build-tools/bin
+echo "PATH=${PWD}:\${PATH}" >> ~/.bashrc
+source ~/.bashrc
+./droidian-new-device -v retroid -n rp3plus -c arm64 -a 30 -r phone -d droidian
+
+cd ~/Downloads/droidian-build-tools/bin/droidian/retroid/rp3plus/packages/adaptation-retroid-rp3plus/
+mkdir -p kernel
+cd kernel
+
+Clone a repository with:
+git clone 
+Then enter that path with
+cd repository-name-here
+
+git checkout -b droidian
+
+
+Ran instructs.txt
+- Renamed .dtb files
+- Moved to /home/ralt/Downloads/droidian-build-tools/bin/droidian/retroid/rp3plus/packages/adaptation-retroid-rp3plus/sparse/boot/dtb
+
+
+cd ~/Downloads/droidian-build-tools/bin/droidian/retroid/rp3plus/packages/adaptation-retroid-rp3plus/kernel/repository-name/
+
+mkdir -p debian/source
+cat > debian/rules << 'EOF'
+#!/usr/bin/make -f
+
+include /usr/share/linux-packaging-snippets/kernel-snippet.mk
+
+%:
+	dh $@
+EOF
+
+chmod +x debian/rules
+
+echo "13" > debian/compat
+echo "3.0 (native)" > debian/source/format
+KERNEL_DIR="$(pwd)"
+PACKAGES_DIR="$(pwd)/../.."
+
+
+cat > debian/kernel-info.mk << 'EOF'
+- Modify kernel-info.mk file
+git config user.email "example@what.the"
+git config user.name "J"
+git add -f debian/
+git commit -m "Add Debian packaging for Retroid Pocket 3 Plus kernel"
+sudo chown -R $USER:$USER debian/
+
+docker run --rm -v "$PACKAGES_DIR":/buildd -v "$KERNEL_DIR":/buildd/sources -it quay.io/droidian/build-essential:current-amd64 bash
+
+root@723a85920f62:/# apt-get update && apt-get install -y linux-packaging-snippets nano && apt-get install -y binutils-aarch64-linux-gnu
+root@723a85920f62:/# cd /buildd/sources
+root@723a85920f62:/buildd/sources# rm -f debian/control
+root@723a85920f62:/buildd/sources# debian/rules debian/control
+root@723a85920f62:/buildd/sources# sed -i 's/clang-android-,//' debian/control
+root@723a85920f62:/buildd/sources# RELENG_HOST_ARCH="arm64" releng-build-package
+
+===============
+
+Tested:
+- https://github.com/Mashopy/android_kernel_alldocube_ums512
+
+ERROR:
+
+/usr/bin/ld: scripts/dtc/dtc-parser.tab.o:(.bss+0x10): multiple definition of `yylloc'; scripts/dtc/dtc-lexer.lex.o:(.bss+0x0): first defined here
+collect2: error: ld returned 1 exit status
+make[5]: *** [scripts/Makefile.host:111: scripts/dtc/dtc] Error 1
+make[4]: *** [/buildd/sources/scripts/Makefile.build:671: scripts/dtc] Error 2
+make[3]: *** [/buildd/sources/Makefile:578: scripts] Error 2
+make[3]: Leaving directory '/buildd/sources/out/KERNEL_OBJ'
+make[2]: *** [Makefile:146: sub-make] Error 2
+make[2]: Leaving directory '/buildd/sources'
+make[1]: *** [/usr/share/linux-packaging-snippets/kernel-snippet.mk:119: out/kernel-stamp.default] Error 2
+make[1]: Leaving directory '/buildd/sources'
+make: *** [debian/rules:6: build-arch] Error 2
+dpkg-buildpackage: error: debian/rules build-arch subprocess returned exit status 2
+debuild: fatal error at line 1184:
+dpkg-buildpackage -d -us -uc -ui -sa --jobs=8 --build=any --build=any -aarm64 failed
+
+
+Tested:
+- https://github.com/strongtz/linux-sprd/blob/main/Makefile
+
+ERROR:
+
+/buildd/sources/scripts/extract-cert.c:134:17: warning: 'ENGINE_ctrl_cmd' is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  134 |                 ENGINE_ctrl_cmd(e, "LOAD_CERT_CTRL", 0, &parms, NULL, 1);
+      |                 ^~~~~~~~~~~~~~~
+/usr/include/openssl/engine.h:450:27: note: declared here
+  450 | OSSL_DEPRECATEDIN_3_0 int ENGINE_ctrl_cmd(ENGINE *e, const char *cmd_name,
+      |                           ^~~~~~~~~~~~~~~
+  HOSTCC  scripts/dtc/libfdt/fdt_wip.o
+  HOSTCC  scripts/dtc/libfdt/fdt_sw.o
+  HOSTCC  scripts/dtc/libfdt/fdt_rw.o
+  HOSTCC  scripts/dtc/libfdt/fdt_strerror.o
+  HOSTCC  scripts/dtc/libfdt/fdt_empty_tree.o
+  HOSTCC  scripts/dtc/libfdt/fdt_addresses.o
+  HOSTCC  scripts/dtc/libfdt/fdt_overlay.o
+  HOSTCC  scripts/dtc/libfdt/dtbo_merge_check.o
+  HOSTCC  scripts/dtc/dtc-lexer.lex.o
+  HOSTCC  scripts/dtc/dtc-parser.tab.o
+/buildd/sources/scripts/dtc/libfdt/dtbo_merge_check.c:8:5: warning: no previous prototype for 'dtbo_merge_chk_main' [-Wmissing-prototypes]
+    8 | int dtbo_merge_chk_main(int argc, char *argv[])
+      |     ^~~~~~~~~~~~~~~~~~~
+  HOSTLD  scripts/dtc/dtc
+/usr/bin/ld: scripts/dtc/dtc-parser.tab.o:(.bss+0x10): multiple definition of `yylloc'; scripts/dtc/dtc-lexer.lex.o:(.bss+0x0): first defined here
+collect2: error: ld returned 1 exit status
+make[5]: *** [scripts/Makefile.host:111: scripts/dtc/dtc] Error 1
+make[4]: *** [/buildd/sources/scripts/Makefile.build:671: scripts/dtc] Error 2
+make[3]: *** [/buildd/sources/Makefile:578: scripts] Error 2
+make[3]: Leaving directory '/buildd/sources/out/KERNEL_OBJ'
+make[2]: *** [Makefile:146: sub-make] Error 2
+make[2]: Leaving directory '/buildd/sources'
+make[1]: *** [/usr/share/linux-packaging-snippets/kernel-snippet.mk:119: out/kernel-stamp.default] Error 2
+make[1]: Leaving directory '/buildd/sources'
+make: *** [debian/rules:6: build-arch] Error 2
+dpkg-buildpackage: error: debian/rules build-arch subprocess returned exit status 2
+debuild: fatal error at line 1184:
+dpkg-buildpackage -d -us -uc -ui -sa --jobs=8 --build=any --build=any -aarm64 failed
+root@5b8c4eb0f6c3:/buildd/sources# 
+
+
+--------------------------------------------------------
+
