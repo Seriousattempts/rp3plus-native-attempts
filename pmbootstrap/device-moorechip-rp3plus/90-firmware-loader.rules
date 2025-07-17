@@ -1,0 +1,2 @@
+# Tiger T618 partition-based firmware loading
+SUBSYSTEM=="firmware", ACTION=="add", RUN="/usr/libexec/moorechip-rp3plus-firmware.sh"

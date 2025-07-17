@@ -1,0 +1,48 @@
+# Reference: <https://moorechip.org/devicepkg>
+pkgname=device-moorechip-rp3plus
+pkgdesc="Retroid Pocket 3 Plus (Tiger T618 UMS512)"
+pkgver=1
+pkgrel=5
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="
+	linux-moorechip-rp3plus
+	make-dynpart-mappings
+	mkbootimg
+	e2fsprogs-extra
+	dosfstools
+	android-tools
+"
+makedepends="devicepkg-dev"
+source="
+	deviceinfo
+	modules-initfs
+	load-firmware.sh
+	90-firmware-loader.rules
+"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+	
+	# Install firmware loading rules
+	install -Dm644 "$srcdir"/90-firmware-loader.rules \
+		-t "$pkgdir"/usr/lib/udev/rules.d
+	
+	# Install firmware loading script
+	install -Dm755 "$srcdir"/load-firmware.sh \
+		"$pkgdir"/usr/libexec/moorechip-rp3plus-firmware.sh
+}
+
+
+sha512sums="
+95475858c1e4ef269f7ac4e4e23c603c2884ddd726c928b4ddf16c3fb13a87e189083991d7d14ffa34cf1adb4e7ca80721a8605d1092ddfdcdf9f8293a5c223f  deviceinfo
+be0d78de6c5156ced9b8ad71f6d78c28ebb36d0d282babd127ab4a624add75301a75ab72efa4a3fe71eb4c7fedcd96a69d2221c7d634c7b65c97482c1357e1b8  modules-initfs
+6e536f34a34eb125ff9102921e86b3dd14b00679ebdd6a53bf745b69e2a6b5f53e3ae80e425ba4020e8e68da4633606ace240f857a7ead6556550852a61bdff3  load-firmware.sh
+77c1373c853ecf55a0cf513ea71989a18aecb0d803bf379285582c9dfcdc555bf0a5d137bc39826c87a7bc689baba0f41d9d0fb9116fe5783d58b343b1d1ed3a  90-firmware-loader.rules
+"
