@@ -1,0 +1,11 @@
+# Main Debian repository  
+deb [arch=arm64] http://deb.debian.org/debian bookworm main
+
+# Additional Debian components  
+deb [arch=arm64] http://deb.debian.org/debian bookworm contrib non-free 
+
+# Debian security updates  
+deb [arch=arm64] http://security.debian.org/debian-security bookworm-security main contrib non-free
+
+# Debian updates  
+deb [arch=arm64] http://deb.debian.org/debian bookworm-updates main contrib non-free

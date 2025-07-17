@@ -1,0 +1,39 @@
+# Configuration for Retroid Pocket 3 Plus (UMS512) Kernel
+KERNEL_BASE_VERSION = 6.15.0
+KERNEL_DEFCONFIG = sprd_sharkl5Pro_defconfig
+
+# Boot image parameters (boot.img analysis and porting requirements)
+KERNEL_BOOTIMAGE_CMDLINE = console=tty0 buildvariant=user droidian.lvm.prefer
+KERNEL_BOOTIMAGE_PAGE_SIZE = 2048
+KERNEL_BOOTIMAGE_BASE_OFFSET = 0x00008000
+KERNEL_BOOTIMAGE_INITRAMFS_OFFSET = 0x05400000
+KERNEL_BOOTIMAGE_TAGS_OFFSET = 0x00000100
+KERNEL_BOOTIMAGE_VERSION = 2
+
+# Architecture and build target
+KERNEL_ARCH = arm64
+DEB_BUILD_FOR = arm64
+KERNEL_IMAGE_TARGET = Image.gz
+
+# DTB handling (dtbo.img used separately on device)
+KERNEL_IMAGE_WITH_DTB = 0
+KERNEL_IMAGE_WITH_DTB_OVERLAY = 0
+
+# Toolchain for Android 11
+DEB_TOOLCHAIN = clang-android-10.0-r370808
+BUILD_PATH = /usr/lib/llvm-android-10.0-r370808/bin
+BUILD_CC = clang
+
+# Flash configuration (required for non GSI devices)
+FLASH_ENABLED = 1
+FLASH_IS_LEGACY_DEVICE = 1
+FLASH_INFO_MANUFACTURER = Retroid
+FLASH_INFO_MODEL = Pocket 3.5
+FLASH_INFO_CPU = Unisoc UMS512
+
+# Package information
+KERNEL_VENDOR = retroid
+KERNEL_DEVICE = rp3plus
+
+# DTB overlay support (stock dtbo.img extraction)
+KERNEL_DTB_OVERLAYS = "Unisoc_UMS512_1H10_GO_board.dtb Unisoc_UMS512_1H10_board.dtb Unisoc_UMS512_2H10_board.dtb"
