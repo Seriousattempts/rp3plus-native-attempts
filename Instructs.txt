@@ -1,0 +1,23 @@
+alt@Ubuntu:~/Downloads$ python3 -m venv ~/venv
+alt@Ubuntu:~/Downloads$ source ~/venv/bin/activate
+(venv) alt@Ubuntu:~/Downloads$ pip install extract-dtb
+Collecting extract-dtb
+  Downloading extract-dtb-1.2.3.tar.gz (17 kB)
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+Building wheels for collected packages: extract-dtb
+  Building wheel for extract-dtb (pyproject.toml) ... done
+  Created wheel for extract-dtb: filename=extract_dtb-1.2.3-py3-none-any.whl size=30233 sha256=0c2830326e9319d219b20df4c1a96e2779964713060f0ebb128fe0ffd502690c
+  Stored in directory: /home/alt/.cache/pip/wheels/a6/bf/f9/87d29f35cbe639d8496b782e801b5bbc87259ab9cfdbcb719a
+Successfully built extract-dtb
+Installing collected packages: extract-dtb
+Successfully installed extract-dtb-1.2.3
+(venv) alt@Ubuntu:~/Downloads$ extract-dtb -o dtb_output_dir dtbo.img
+Dumped 00_kernel, start=0 end=128
+Dumped 01_dtbdump_Unisoc_UMS512_1H10_GO_board.dtb, start=128 end=32414
+Dumped 02_dtbdump_Unisoc_UMS512_1H10_board.dtb, start=32414 end=56391
+Dumped 03_dtbdump_Unisoc_UMS512_2H10_board.dtb, start=56391 end=8388608
+Extracted 3 appended dtbs + kernel to dtb_output_dir
+(venv) alt@Ubuntu:~/Downloads$ 
+
