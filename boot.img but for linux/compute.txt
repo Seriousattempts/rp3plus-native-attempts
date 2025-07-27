@@ -1,0 +1,902 @@
+#!/bin/sh
+# Compute Framework
+# DEVICE
+# Retroid Pocket 3.5
+# RP3PLUS 
+# 8 Aarch64 ERA (6 Cortex 55 | 2 Cortex 75)
+# Mali-G52 950MHz MAX
+# 4GB RAM
+# 128 GB Storage 
+# eMMC 
+
+set -eo pipefail
+
+# ============================================================================
+# RP3PLUS SPECIFIC HARDWARE FUNCTIONS SPECIFIED FROM ADB SHELL /DEV
+# ============================================================================
+
+VDSP_CTL="/sys/devices/virtual/misc/vdsp0"        # Virtual VDSP device found
+ISP_CTL="/dev/sprd_isp"                           # Unisoc ISP device  
+GPU_CTL="/sys/class/devfreq/60000000.gpu"         # GPU
+MODEM_CTL="/dev/l_modem"                          # LTE modem control
+SENSOR_BASE="/sys/bus/iio/devices"                # IIO sensor base path
+
+# Device nodes
+create_device_nodes() {
+    log "Creating device nodes for discovered hardware..."
+    
+    # Standard nodes
+    [ ! -e /dev/mali0 ] && mknod /dev/mali0 c 10 18 0666
+    [ ! -e /dev/ion ] && mknod /dev/ion c 10 63 0666
+    chown root:graphics /dev/mali0 /dev/ion
+    
+    [ ! -e /dev/sprd_isp ] && mknod /dev/sprd_isp c 81 0 0666
+    [ ! -e /dev/sprd_vsp ] && mknod /dev/sprd_vsp c 82 0 0666
+    [ ! -e /dev/vdsp0 ] && mknod /dev/vdsp0 c 10 17 0666
+    
+    [ ! -e /dev/l_modem ] && mknod /dev/l_modem c 245 0 0660
+    [ ! -e /dev/spipe_lte0 ] && mknod /dev/spipe_lte0 c 241 0 0660
+    chown radio:system /dev/l_modem /dev/spipe_lte0
+    
+    for i in $(seq 0 5); do
+        [ ! -e /dev/iio:device$i ] && mknod /dev/iio:device$i c 247 $i 0660
+        chown system:system /dev/iio:device$i
+    done
+    
+    log "Device nodes created successfully"
+}
+
+# GPU setup using discovered path
+setup_gpu_scaling() {
+    log "Configuring GPU scaling using discovered path: $GPU_CTL"
+    
+    if [ -d "$GPU_CTL" ]; then
+        echo "simple_ondemand" > $GPU_CTL/governor 2>/dev/null || echo "userspace" > $GPU_CTL/governor
+        echo "200000000" > $GPU_CTL/min_freq 2>/dev/null || true
+        echo "950000000" > $GPU_CTL/max_freq 2>/dev/null || true
+        
+        if [ -e "$GPU_CTL/scaling_setspeed" ]; then
+            echo "450000000" > $GPU_CTL/scaling_setspeed
+        fi
+        
+        echo 1 > /sys/module/mali_kbase/parameters/mali_shared_memory_enable 2>/dev/null || true
+        
+        log "GPU configured: 200-950MHz range with compute sharing enabled"
+    else
+        log "WARNING: GPU control path not accessible: $GPU_CTL"
+    fi
+}
+
+# Sensor setup with dynamic detection
+setup_sensor_offloading() {
+    log "Setting up sensor detection for discovered hardware..."
+    
+    mkdir -p /var/run/sensor_control
+    
+    for sensor_dev in $SENSOR_BASE/iio:device*; do
+        if [ -e "$sensor_dev/name" ]; then
+            sensor_name=$(cat "$sensor_dev/name")
+            sensor_id=$(basename "$sensor_dev" | sed 's/iio:device//')
+            
+            case "$sensor_name" in
+                *sprd-sensorhub*|*sensorhub*)
+                    log "✓ Sensor Hub found: $sensor_name"
+                    echo "sensorhub:$sensor_id" >> /var/run/sensor_control/offload_capable
+                    ;;
+                *sc27xx-adc*|*adc*)
+                    log "✓ PMIC ADC found: $sensor_name"
+                    echo "pmic_adc:$sensor_id" >> /var/run/sensor_control/offload_capable
+                    ;;
+                *)
+                    log "✓ Generic sensor found: $sensor_name"
+                    echo "generic:$sensor_id:$sensor_name" >> /var/run/sensor_control/offload_capable
+                    ;;
+            esac
+        fi
+    done
+    
+    # Create sensor monitoring service
+    cat > /var/run/sensor_control/offload_manager.sh << 'EOF'
+#!/bin/sh
+# Dynamic sensor compute offloading manager
+while true; do
+    cpu_load=$(awk '{print int($1)}' /proc/loadavg)
+    
+    if [ "$cpu_load" -gt 2 ]; then
+        echo "high_load" > /var/run/sensor_control/compute_mode
+    else
+        echo "offload_mode" > /var/run/sensor_control/compute_mode
+    fi
+    
+    echo "$(date): CPU_LOAD=$cpu_load" >> /var/run/sensor_control/status
+    sleep 5
+done
+EOF
+    chmod +x /var/run/sensor_control/offload_manager.sh
+    /var/run/sensor_control/offload_manager.sh &
+    
+    log "Dynamic sensor offloading system configured and started"
+}
+
+# ============================================================================
+# CONFIGURATION FLAG SECTION
+# ============================================================================
+
+# Device Tree Discovery Variables from overlay
+DT_LCD_DEVICE=""
+DT_WIFI_DEVICE=""
+DT_TOUCH_DEVICE=""
+DT_THERMAL_DEVICE=""
+DT_CHARGER_DEVICE=""
+DT_BOARD_MODEL=""
+DT_COMPATIBLE=""
+
+# Memory constraints (Tight low-order allocation)
+ZRAM_SIZE_MB=256                                  # buddyinfo constraints
+DMA_BUFFER_SIZE=1048576                           # 1MB for tighter allocation
+
+# CPU Core Allocation (Cortex cores: 0-5=A55, 6-7=A75)
+EFFICIENCY_CORES="0-5"
+PERFORMANCE_CORES="6-7"
+
+# Default Subsystem-specific core assignments
+SENSOR_CORES="${SENSOR_CORES:-3}"                 # 4th A55 core
+MODEM_CORES="${MODEM_CORES:-4}"                   # 5th A55 core
+GPU_CORES="${GPU_CORES:-5,6}"                     # 6th A55 + 1st A75 core
+ISP_CORES="${ISP_CORES:-1}"                       # 2nd A55 core       
+VDSP_CORES="${VDSP_CORES:-6,7}"                   # 1st A75 core + 2nd A75
+HDMI_CORES="${HDMI_CORES:-2,3}"                   # 3rd & 4th A55 cores
+POWER_CORES="${POWER_CORES:-0}"                   # 1st A55 core
+SYSTEM_CORES="${SYSTEM_CORES:-1-5}"               # 2nd to 6th A55 cores
+
+# Default CPU governor preferences per subsystem
+SENSOR_CPU_GOVERNOR="${SENSOR_CPU_GOVERNOR:-schedutil}"
+MODEM_CPU_GOVERNOR="${MODEM_CPU_GOVERNOR:-schedutil}"
+GPU_CPU_GOVERNOR="${GPU_CPU_GOVERNOR:-schedutil}"
+ISP_CPU_GOVERNOR="${ISP_CPU_GOVERNOR:-schedutil}"
+VDSP_CPU_GOVERNOR="${VDSP_CPU_GOVERNOR:-schedutil}"
+SYSTEM_CPU_GOVERNOR="${SYSTEM_CPU_GOVERNOR:-schedutil}"
+
+log() {
+    echo "[$(date +'%H:%M:%S')] $1" | tee -a /var/log/isp-compute.log
+}
+
+# ============================================================================
+# DEVICE TREE OVERLAY DISCOVERY FUNCTIONS
+# ============================================================================
+
+# Parse device tree to discover hardware components
+# Enables use of all available device trees
+discover_device_tree_hardware() {
+    log "=== DISCOVERING DEVICE TREE HARDWARE CONFIGURATION ==="
+    
+    mkdir -p /var/run/device_tree_discovery
+    
+    # Discover board model and compatibility
+    if [ -e "/proc/device-tree/model" ]; then
+        DT_BOARD_MODEL=$(cat /proc/device-tree/model 2>/dev/null || echo "Unknown")
+        log "Board Model: $DT_BOARD_MODEL"
+    fi
+    
+    if [ -e "/proc/device-tree/compatible" ]; then
+        DT_COMPATIBLE=$(cat /proc/device-tree/compatible 2>/dev/null | tr '\0' ',' || echo "Unknown")
+        log "Board Compatible: $DT_COMPATIBLE"
+    fi
+    
+    # Discover LCD/Display devices
+    log "Discovering LCD/Display devices..."
+    for lcd_path in /proc/device-tree/*lcd* /sys/firmware/devicetree/base/*lcd* /sys/firmware/devicetree/base/*/*lcd*; do
+        if [ -e "$lcd_path" ]; then
+            lcd_name=$(basename "$lcd_path")
+            if [ -e "$lcd_path/compatible" ]; then
+                lcd_compatible=$(cat "$lcd_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+                DT_LCD_DEVICE="$lcd_name"
+                log "✓ Found LCD device: $lcd_name ($lcd_compatible)"
+                echo "LCD_DEVICE=$lcd_name" >> /var/run/device_tree_discovery/hardware
+                echo "LCD_COMPATIBLE=$lcd_compatible" >> /var/run/device_tree_discovery/hardware
+            fi
+        fi
+    done
+    
+    # Discover WiFi devices
+    log "Discovering WiFi devices..."
+    for wifi_path in /proc/device-tree/*wifi* /sys/firmware/devicetree/base/*wifi* /proc/device-tree/*wlan*; do
+        if [ -e "$wifi_path/compatible" ]; then
+            wifi_compatible=$(cat "$wifi_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+            wifi_name=$(basename "$wifi_path")
+            DT_WIFI_DEVICE="$wifi_compatible"
+            log "✓ Found WiFi device: $wifi_name ($wifi_compatible)"
+            echo "WIFI_DEVICE=$wifi_name" >> /var/run/device_tree_discovery/hardware
+            echo "WIFI_COMPATIBLE=$wifi_compatible" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Alternative WiFi discovery through compatible strings
+    if [ -z "$DT_WIFI_DEVICE" ]; then
+        for compat_file in /sys/firmware/devicetree/base/*/*/compatible; do
+            if [ -e "$compat_file" ]; then
+                compat_content=$(cat "$compat_file" 2>/dev/null | tr '\0' ',' || echo "")
+                case "$compat_content" in
+                    *wifi*|*wlan*|*sc23*|*marlin*)
+                        DT_WIFI_DEVICE="$compat_content"
+                        log "✓ Found WiFi via compatible: $compat_content"
+                        echo "WIFI_COMPATIBLE=$compat_content" >> /var/run/device_tree_discovery/hardware
+                        break
+                        ;;
+                esac
+            fi
+        done
+    fi
+    
+    # Discover Touch devices
+    log "Discovering Touch devices..."
+    for touch_path in /proc/device-tree/*/*touch* /sys/firmware/devicetree/base/*/*touch*; do
+        if [ -e "$touch_path/compatible" ]; then
+            touch_compatible=$(cat "$touch_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+            touch_name=$(basename "$touch_path")
+            DT_TOUCH_DEVICE="$touch_compatible"
+            log "✓ Found Touch device: $touch_name ($touch_compatible)"
+            echo "TOUCH_DEVICE=$touch_name" >> /var/run/device_tree_discovery/hardware
+            echo "TOUCH_COMPATIBLE=$touch_compatible" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Discover Thermal devices
+    log "Discovering Thermal devices..."
+    for thermal_path in /proc/device-tree/*thermal* /sys/firmware/devicetree/base/*thermal*; do
+        if [ -e "$thermal_path/compatible" ]; then
+            thermal_compatible=$(cat "$thermal_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+            thermal_name=$(basename "$thermal_path")
+            DT_THERMAL_DEVICE="$thermal_compatible"
+            log "✓ Found Thermal device: $thermal_name ($thermal_compatible)"
+            echo "THERMAL_DEVICE=$thermal_name" >> /var/run/device_tree_discovery/hardware
+            echo "THERMAL_COMPATIBLE=$thermal_compatible" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Discover Charger devices
+    log "Discovering Charger devices..."
+    for charger_path in /proc/device-tree/*/*charger* /sys/firmware/devicetree/base/*/*charger*; do
+        if [ -e "$charger_path/compatible" ]; then
+            charger_compatible=$(cat "$charger_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+            charger_name=$(basename "$charger_path")
+            DT_CHARGER_DEVICE="$charger_compatible"
+            log "✓ Found Charger device: $charger_name ($charger_compatible)"
+            echo "CHARGER_DEVICE=$charger_name" >> /var/run/device_tree_discovery/hardware
+            echo "CHARGER_COMPATIBLE=$charger_compatible" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Discover GPIO Keys
+    log "Discovering GPIO Key configurations..."
+    gpio_key_count=0
+    for key_path in /proc/device-tree/gpio-keys/* /sys/firmware/devicetree/base/gpio-keys/*; do
+        if [ -e "$key_path/label" ]; then
+            key_label=$(cat "$key_path/label" 2>/dev/null || echo "Unknown")
+            key_name=$(basename "$key_path")
+            gpio_key_count=$((gpio_key_count + 1))
+            log "✓ Found GPIO Key: $key_name ($key_label)"
+            echo "GPIO_KEY_${gpio_key_count}=$key_name:$key_label" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Discover Camera sensors
+    log "Discovering Camera sensors..."
+    camera_count=0
+    for sensor_path in /proc/device-tree/*/*sensor* /sys/firmware/devicetree/base/*/*sensor*; do
+        if [ -e "$sensor_path/compatible" ]; then
+            sensor_compatible=$(cat "$sensor_path/compatible" 2>/dev/null | tr '\0' ',' || echo "")
+            sensor_name=$(basename "$sensor_path")
+            camera_count=$((camera_count + 1))
+            log "✓ Found Camera sensor: $sensor_name ($sensor_compatible)"
+            echo "CAMERA_${camera_count}=$sensor_name:$sensor_compatible" >> /var/run/device_tree_discovery/hardware
+        fi
+    done
+    
+    # Create discovery summary
+    cat > /var/run/device_tree_discovery/summary << EOF
+# Device Tree Hardware Discovery Summary - $(date)
+# Board: $DT_BOARD_MODEL
+# Compatible: $DT_COMPATIBLE
+
+DISCOVERED_LCD=$DT_LCD_DEVICE
+DISCOVERED_WIFI=$DT_WIFI_DEVICE  
+DISCOVERED_TOUCH=$DT_TOUCH_DEVICE
+DISCOVERED_THERMAL=$DT_THERMAL_DEVICE
+DISCOVERED_CHARGER=$DT_CHARGER_DEVICE
+DISCOVERED_GPIO_KEYS=$gpio_key_count
+DISCOVERED_CAMERAS=$camera_count
+DISCOVERY_DATE=$(date)
+EOF
+    
+    log "Device Tree hardware discovery completed"
+    log "Summary saved to /var/run/device_tree_discovery/summary"
+}
+
+# Dynamically discover GPU paths
+discover_gpu_paths() {
+    log "Dynamically discovering GPU paths..."
+    
+    # Check various possible GPU devfreq paths
+    possible_gpu_paths="
+    /sys/class/devfreq/60000000.gpu
+    /sys/class/devfreq/mali0
+    /sys/class/devfreq/gpu
+    /sys/class/devfreq/*gpu*
+    "
+    
+    for gpu_path in $possible_gpu_paths; do
+        if [ -d "$gpu_path" ] 2>/dev/null; then
+            GPU_CTL="$gpu_path"
+            log "✓ Discovered GPU control path: $GPU_CTL"
+            echo "GPU_CONTROL_PATH=$GPU_CTL" >> /var/run/device_tree_discovery/hardware
+            return 0
+        fi
+    done
+    
+    # Alternative discovery through find
+    gpu_devfreq=$(find /sys/class/devfreq -name "*gpu*" -type d 2>/dev/null | head -1)
+    if [ -n "$gpu_devfreq" ] && [ -d "$gpu_devfreq" ]; then
+        GPU_CTL="$gpu_devfreq"
+        log "✓ Discovered GPU control path via find: $GPU_CTL"
+        echo "GPU_CONTROL_PATH=$GPU_CTL" >> /var/run/device_tree_discovery/hardware
+        return 0
+    fi
+    
+    log "⚠ Could not discover GPU control path, using default"
+    return 1
+}
+
+# ============================================================================
+# ENHANCED VALIDATION WITH DYNAMIC DISCOVERY
+# ============================================================================
+
+validate_sysfs_paths() {
+    log "=== TIGER T618 DYNAMIC HARDWARE VALIDATION ==="
+    
+    local validation_failed=0
+    local failed_count=0
+    
+    mkdir -p /var/run/validation_results
+    echo "# Dynamic Device Validation Report - $(date)" > /var/run/validation_results/failed_paths.log
+    echo "# Device: $DT_BOARD_MODEL" >> /var/run/validation_results/failed_paths.log
+    echo "# Compatible: $DT_COMPATIBLE" >> /var/run/validation_results/failed_paths.log
+    
+    # Discover hardware first
+    discover_device_tree_hardware
+    discover_gpu_paths
+    
+    # GPU validation
+    log "Checking GPU ($GPU_CTL) paths..."
+    if [ -d "$GPU_CTL" ]; then
+        log "✓ GPU devfreq path exists: $GPU_CTL"
+        
+        for attr in governor min_freq max_freq cur_freq available_governors; do
+            path="$GPU_CTL/$attr"
+            if [ -e "$path" ]; then
+                value=$(cat "$path" 2>/dev/null || echo 'read failed')
+                log "✓ GPU $attr: $value"
+            else
+                log "✗ GPU $attr: NOT FOUND at $path"
+                echo "MISSING: $path" >> /var/run/validation_results/failed_paths.log
+                failed_count=$((failed_count + 1))
+                validation_failed=1
+            fi
+        done
+    else
+        log "✗ GPU devfreq path missing: $GPU_CTL"
+        echo "MISSING: $GPU_CTL (directory)" >> /var/run/validation_results/failed_paths.log
+        failed_count=$((failed_count + 1))
+        validation_failed=1
+    fi
+    
+    # VDSP validation
+    log "Checking VDSP paths..."
+    if [ -e "$VDSP_CTL" ]; then
+        log "✓ VDSP virtual device exists: $VDSP_CTL"
+        
+        vdsp_devfreq="/sys/class/devfreq/vdsp"
+        if [ -d "$vdsp_devfreq" ]; then
+            log "✓ VDSP devfreq path exists: $vdsp_devfreq"
+            for attr in governor min_freq max_freq cur_freq; do
+                path="$vdsp_devfreq/$attr"
+                if [ -e "$path" ]; then
+                    value=$(cat "$path" 2>/dev/null || echo 'read failed')
+                    log "✓ VDSP $attr: $value"
+                else
+                    log "✗ VDSP $attr: NOT FOUND at $path"
+                fi
+            done
+        fi
+    else
+        log "✗ VDSP device missing: $VDSP_CTL"
+        echo "MISSING: $VDSP_CTL" >> /var/run/validation_results/failed_paths.log
+        failed_count=$((failed_count + 1))
+        validation_failed=1
+    fi
+    
+    # Dynamic sensor validation
+    log "Checking discovered sensors..."
+    local sensor_count=0
+    
+    for sensor_path in /sys/bus/iio/devices/iio:device*; do
+        if [ -e "$sensor_path" ]; then
+            sensor_count=$((sensor_count + 1))
+            sensor_name="Unknown"
+            [ -e "$sensor_path/name" ] && sensor_name=$(cat "$sensor_path/name")
+            
+            log "✓ Found IIO sensor $sensor_count: $sensor_name at $sensor_path"
+            
+            # Check if this sensor matches discovered device tree entries
+            case "$sensor_name" in
+                *sprd-sensorhub*|*sensorhub*)
+                    log "  ✓ Sensor Hub detected - matches device tree"
+                    ;;
+                *sc27xx-adc*|*adc*)
+                    log "  ✓ PMIC ADC detected - for thermal/battery monitoring"
+                    ;;
+                *)
+                    log "  - Generic sensor: $sensor_name"
+                    ;;
+            esac
+        fi
+    done
+    
+    log "✓ Found $sensor_count sensors total"
+    
+    # Validate discovered hardware against running system
+    log "Validating discovered hardware against running system..."
+    
+    # LCD/Display validation
+    if [ -n "$DT_LCD_DEVICE" ]; then
+        if [ -d "/sys/class/graphics" ]; then
+            log "✓ Graphics subsystem matches discovered LCD: $DT_LCD_DEVICE"
+        else
+            log "⚠ Graphics subsystem not found for discovered LCD: $DT_LCD_DEVICE"
+        fi
+    fi
+    
+    # WiFi validation
+    if [ -n "$DT_WIFI_DEVICE" ]; then
+        wifi_found=0
+        for net_dev in /sys/class/net/*; do
+            if [ -e "$net_dev/uevent" ]; then
+                if grep -q "wlan" "$net_dev/uevent" 2>/dev/null; then
+                    wifi_found=1
+                    log "✓ WiFi interface matches discovered device: $DT_WIFI_DEVICE"
+                    break
+                fi
+            fi
+        done
+        [ $wifi_found -eq 0 ] && log "⚠ WiFi interface not found for discovered device: $DT_WIFI_DEVICE"
+    fi
+    
+    # Touch validation
+    if [ -n "$DT_TOUCH_DEVICE" ]; then
+        touch_found=0
+        for input_dev in /sys/class/input/event*; do
+            if [ -e "$input_dev/device/name" ]; then
+                device_name=$(cat "$input_dev/device/name")
+                # Extract key parts of discovered touch device for matching
+                touch_key=$(echo "$DT_TOUCH_DEVICE" | cut -d',' -f1)
+                if echo "$device_name" | grep -qi "$(echo $touch_key | sed 's/.*,//')"; then
+                    touch_found=1
+                    log "✓ Touch device matches discovered: $DT_TOUCH_DEVICE"
+                    break
+                fi
+            fi
+        done
+        [ $touch_found -eq 0 ] && log "⚠ Touch device not found for discovered: $DT_TOUCH_DEVICE"
+    fi
+    
+    # CPU frequency validation
+    log "Checking CPU frequency policies (policy0=A55, policy6=A75)..."
+    for policy_num in 0 6; do
+        policy_path="/sys/devices/system/cpu/cpufreq/policy$policy_num"
+        if [ -e "$policy_path/scaling_governor" ]; then
+            governor=$(cat "$policy_path/scaling_governor")
+            min_freq=$(cat "$policy_path/scaling_min_freq" 2>/dev/null || echo "N/A")
+            max_freq=$(cat "$policy_path/scaling_max_freq" 2>/dev/null || echo "N/A")
+            
+            case $policy_num in
+                0) log "✓ CPU policy0 (Cortex-A55): $governor ($min_freq-$max_freq Hz)" ;;
+                6) log "✓ CPU policy6 (Cortex-A75): $governor ($min_freq-$max_freq Hz)" ;;
+            esac
+        else
+            log "✗ CPU policy$policy_num missing"
+            failed_count=$((failed_count + 1))
+            validation_failed=1
+        fi
+    done
+    
+    # Memory validation
+    log "Checking memory management..."
+    if [ -e "/sys/block/zram0" ]; then
+        log "✓ ZRAM device available"
+        for attr in comp_algorithm disksize; do
+            if [ -e "/sys/block/zram0/$attr" ]; then
+                log "  ✓ ZRAM $attr writable"
+            else
+                log "  ✗ ZRAM $attr missing"
+                failed_count=$((failed_count + 1))
+                validation_failed=1
+            fi
+        done
+    else
+        log "✗ ZRAM device not found"
+        failed_count=$((failed_count + 1))
+        validation_failed=1
+    fi
+    
+    # Generate summary
+    log "=== DYNAMIC VALIDATION SUMMARY ==="
+    log "Board Model: $DT_BOARD_MODEL"
+    log "Discovered LCD: $DT_LCD_DEVICE"
+    log "Discovered WiFi: $DT_WIFI_DEVICE"
+    log "Discovered Touch: $DT_TOUCH_DEVICE"
+    log "Discovered Thermal: $DT_THERMAL_DEVICE"
+    log "Discovered Charger: $DT_CHARGER_DEVICE"
+    log "GPU Control Path: $GPU_CTL"
+    log "VDSP Control Path: $VDSP_CTL"
+    log "Total validation failures: $failed_count"
+    
+    if [ $validation_failed -eq 0 ]; then
+        log "✓ TIGER T618 HARDWARE VALIDATED - Dynamic discovery successful"
+        return 0
+    else
+        log "✗ VALIDATION FAILURES: $failed_count paths missing/failed"
+        log "Device will continue with available hardware"
+        return 1
+    fi
+}
+
+# Device capability discovery with dynamic detection
+discover_device_capabilities() {
+    log "Discovering device capabilities with dynamic detection..."
+    
+    mkdir -p /var/run/device_capabilities
+     using discovered path
+    log "Discovering GPU capabilities..."
+    echo "$GPU_CTL" > /var/run/device_capabilities/gpu_paths
+    find /sys/class/devfreq -name "*gpu*" -type d >> /var/run/device_capabilities/gpu_paths 2>/dev/null
+    gpu_path_count=$(wc -l < /var/run/device_capabilities/gpu_paths)
+    log "Found $gpu_path_count GPU-related paths"
+    
+    # VDSP discovery
+    log "Discovering VDSP capabilities..."
+    find /sys -name "*vdsp*" -type d > /var/run/device_capabilities/vdsp_paths 2>/dev/null
+    vdsp_path_count=$(wc -l < /var/run/device_capabilities/vdsp_paths)
+    log "Found $vdsp_path_count VDSP-related paths"
+    
+    # Sensor discovery
+    log "Discovering sensor capabilities..."
+    find /sys -name "*sprd*" -type d > /var/run/device_capabilities/sensor_paths 2>/dev/null
+    find /sys -name "*sc27xx*" -type d >> /var/run/device_capabilities/sensor_paths 2>/dev/null
+    find /sys/bus/iio -name "*" -type d >> /var/run/device_capabilities/sensor_paths 2>/dev/null
+    sensor_path_count=$(wc -l < /var/run/device_capabilities/sensor_paths)
+    log "Found $sensor_path_count sensor-related paths"
+    
+    # Copy discovered hardware summary
+    if [ -e "/var/run/device_tree_discovery/summary" ]; then
+        cp /var/run/device_tree_discovery/summary /var/run/device_capabilities/discovered_hardware
+    fi
+    
+    log "Device capability discovery complete"
+}
+
+# ============================================================================
+# CPU FUNCTIONS
+# ============================================================================
+
+validate_cpu_config() {
+    log "Validating CPU core configuration..."
+    
+    TOTAL_CORES=$(nproc)
+    log "System has $TOTAL_CORES total CPU cores"
+    
+    # Include VDSP in validation
+    for subsystem in SENSOR MODEM GPU ISP VDSP HDMI POWER SYSTEM; do
+        cores_var="${subsystem}_CORES"
+        cores=$(eval echo \$$cores_var)
+        
+        log "  $subsystem: cores=$cores"
+        
+        if echo "$cores" | grep -q "-"; then
+            start=$(echo "$cores" | cut -d'-' -f1)
+            end=$(echo "$cores" | cut -d'-' -f2)
+            
+            if [ "$start" -ge "$TOTAL_CORES" ] || [ "$end" -ge "$TOTAL_CORES" ]; then
+                log "ERROR: $subsystem core assignment $cores exceeds available cores ($TOTAL_CORES)"
+                exit 1
+            fi
+        else
+            for core in $(echo "$cores" | tr ',' ' '); do
+                if [ "$core" -ge "$TOTAL_CORES" ]; then
+                    log "ERROR: $subsystem core $core exceeds available cores ($TOTAL_CORES)"
+                    exit 1
+                fi
+            done
+        fi
+    done
+    
+    log "✓ CPU configuration validated"
+}
+
+apply_cpu_affinity() {
+    local subsystem="$1"
+    local process_name="$2"
+    local cores_var="${subsystem}_CORES"
+    local governor_var="${subsystem}_CPU_GOVERNOR"
+    
+    local cores=$(eval echo \$$cores_var)
+    local governor=$(eval echo \$$governor_var)
+    
+    log "Applying CPU affinity for $subsystem: cores=$cores, governor=$governor"
+    
+    if echo "$cores" | grep -q "-"; then
+        start=$(echo "$cores" | cut -d'-' -f1)
+        end=$(echo "$cores" | cut -d'-' -f2)
+        
+        for cpu in $(seq $start $end); do
+            if [ -e "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor" ]; then
+                echo "$governor" > "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor"
+            fi
+        done
+    else
+        for cpu in $(echo "$cores" | tr ',' ' '); do
+            if [ -e "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor" ]; then
+                echo "$governor" > "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor"
+            fi
+        done
+    fi
+    
+    if [ -n "$process_name" ]; then
+        pids=$(pgrep "$process_name" 2>/dev/null || true)
+        for pid in $pids; do
+            if [ -n "$pid" ]; then
+                taskset -cp "$cores" "$pid" 2>/dev/null || log "Failed to set affinity for PID $pid"
+            fi
+        done
+    fi
+    
+    echo "$cores" > "/var/run/cpu_affinity_${subsystem,,}"
+}
+
+setup_cpu_affinity() {
+    log "Configuring CPU affinity for all subsystems..."
+    
+    validate_cpu_config
+    
+    # Apply affinity for each subsystem (including VDSP)
+    apply_cpu_affinity "SENSOR" "sensor"
+    apply_cpu_affinity "MODEM" "modem"
+    apply_cpu_affinity "GPU" "mali"
+    apply_cpu_affinity "ISP" "isp"
+    apply_cpu_affinity "VDSP" "vdsp"
+    apply_cpu_affinity "HDMI" "hdmi"
+    apply_cpu_affinity "POWER" "thermal"
+    apply_cpu_affinity "SYSTEM" ""
+    
+    # Create CPU assignment summary
+    cat > /var/run/cpu_assignments << EOF
+
+# CPU Core Assignments for Tiger T618
+SENSOR_CORES=$SENSOR_CORES
+MODEM_CORES=$MODEM_CORES  
+GPU_CORES=$GPU_CORES
+ISP_CORES=$ISP_CORES
+VDSP_CORES=$VDSP_CORES
+HDMI_CORES=$HDMI_CORES
+POWER_CORES=$POWER_CORES
+SYSTEM_CORES=$SYSTEM_CORES
+TOTAL_CORES=$TOTAL_CORES
+EOF
+    
+    log "CPU affinity configuration complete. Summary saved to /var/run/cpu_assignments"
+}
+
+# Memory and modem functions (unchanged)
+setup_memory_management() {
+    log "Configuring memory for tight allocation constraints..."
+    
+    if [ -e /sys/block/zram0 ]; then
+        echo "lz4" > /sys/block/zram0/comp_algorithm
+        echo "$((ZRAM_SIZE_MB * 1024 * 1024))" > /sys/block/zram0/disksize
+        mkswap /dev/zram0 >/dev/null 2>&1
+        swapon -p 5 /dev/zram0 >/dev/null 2>&1
+        log "ZRAM configured: ${ZRAM_SIZE_MB}MB with LZ4 compression"
+    fi
+    
+    echo 16384 > /proc/sys/vm/min_free_kbytes
+    echo 50 > /proc/sys/vm/swappiness
+    echo 1 > /proc/sys/vm/compact_memory
+    
+    log "Memory management optimized for allocation constraints"
+}
+
+setup_modem_offloading() {
+    log "Configuring modem for local radio and WiFi offloading..."
+    
+    if [ -e "$MODEM_CTL" ]; then
+        echo "1" > /sys/class/modem/modem0/force_enable 2>/dev/null || true
+        echo "scan_mode" > /sys/class/modem/modem0/operating_mode 2>/dev/null || true
+        echo "850 900 1800 1900 2100" > /sys/class/modem/modem0/scan_frequencies 2>/dev/null || true
+        log "Modem configured for local radio scanning without SIM"
+    else
+        log "WARNING: Modem device not found"
+    fi
+    
+    mkdir -p /var/run/modem_control
+    cat > /var/run/modem_control/wifi_offload.sh << 'EOF'
+#!/bin/sh
+while true; do
+    if [ -e /sys/class/net/wlan0/operstate ] && [ "$(cat /sys/class/net/wlan0/operstate)" = "up" ]; then
+        echo "wifi_offload" > /var/run/modem_control/mode
+        echo "1" > /sys/class/modem/modem0/wifi_assist_enable 2>/dev/null || true
+        
+        wifi_freq=$(iwconfig wlan0 2>/dev/null | grep Frequency | sed 's/.*Frequency:\([0-9.]*\).*/\1/')
+        if [ -n "$wifi_freq" ]; then
+            echo "$wifi_freq" > /sys/class/modem/modem0/avoid_frequency 2>/dev/null || true
+        fi
+    else
+        echo "standalone" > /var/run/modem_control/mode
+        echo "0" > /sys/class/modem/modem0/wifi_assist_enable 2>/dev/null || true
+    fi
+    sleep 10
+done
+EOF
+    chmod +x /var/run/modem_control/wifi_offload.sh
+    /var/run/modem_control/wifi_offload.sh &
+    
+    log "WiFi-modem offloading coordination started"
+}
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+main() {
+    log "Starting ISP compute setup for Tiger T618 with dynamic discovery..."
+    
+    # Perform dynamic hardware discovery first
+    discover_device_tree_hardware
+    
+    # Validate discovered hardware
+    validate_sysfs_paths
+    discover_device_capabilities
+    
+    # Configure system
+    setup_cpu_affinity
+    create_device_nodes
+    setup_memory_management
+    setup_gpu_scaling
+    setup_sensor_offloading
+    setup_modem_offloading
+    
+    log "Tiger T618 ISP compute setup completed successfully"
+    
+    # Create status file with discovered information
+    cat > /var/run/isp_compute_status << EOF
+
+# Compute Status (Dynamic Discovery)
+STATUS=initialized
+DEVICE=$DT_BOARD_MODEL
+BOARD_MODEL=$DT_BOARD_MODEL
+BOARD_COMPATIBLE=$DT_COMPATIBLE
+GPU_PATH=$GPU_CTL
+VDSP_PATH=$VDSP_CTL
+DISCOVERED_LCD=$DT_LCD_DEVICE
+DISCOVERED_WIFI=$DT_WIFI_DEVICE
+DISCOVERED_TOUCH=$DT_TOUCH_DEVICE
+DISCOVERED_THERMAL=$DT_THERMAL_DEVICE
+DISCOVERED_CHARGER=$DT_CHARGER_DEVICE
+INITIALIZED=$(date)
+EOF
+}
+
+# Command line interface
+if [ "$1" = "cpu-config" ]; then
+    validate_cpu_config
+    cpu_config_menu
+    exit 0
+elif [ "$1" = "validate" ]; then
+    validate_sysfs_paths
+    discover_device_capabilities
+    exit 0
+elif [ "$1" = "discover" ]; then
+    discover_device_tree_hardware
+    discover_gpu_paths
+    cat /var/run/device_tree_discovery/summary
+    exit 0
+elif [ "$1" = "status" ]; then
+    if [ -e /var/run/isp_compute_status ]; then
+        cat /var/run/isp_compute_status
+    else
+        echo "ISP compute setup not yet initialized"
+    fi
+    exit 0
+fi
+
+# Run main function
+main "$@"
+
+# TO DO:
+# Shell script calls to configure for each
+# Each will run at full throttle, controlled by power's governor
+# Needs will scale within each script based on workload called
+# Reference ARM Compute Library https://artificial-intelligence.sites.arm.com/computelibrary/v52.3.0/index.xhtml
+# Find out which binaries to use
+
+
+# Controller Configurations and Hotkeys
+# - Available configurations for PlayStation, Xbox and Nintendo. Change keys for interactives
+# - DPad for Thumbsticks
+# - ABXY location
+# - GTriangle,RCircle,BCross,PSquare
+# - Can configure GUI (opens with HOME button long tap)
+# - Home double tap opens multi screen (in desktop environment) or swaps to other open file?
+
+# Power & Thermal throttling with DSP Coordination
+# - Governor preferences control
+# - Shows Device overlay configurations, Build prop/Default prop
+# - Modifies Subsystem-specific core assignments and governor controls immediately 
+# - Pool limits
+# - CLEANUP STACK for every resource type (program/kernel/mem/event/sampler/device/host ptr), restarting cores
+# - Ability to assign subsystems to different cores
+# - Controls output of all scripts
+# - Throttle commands
+# - Sensor detection for thermal enhancements
+# - Pool memory management with CMA
+
+# GUI Configuration of all Subsystem-specific core assignments
+# - Preexisting gui showing governor scalling for each core
+# - Changes governor scaling for each
+# - Can change core configuration
+
+# Audio
+# - Do I need one?
+# - Headphone jack
+
+# Visual Information Processor (VDSP) / GPU
+# - Coherent memory
+# - Adaptive memory allocator that flips between DMA-BUF, SVM and mmap
+# - FP16
+# - dot-product
+# - RCpc
+# - ASTC & AFBC
+# - GPU DVFS daemon and GPU–CDSP shared memory
+# - ARM-optimised filesystem
+# - Crypto | AES-256/SHA-512 pipelines, queue depth 500, and exposes control for crypto load balancing.
+# - V4L2-M2M
+# - Inference workloads
+# - Apply configurations to Panfrost/PanVK when detected
+# - carm-compute-library tag, balanced power policy; also configures LDSP for low-power sensor processing
+
+# HDMI/Display management integration
+# - EDID dump
+# - HDR/VRR detection
+# - ALLM/QMS/QFT/eARC toggles
+# - xrandr & sysfs options
+# - framebuffer console
+# - CEC
+# - PulseAudio/PipeWire hooks
+# - HDMI control functions (isp_toggle_hdr/vrr/llm/qms/qft/hec) mapping to sysfs knobs and persistent state files, plus isp_set_hdmi_using_xrandr() for X11 paths
+
+# OpenCL 3.0 Compute Setup
+# - matrix_multiply_fp16_dotprod and isp_process_half_precision (FP16 & dot-product)
+# - Adaptive image filter (isp_process_dynamic) with tiered quality based on frequency-scale
+# - AFBC-style compressor (compress_data_afbc)
+# - Sensor-fusion kernel (process_sensor_data) that branches per sensor and frequency
+# - DSP-accelerated BF16 modem kernels, CRC32-assisted FEC, BLE mesh CRC, GNSS dual-freq processing, ASTC decode, etc.
+# - Mali-G52 specific pragmas (#pragma OPENCL EXTENSION cl_arm_*) and inline ARM assembly (.arch_extension fp16, astc_decode)
+
+# Camera ISP + Sensor workload
+# - Computation tasks for GPU/VDSP/CPU
+# - Low-power sensor processing
+# - Based on Usage, offload workload for highest usage after a threshold
+# - Sensor workload updates 10 s by reading /proc/loadavg; feeds value to the FIFO created by init-Post.txt, keeping sensor sampling adaptive.
+
+# Modem
+# - 5G mmWave beam forming assistance via WiFi coordination
+# - Using low frequency radio signals to connect to cell towers
+# - libmbim is a glib-based library for talking to WWAN modems and devices which speak the Mobile Broadband Interface Model (MBIM) protocol.

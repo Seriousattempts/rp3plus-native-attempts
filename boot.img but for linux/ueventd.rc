@@ -1,0 +1,198 @@
+# ======================================================================
+# ueventd.rc - Linux rootfs compatible device permissions
+# Optimized for Tiger T618 with Mali-G52 GPU and open source drivers
+# ======================================================================
+
+# Linux-compatible firmware directories
+firmware_directories /lib/firmware/ /usr/lib/firmware/ /etc/firmware/
+
+# Increased buffer for complex hardware
+uevent_socket_rcvbuf_size 16M
+
+# Subsystem definitions (Linux standard)
+subsystem graphics
+    devname uevent_devpath
+    dirname /dev/graphics
+
+subsystem drm
+    devname uevent_devpath
+    dirname /dev/dri
+
+subsystem input
+    devname uevent_devpath
+    dirname /dev/input
+
+subsystem sound
+    devname uevent_devpath
+    dirname /dev/snd
+
+subsystem iio
+    devname uevent_devpath
+    dirname /dev
+
+# Device permissions
+# format for /dev rules: devname mode uid gid
+# format for /sys rules: nodename attr mode uid gid
+
+# ======================================================================
+# Core system devices
+# ======================================================================
+/dev/null                 0666   root       root
+/dev/zero                 0666   root       root
+/dev/full                 0666   root       root
+/dev/ptmx                 0666   root       root
+/dev/tty                  0666   root       root
+/dev/random               0666   root       root
+/dev/urandom              0666   root       root
+/dev/console              0600   root       root
+
+# ======================================================================
+# Android for WayDroid | Make HW RNG readable by group system to let EntropyMixer read it.
+# ======================================================================
+
+/dev/hw_random            0440   root       system
+/dev/binder               0666   root       root
+/dev/hwbinder             0666   root       root
+/dev/vndbinder            0666   root       root
+/sys/module/lowmemorykiller/parameters/adj                    0664  system system
+/sys/module/lowmemorykiller/parameters/minfree                0664  system system
+/sys/class/devfreq/mali0/available_frequencies                0444  system system
+/sys/class/devfreq/mali0/available_governors                  0444  system system
+/proc/sys/vm/compact_memory                                   0200  root   root
+
+# ======================================================================
+# GPU devices
+# ======================================================================
+/dev/mali0                0666   root       graphics
+/dev/ion                  0666   system     graphics
+/dev/gsp                  0660   system     graphics
+/dev/vdsp0                0660   system     system
+
+# DRM/KMS devices for Mesa
+/dev/dri/*                0666   root       graphics
+/dev/graphics/*           0660   root       graphics
+
+# ======================================================================
+# Input devices
+# ======================================================================
+/dev/input/*              0660   root       input
+/dev/uinput               0660   uhid       uhid
+/dev/uhid                 0660   uhid       uhid
+
+# ======================================================================
+# IIO Sensors
+# ======================================================================
+/dev/iio:device0          0660   system     system
+/dev/iio:device1          0660   system     system
+
+# ======================================================================
+# Audio devices (ALSA/PulseAudio compatible)
+# ======================================================================
+/dev/snd/*                0660   system     audio
+/dev/fm                   0660   media      media
+
+# ======================================================================
+# GNSS/GPS devices
+# ======================================================================
+/dev/gnss_common_ctl      0600   root       root
+/dev/gnss_dbg             0660   system     system
+/dev/gnss_pmnotify_ctl    0660   system     system
+
+# ======================================================================
+# Bluetooth devices
+# ======================================================================
+/dev/ttyBT0               0660   bluetooth  net_bt_admin
+/dev/ttyBT1               0600   root       root
+
+# ======================================================================
+# Wireless/Connectivity devices
+# ======================================================================
+/dev/wcn                  0600   root       root
+/dev/wcn_op               0600   root       root
+/dev/rfkill               0644   root       root
+
+# ======================================================================
+# System management devices
+# ======================================================================
+/dev/rtc0                 0644   system     system
+/dev/tun                  0660   system     vpn
+/dev/ppp                  0660   radio      vpn
+/dev/fuse                 0666   root       root
+/dev/loop-control         0660   root       root
+
+# Device mapper
+/dev/device-mapper        0600   root       root
+
+# Power management
+/dev/cpu_dma_latency      0600   root       root
+/dev/network_latency      0600   root       root
+/dev/network_throughput   0600   root       root
+/dev/memory_bandwidth     0600   root       root
+
+# PMIC (Power Management IC)
+/dev/pmic                 0600   root       root
+
+# ======================================================================
+# GPIO and hardware control
+# ======================================================================
+/dev/gpiochip*            0600   root       root
+
+# ======================================================================
+# USB devices
+# ======================================================================
+/dev/bus/usb/*            0660   root       usb
+/dev/ttyGS*               0660   system     system
+/dev/usb_accessory        0660   root       usb
+
+# ======================================================================
+# Serial console devices
+# ======================================================================
+/dev/ttyS1                0600   root       root
+/dev/tty0                 0660   root       system
+
+# ======================================================================
+# HDMI devices
+# ======================================================================
+/dev/retrostation_hdmi    0600   root       root
+
+# ======================================================================
+# Memory devices
+# ======================================================================
+/dev/ashmem               0666   root       root
+
+# ======================================================================
+# sysfs properties (Tiger T618 optimization)
+# ======================================================================
+
+# Input device control
+/sys/devices/virtual/input/input*   enable      0660  root   input
+/sys/devices/virtual/input/input*   poll_delay  0660  root   input
+
+# CPU frequency scaling (Tiger T618 Cortex-A75/A55)
+/sys/devices/system/cpu/cpu*   cpufreq/scaling_max_freq   0664  system system
+/sys/devices/system/cpu/cpu*   cpufreq/scaling_min_freq   0664  system system
+/sys/devices/system/cpu/cpu*   cpufreq/scaling_governor   0664  system system
+
+# Mali-G52 GPU frequency control
+/sys/class/devfreq/mali0/governor                    0664  system system
+/sys/class/devfreq/mali0/min_freq                    0664  system system
+/sys/class/devfreq/mali0/max_freq                    0664  system system
+
+# Tiger T618 thermal management
+/sys/class/thermal/thermal_zone*/temp                0444  system system
+/sys/class/thermal/thermal_zone*/trip_point_*_temp   0664  system system
+
+# IIO sensors configuration
+/sys/bus/iio/devices/iio:device*/buffer/enable       0664  system system
+/sys/bus/iio/devices/iio:device*/buffer/length       0664  system system
+/sys/bus/iio/devices/iio:device*/sampling_frequency  0664  system system
+
+# USB gadget configuration
+/sys/devices/virtual/usb_composite/*   enable      0664  root   system
+
+# Graphics and display control
+/sys/class/graphics/fb*/blank                        0664  system graphics
+/sys/class/graphics/fb*/modes                        0664  system graphics
+
+# Wireless device control
+/sys/class/rfkill/rfkill*/state                      0664  system system

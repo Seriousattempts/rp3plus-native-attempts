@@ -1,0 +1,27 @@
+# ======================================================================
+# Linux rootfs ld.config for Tiger T618 device
+# Compatible with: Manjaro, Armbian, PostmarketOS rootfs
+# Optimized for Mali-G52 GPU and open source drivers
+# ======================================================================
+
+# Binary search paths (executables) - covers all your rootfs types
+dir.recovery = /bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/opt/bin
+
+# Main recovery namespace for Linux rootfs compatibility
+[recovery]
+namespace.default.isolated = false
+
+# Comprehensive library search paths for ARM64 Linux distributions
+namespace.default.search.paths = /lib:/usr/lib:/usr/local/lib:/lib64:/usr/lib64:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib/musl:/usr/lib/mali-bifrost:/usr/lib/dri:/usr/lib/opencl
+
+# Permitted paths for security (essential Linux paths)
+namespace.default.permitted.paths = /lib:/usr/lib:/usr/local/lib:/lib64:/usr/lib64:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/opt:/usr/lib/opencl:/usr/lib/compute
+
+# Essential Linux libraries (covers glibc, musl, and common system libs)
+namespace.default.allowed_libs = libdl.so.2:libc.so.6:libm.so.6:libpthread.so.0:librt.so.1:libutil.so.1:libc.musl-aarch64.so.1:libssl.so.3:libcrypto.so.3:libz.so.1:libncurses.so.6:libtinfo.so.6
+
+# ASAN support for debugging builds
+namespace.default.asan.search.paths = /lib:/usr/lib:/lib64:/usr/lib64:/usr/lib/aarch64-linux-gnu
+
+# Tiger T618 specific optimizations
+namespace.default.hwasan.search.paths = /lib:/usr/lib:/usr/lib/aarch64-linux-gnu

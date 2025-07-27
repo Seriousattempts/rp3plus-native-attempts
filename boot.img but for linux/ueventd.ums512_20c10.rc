@@ -1,0 +1,27 @@
+/dev/block/by-name/miscdata       0660     system      system
+/dev/block/by-name/persist       0660     system      system
+/dev/block/by-name/sysdumpdb        0660     system     system
+/dev/block/by-name/super           0660     system      system
+/dev/block/by-name/l_modem*        0660     radio       radio
+/dev/block/by-name/gnssmodem*      0660     system      system
+/dev/block/by-name/wcnmodem*       0660     system      system
+
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:red hw_pattern 0660 system system
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:green hw_pattern 0660 system system
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:blue hw_pattern 0660 system system
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:red brightness 0664 system system
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:green brightness 0664 system system
+/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-bltc*/leds/sc27xx:blue brightness 0664 system system
+
+/sys/devices/platform/soc/soc:ap-ahb/20200000.sdio/mmc_host/mmc*/mmc*:*/net/wlan*/rfkill/rfkill*/state 0664 wifi wifi
+
+/sys/devices/virtual/thermal/thermal_zone*/policy 0664 system system
+/sys/devices/platform/soc/soc:ap-ahb/*/thermal_zone*/trip_point_*_hyst 0664 system system
+
+/sys/devices/platform/soc/*/mali*/mali*/devfreq/mali*/userspace/set_freq 0664 system graphics
+
+/sys/devices/system/cpu/cpuidle/current_driver 0644 system system
+/sys/devices/system/cpu/cpuidle/current_governor_ro 0644 system system
+
+/sys/devices/platform/soc/soc:ap-ahb/*/power/control 0664 system system
+/sys/devices/platform/soc/soc:aon/*/power/control 0664 system system

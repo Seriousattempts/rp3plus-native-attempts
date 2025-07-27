@@ -1,0 +1,231 @@
+# ======================================================================
+#  init.recovery.common.rc  – Linux rootfs boot
+# ======================================================================
+
+#######################################################################
+# Early section : Everything done before userspace is switched-root
+#######################################################################
+
+on early-init
+    # ------------------------------------------------------------------
+    # Hand-create device nodes with numbers copied from Android /dev listing ums512_1h10
+    # ------------------------------------------------------------------
+    # Core char devices
+    mknod /dev/null c 1 3 0666
+    mknod /dev/zero c 1 5 0666
+    mknod /dev/full c 1 7 0666
+    mknod /dev/random c 1 8 0644
+    mknod /dev/urandom c 1 9 0644
+    mknod /dev/console c 5 1 0600
+    mknod /dev/tty c 5 0 0666
+    mknod /dev/ptmx c 5 2 0666
+
+    ## Input framework
+    mkdir /dev/input 0755 root root
+    mknod /dev/uinput        c 10 223 0666
+    chown uhid uhid /dev/uinput
+
+    # Core input devices from /proc/bus/input/devices
+    mknod /dev/input/event0 c 13 64 0660   # sc27xx:vibrator  
+    mknod /dev/input/event1 c 13 65 0660   # hynitron-ts (touchscreen)
+    mknod /dev/input/event2 c 13 66 0660   # gpio-keys (VOLUME/POWER buttons)
+    mknod /dev/input/event3 c 13 67 0660   # Headset Jack
+    mknod /dev/input/event4 c 13 68 0660   # Headset Keyboard  
+    mknod /dev/input/event5 c 13 69 0660   # Retroid Pocket Controller
+    mknod /dev/input/event6 c 13 70 0660   # Virtual Mouse
+
+    # Joystick device for gaming
+    mknod /dev/input/js0 c 13 0 0660
+
+    # Set proper permissions for gaming and system use
+    chown system input /dev/input/event*
+    chown system input /dev/input/js0
+
+    ## Audio
+    mknod /dev/fm c 10 16 0660
+    chown media media /dev/fm
+    mkdir /dev/snd 0755 root root
+
+    ## GPU + Ion allocator
+    mknod /dev/mali0         c 10 18 0666
+    chown root graphics /dev/mali0
+    mknod /dev/ion           c 10 63 0666
+    chown system graphics /dev/ion
+    mknod /dev/gsp c 10 60 0660
+    chown system graphics /dev/gsp
+
+    # Video DSP
+    mknod /dev/vdsp0 c 10 17 0660
+    chown system system /dev/vdsp0
+
+    ## DRM directory
+    mkdir /dev/dri 0755 root root
+
+    ## HDMI
+    mknod /dev/retrostation_hdmi c 10 25 0600
+
+    ## IIO sensors
+    mknod /dev/iio:device0   c 247 0 0660
+    mknod /dev/iio:device1   c 247 1 0660
+    chown system system /dev/iio:device0 /dev/iio:device1
+
+    ## Serial console & USB gadget serial functions, because android has them
+    mknod /dev/ttyS1         c 236 1 0600
+    mknod /dev/ttyGS0        c 510 0 0660
+    mknod /dev/ttyGS1        c 510 1 0660
+    chown system system /dev/ttyGS0 /dev/ttyGS1
+
+    ## USB FunctionFS mount points
+    mkdir /dev/usb-ffs 0770 shell shell
+    mkdir /dev/usb-ffs/adb 0770 shell shell
+
+    ## Connectivity
+    mknod /dev/wcn c 10 53 0600
+    mknod /dev/wcn_op c 10 26 0600
+    mknod /dev/mdm_shm       c 236 1 0660
+    mknod /dev/ttyBT0 c 505 0 0660
+    mknod /dev/ttyBT1 c 505 1 0600
+    mknod /dev/gnss_common_ctl c 10 57 0600
+    mknod /dev/gnss_dbg c 10 55 0660
+    mknod /dev/gnss_pmnotify_ctl c 10 56 0660
+    chown system system /dev/gnss_dbg
+    chown system system /dev/gnss_pmnotify_ctl
+    chown bluetooth net_bt_admin /dev/ttyBT0
+    chown radio radio /dev/mdm_shm
+
+    # GPIO chips
+    mknod /dev/gpiochip0 c 254 0 0600
+    mknod /dev/gpiochip1 c 254 1 0600
+    mknod /dev/gpiochip2 c 254 2 0600
+    mknod /dev/gpiochip3 c 254 3 0600
+    mknod /dev/gpiochip4 c 254 4 0600
+    mknod /dev/gpiochip5 c 254 5 0600
+
+    # Management devices
+    mknod /dev/rtc0 c 248 0 0644
+    mknod /dev/tun c 10 200 0660
+    mknod /dev/rfkill c 10 242 0644
+    mknod /dev/fuse c 10 229 0666
+    mknod /dev/loop-control c 10 237 0660
+    mknod /dev/ashmem c 10 43 0666
+    mknod /dev/device-mapper c 10 236 0600
+    mknod /dev/cptl c 10 61 0600
+    mknod /dev/pmic c 10 62 0600
+    mknod /dev/ppp c 108 0 0660
+    mknod /dev/cpu_dma_latency c 10 39 0600
+    mknod /dev/network_latency c 10 38 0600  
+    mknod /dev/network_throughput c 10 37 0600
+    mknod /dev/memory_bandwidth c 10 36 0600
+    chown radio vpn /dev/ppp
+    chown system system /dev/rtc0
+    chown system vpn /dev/tun
+
+    # ------------------------------------------------------------------
+    # Basic pseudo filesystems – kernel already supports proc & sysfs
+    # ------------------------------------------------------------------
+    mount proc    proc    /proc
+    mount sysfs   sysfs   /sys
+    mount tmpfs   tmpfs   /tmp   size=64M,mode=1777
+
+#######################################################################
+# USB gadget (ConfigFS) – keep ADB / Serial / Fastboot for debugging
+#######################################################################
+on init
+    export PATH /sbin:/system/bin:/usr/bin:/bin
+    export ANDROID_ROOT /system
+
+    # Mount ConfigFS so gadget can be configured
+    mount configfs none /config
+
+    # ---- Gadget skeleton ------------------------------------------------
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    write /config/usb_gadget/g1/idVendor 0x1782
+    write /config/usb_gadget/g1/idProduct 0x4d00
+
+    mkdir /config/usb_gadget/g1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer "Unisoc"
+    write /config/usb_gadget/g1/strings/0x409/product "RP3PLUS"
+
+    mkdir /config/usb_gadget/g1/configs/b.1 0770 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "Linux Debug"
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 120
+
+    # Functions (ADB, Fastboot, Serial)
+    mkdir /config/usb_gadget/g1/functions/ffs.adb      0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/ffs.fastboot 0770 system system
+    mkdir /config/usb_gadget/g1/functions/gser.gs0     0770 shell shell
+
+    # Link default combo  (adb + serial + fastboot)
+    symlink /config/usb_gadget/g1/functions/ffs.adb      /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/gser.gs0     /config/usb_gadget/g1/configs/b.1/f2
+    symlink /config/usb_gadget/g1/functions/ffs.fastboot /config/usb_gadget/g1/configs/b.1/f3
+
+    # UDC will be bound later (rootfs may expose ${sys.usb.controller})
+
+#######################################################################
+# Boot-time hardware & memory tuning
+#######################################################################
+
+on boot
+    # CPU governor to conservative for balanced performance
+    write /sys/devices/system/cpu/cpufreq/policy0/scaling_governor conservative
+    write /sys/devices/system/cpu/cpufreq/policy4/scaling_governor conservative
+
+    # ZRAM 256MB – LZ4
+    # Device exists in stock kernel as /dev/block/zram0
+    mknod /dev/zram0 b 254 0 0600
+    write /sys/block/zram0/comp_algorithm lz4
+    write /sys/block/zram0/disksize 268435456
+    mkswap /dev/zram0
+    swapon /dev/zram0 -p 10
+    write /proc/sys/vm/swappiness 60
+    write /proc/sys/vm/oom_kill_allocating_task 1
+
+    # Minimal thermal throttle trip-points example (works via generic cpufreq)
+    write /sys/devices/virtual/thermal/thermal_zone0/trip_point_0_temp 65000
+    write /sys/devices/virtual/thermal/thermal_zone0/trip_point_1_temp 80000
+
+
+#######################################################################
+# Linux rootfs preparation & switch-root
+#######################################################################
+
+on linux-prep
+    # Additional tmpfs mounts expected by desktop distros
+    mount tmpfs tmpfs /run       size=64M,mode=0755
+    mount tmpfs tmpfs /var/run   size=32M,mode=0755
+
+    # Bind-mount devpts for ptys
+    mkdir /dev/pts 0755 root root
+    mount devpts devpts /dev/pts mode=0620,gid=5
+
+on late-init
+    trigger linux-prep
+    exec /sbin/init     # hand-off to real init inside the rootfs
+
+#######################################################################
+# Services
+#######################################################################
+
+# ueventd for static device permissions (already have nodes, but perms may change)
+service ueventd /system/bin/ueventd
+    class core
+    critical
+
+# Local interactive shell on serial console (disabled until manually started)
+service console /system/bin/sh
+    console
+    disabled
+    user root
+    group root
+
+# Environment setup after userspace is ready
+service isp-compute-setup /usr/bin/compute.sh
+    class late_start
+    user root
+    group root
+    oneshot
+
+

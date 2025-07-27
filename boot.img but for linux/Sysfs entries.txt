@@ -1,0 +1,320 @@
+
+There no
+- class/sensor
+- class/modem
+- class/devfreq/mali*
+
+
+C:\U\PC\D\ELM\RP\Android\platform-tools>adb shell
+ums512_1h10:/ $ ls -la /sys/bus/iio/devices/
+total 0
+drwxr-xr-x 2 root root 0 1970-01-01 08:25 .
+drwxr-xr-x 4 root root 0 1970-01-01 08:25 ..
+lrwxrwxrwx 1 root root 0 1970-01-01 08:25 iio:device0 -> ../../../devices/platform/sprd-sensorhub/iio:device0
+lrwxrwxrwx 1 root root 0 1970-01-01 08:25 iio:device1 -> ../../../devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-adc/iio:device1
+lrwxrwxrwx 1 root root 0 1970-01-01 08:25 trigger0 -> ../../../devices/platform/sprd-sensorhub/trigger0
+ums512_1h10:/ $ ls -la /sys/class/input/
+total 0
+drwxr-xr-x  2 root root 0 2023-07-04 05:07 .
+drwxr-xr-x 68 root root 0 1970-01-01 08:25 ..
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event0 -> ../../devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-vibrator/input/input0/event0
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event1 -> ../../devices/virtual/input/input1/event1
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event2 -> ../../devices/platform/gpio-keys/input/input2/event2
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event3 -> ../../devices/platform/sound@0/sound/card0/input3/event3
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event4 -> ../../devices/platform/sound@0/sound/card0/input4/event4
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event5 -> ../../devices/virtual/input/input7/event5
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 event6 -> ../../devices/virtual/input/input6/event6
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input0 -> ../../devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-vibrator/input/input0
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input1 -> ../../devices/virtual/input/input1
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input2 -> ../../devices/platform/gpio-keys/input/input2
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input3 -> ../../devices/platform/sound@0/sound/card0/input3
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input4 -> ../../devices/platform/sound@0/sound/card0/input4
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input6 -> ../../devices/virtual/input/input6
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 input7 -> ../../devices/virtual/input/input7
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 js0 -> ../../devices/virtual/input/input7/js0
+lrwxrwxrwx  1 root root 0 2023-07-04 05:07 mice -> ../../devices/virtual/input/mice
+ums512_1h10:/ $ find /sys/bus/iio/devices/ -name "*device*" -type d
+/sys/bus/iio/devices/
+ums512_1h10:/ $ find /sys/bus/iio/devices/ -name "buffer" -type d
+ums512_1h10:/ $ find /sys/bus/iio/devices/ -name "sampling_frequency" -type f
+ums512_1h10:/ $ ls -la /sys/class/devfreq//
+total 0
+drwxr-xr-x  2 root root 0 1970-01-01 08:26 .
+drwxr-xr-x 68 root root 0 1970-01-01 08:25 ..
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 60000000.gpu -> ../../devices/platform/soc/soc:mm/60000000.gpu/devfreq/60000000.gpu
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 cpp-dvfs -> ../../devices/platform/cpp-dvfs/devfreq/cpp-dvfs
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 dcam-axi-dvfs -> ../../devices/platform/dcam-axi-dvfs/devfreq/dcam-axi-dvfs
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 dcam-if-dvfs -> ../../devices/platform/dcam-if-dvfs/devfreq/dcam-if-dvfs
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 dpu -> ../../devices/platform/dpu-dvfs/devfreq/dpu
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 fd-dvfs -> ../../devices/platform/fd-dvfs/devfreq/fd-dvfs
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 isp-dvfs -> ../../devices/platform/isp-dvfs/devfreq/isp-dvfs
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 jpg-dvfs -> ../../devices/platform/jpg-dvfs/devfreq/jpg-dvfs
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 mmsys-dvfs -> ../../devices/platform/mmsys-dvfs/devfreq/mmsys-dvfs
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 mtx-dvfs -> ../../devices/platform/mtx-dvfs/devfreq/mtx-dvfs
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 scene-frequency -> ../../devices/platform/scene-frequency/devfreq/scene-frequency
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 vdsp -> ../../devices/platform/vdsp-dvfs/devfreq/vdsp
+lrwxrwxrwx  1 root root 0 2023-07-04 05:10 vsp -> ../../devices/platform/vsp-dvfs/devfreq/vsp
+ums512_1h10:/ $ ls -la /sys/class/devfreq/mali*
+ls: /sys/class/devfreq/mali*: No such file or directory
+1|ums512_1h10:/ $ find /sys/class/devfreq/ -name "governor" -type f
+ums512_1h10:/ $ find /sys/class/devfreq/ -name "*freq*" -type f
+1|ums512_1h10:/ $ ls -la /sys/devices/platform/ | grep modem
+1|ums512_1h10:/ $ find /sys -name "*modem*" -type d 2>/dev/null
+/sys/devices/platform/soc/soc:aon/324f0000.modem-dbg-log
+/sys/firmware/devicetree/base/soc/aon/topdvfsctrl@322a0000/dcdc-modem
+/sys/firmware/devicetree/base/soc/aon/modem-dbg-log@324f0000
+/sys/firmware/devicetree/base/scproc-pubcp/scproc@4400/modem@1a00000
+1|ums512_1h10:/ $ ls -la /sys/class/thermal/
+total 0
+drwxr-xr-x  2 root root 0 1970-01-01 08:26 .
+drwxr-xr-x 68 root root 0 1970-01-01 08:25 ..
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 cooling_device0 -> ../../devices/virtual/thermal/cooling_device0
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 cooling_device1 -> ../../devices/virtual/thermal/cooling_device1
+lrwxrwxrwx  1 root root 0 2023-07-04 05:11 cooling_device2 -> ../../devices/virtual/thermal/cooling_device2
+lrwxrwxrwx  1 root root 0 2023-07-04 05:11 cooling_device3 -> ../../devices/virtual/thermal/cooling_device3
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone0 -> ../../devices/virtual/thermal/thermal_zone0
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone1 -> ../../devices/virtual/thermal/thermal_zone1
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone10 -> ../../devices/virtual/thermal/thermal_zone10
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone11 -> ../../devices/virtual/thermal/thermal_zone11
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone12 -> ../../devices/virtual/thermal/thermal_zone12
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone13 -> ../../devices/virtual/thermal/thermal_zone13
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone14 -> ../../devices/virtual/thermal/thermal_zone14
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone15 -> ../../devices/virtual/thermal/thermal_zone15
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone16 -> ../../devices/virtual/thermal/thermal_zone16
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone17 -> ../../devices/virtual/thermal/thermal_zone17
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone18 -> ../../devices/virtual/thermal/thermal_zone18
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone2 -> ../../devices/virtual/thermal/thermal_zone2
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone3 -> ../../devices/virtual/thermal/thermal_zone3
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone4 -> ../../devices/virtual/thermal/thermal_zone4
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone5 -> ../../devices/virtual/thermal/thermal_zone5
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone6 -> ../../devices/virtual/thermal/thermal_zone6
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone7 -> ../../devices/virtual/thermal/thermal_zone7
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone8 -> ../../devices/virtual/thermal/thermal_zone8
+lrwxrwxrwx  1 root root 0 1970-01-01 08:26 thermal_zone9 -> ../../devices/virtual/thermal/thermal_zone9
+ums512_1h10:/ $ find /sys/class/thermal/ -name "temp" -type f
+ums512_1h10:/ $ find /sys -name "*dsp*" -type d 2>/dev/null
+/sys/devices/platform/vdsp-dvfs
+/sys/devices/platform/vdsp-dvfs/devfreq/vdsp
+/sys/devices/platform/vdsp-dvfs/devfreq/vdsp/vdsp_governor
+/sys/devices/platform/audio-dsp-dump@1
+/sys/devices/platform/soc/soc:ap-ahb/soc:ap-ahb:vdsp_spipe
+/sys/devices/platform/soc/soc:ap-ahb/20100000.vdsp
+/sys/devices/platform/soc/soc:ap-ahb/soc:ap-ahb:vdsp_sipc
+/sys/devices/platform/soc/soc:agcp/soc:agcp:agdsp-access
+/sys/devices/platform/audio-dsp-dump@2
+/sys/devices/platform/audio-dsp-dump@0
+/sys/devices/virtual/misc/vdsp0
+/sys/bus/platform/drivers/vdsp-dvfs
+/sys/bus/platform/drivers/vdsp
+/sys/bus/platform/drivers/agdsp_access
+/sys/firmware/devicetree/base/vdsp-dvfs
+/sys/firmware/devicetree/base/audio-dsp-dump@1
+/sys/firmware/devicetree/base/soc/agcp/agdsp-access
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_sipc
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_spipe
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_spipe/vdspspipe@0
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp
+/sys/firmware/devicetree/base/qos/vdsp
+/sys/firmware/devicetree/base/scproc-pubcp/scproc@4400/ldsp@4a8000
+/sys/firmware/devicetree/base/scproc-pubcp/scproc@4400/cdsp@4600000
+/sys/firmware/devicetree/base/scproc-pubcp/scproc@4400/gdsp@20000
+/sys/firmware/devicetree/base/audio-dsp-dump@2
+/sys/firmware/devicetree/base/audio-dsp-dump@0
+/sys/firmware/devicetree/base/reserved-memory/vdsp-mem@f09ae000
+/sys/firmware/devicetree/base/reserved-memory/audiodsp-mem@89000000
+/sys/module/sprd_vdsp
+1|ums512_1h10:/ $ find /sys -name "*vdsp*" -type d 2>/dev/null
+/sys/devices/platform/vdsp-dvfs
+/sys/devices/platform/vdsp-dvfs/devfreq/vdsp
+/sys/devices/platform/vdsp-dvfs/devfreq/vdsp/vdsp_governor
+/sys/devices/platform/soc/soc:ap-ahb/soc:ap-ahb:vdsp_spipe
+/sys/devices/platform/soc/soc:ap-ahb/20100000.vdsp
+/sys/devices/platform/soc/soc:ap-ahb/soc:ap-ahb:vdsp_sipc
+/sys/devices/virtual/misc/vdsp0
+/sys/bus/platform/drivers/vdsp-dvfs
+/sys/bus/platform/drivers/vdsp
+/sys/firmware/devicetree/base/vdsp-dvfs
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_sipc
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_spipe
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp_spipe/vdspspipe@0
+/sys/firmware/devicetree/base/soc/ap-ahb/vdsp
+/sys/firmware/devicetree/base/qos/vdsp
+/sys/firmware/devicetree/base/reserved-memory/vdsp-mem@f09ae000
+/sys/module/sprd_vdsp
+1|ums512_1h10:/ $ ls -la /sys/devices/system/cpu/cpufreq/
+total 0
+drwxr-xr-x  5 root root    0 1970-01-01 08:25 .
+drwxr-xr-x 16 root root    0 1970-01-01 08:25 ..
+-rw-r--r--  1 root root 4096 2023-07-04 05:11 boost
+drwxr-xr-x 15 root root    0 2023-07-04 05:11 cpudvfs
+drwxr-xr-x  3 root root    0 1970-01-01 08:25 policy0
+drwxr-xr-x  3 root root    0 1970-01-01 08:25 policy6
+ums512_1h10:/ $ ls -la /sys/devices/system/cpu/cpu*/cpufreq/
+/sys/devices/system/cpu/cpu0/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu1/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu2/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu3/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu4/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu5/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu6/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+
+/sys/devices/system/cpu/cpu7/cpufreq/:
+total 0
+drwxr-xr-x 3 root   root      0 1970-01-01 08:25 .
+drwxr-xr-x 5 root   root      0 1970-01-01 08:25 ..
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 affected_cpus
+-r-------- 1 root   root   4096 2023-07-04 05:11 cpuinfo_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_max_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_min_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 cpuinfo_transition_latency
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 related_cpus
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_available_frequencies
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_available_governors
+-r--r--r-- 1 root   root   4096 1970-01-01 08:26 scaling_cur_freq
+-r--r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_driver
+-rw-r--r-- 1 root   root   4096 2023-07-04 05:11 scaling_fix_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_governor
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_max_freq
+-rw-rw-r-- 1 system system 4096 2023-07-04 05:08 scaling_min_freq
+-rw-rw---- 1 system system 4096 1970-01-01 08:25 scaling_setspeed
+drwxr-xr-x 2 root   root      0 1970-01-01 08:25 stats
+ums512_1h10:/ $

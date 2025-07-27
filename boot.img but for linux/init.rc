@@ -1,0 +1,33 @@
+# Minimal init.rc for Linux rootfs boot
+
+on early-init
+    start ueventd
+
+on init
+    export ANDROID_ROOT /system
+    # Basic symlinks for compatibility
+    symlink /system/bin /bin
+    symlink /system/etc /etc
+
+on linux-init
+    # Linux filesystem preparation
+    mkdir /dev/pts 0755 root root
+    mount proc proc /proc
+    mount sysfs sysfs /sys
+    mount tmpfs tmpfs /tmp size=64m,mode=1777
+
+on fs
+    # Minimal filesystem setup
+    chmod 1777 /tmp
+
+on boot  
+    ifup lo
+    hostname localhost
+
+on late-init
+    trigger linux-init
+    exec /sbin/init
+
+service ueventd /system/bin/ueventd
+    critical
+    seclabel u:r:ueventd:s0
