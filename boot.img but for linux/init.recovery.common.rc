@@ -1,0 +1,97 @@
+## Linux rootfs boot configuration
+## Keep only essential hardware initialization
+
+# Essential services for hardware compatibility
+service healthd /system/bin/healthd -r
+    critical
+    seclabel u:r:healthd:s0
+
+service ueventd /system/bin/ueventd
+    critical
+    seclabel u:r:ueventd:s0
+
+# Keep USB/ADB support for debugging
+on init
+    # Apply strict SELinux checking
+    write /sys/fs/selinux/checkreqprot 0
+    
+    # Start essential services
+    start healthd
+    start ueventd
+    
+    # Essential hardware permissions for sensors
+    chown system system /sys/bus/iio/devices/trigger0/name
+    chown system system /sys/bus/iio/devices/iio:device1/buffer
+    chown system system /sys/bus/iio/devices/iio:device1/buffer/length
+    chown system system /sys/bus/iio/devices/iio:device1/buffer/enable
+    chown system system /sys/bus/iio/devices/iio:device1/trigger/current_trigger
+    chmod 660 /sys/bus/iio/devices/trigger0/name
+    chmod 660 /sys/bus/iio/devices/iio:device1/buffer/length
+    chmod 660 /sys/bus/iio/devices/iio:device1/buffer/enable
+    chmod 660 /sys/bus/iio/devices/iio:device1/trigger/current_trigger
+    
+    # Set up basic environment
+    export PATH /sbin:/usr/sbin:/bin:/usr/bin:/system/bin
+    
+    # Create ConfigFS for USB gadgets (keep ADB support)
+    mount configfs none /config
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    write /config/usb_gadget/g1/idVendor 0x1782
+    write /config/usb_gadget/g1/idProduct 0x4d00
+    mkdir /config/usb_gadget/g1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer Unisoc
+    write /config/usb_gadget/g1/strings/0x409/product "Linux Device"
+    mkdir /config/usb_gadget/g1/configs/b.1 0770 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "ADB"
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 120
+    
+    # Create ADB function
+    mkdir /config/usb_gadget/g1/functions/ffs.adb 0770 shell shell
+    mkdir /dev/usb-ffs 0770 shell shell
+    mkdir /dev/usb-ffs/adb 0770 shell shell
+    mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+
+on boot
+    # Enable USB gadgets for ADB
+    setprop sys.usb.configfs 1
+    
+    # Essential hardware permissions
+    write /sys/block/mmcblk0boot0/force_ro 0
+    write /sys/block/mmcblk0boot1/force_ro 0
+    
+    # Sensor hub permissions (keep for hardware compatibility)
+    chown system system /dev/iio:device1
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/iio/trigger/current_trigger
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/batch
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/enable
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/flush
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/iio/trigger/current_trigger
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/batch
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/enable
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/flush
+    
+    # Power management (essential for device stability)
+    chmod 660 /sys/class/power_supply/battery/charger.0/stop_charge
+    chmod 660 /sys/class/power_supply/battery/input_current_limit
+    chmod 660 /sys/class/power_supply/battery/constant_charge_current
+
+# ADB USB configuration
+on property:sys.usb.configfs=1 && property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "adb"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+# Linux boot trigger - hand off to Linux init
+on property:ro.bootmode=recovery
+    # Let Linux init take over
+    trigger linux-handoff
+
+on linux-handoff
+    # Linux rootfs is already mounted at /
+    # Just ensure essential hardware is initialized
+    # Linux init system will handle the rest
+    pass
