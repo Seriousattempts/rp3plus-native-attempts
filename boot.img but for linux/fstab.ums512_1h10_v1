@@ -1,0 +1,2 @@
+# Linux rootfs mounted directly from super partition
+/dev/block/by-name/super / ext4 ro,barrier=1,noatime wait
