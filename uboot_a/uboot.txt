@@ -1,0 +1,174 @@
+
+
+
+
+
+U-Boot 2015.07 Configuration If you didn't olddefconfig, just renamed .config txt file to .config and moved to proper folder. When you make -j$(nproc)
+
+
+*
+- Architecture select
+2 ARM
+- SEMIHOSTING
+N
+- Target select
+Spreadtrum (ARCH_SPRD)
+- ARMV8_MULTIENTRY
+N
+- Mainboard model
+N
+- Spreadtrum sharkl5pro (TARGET_UMS512_1H10) [Y/n/?] y
+- Spreadtrum sharkl5pro (TARGET_UMS512_1H10_GO) [N/y/?] (NEW) y
+- Spreadtrum sharkl5pro (TARGET_UMS512_TEST) [N/y/?] (NEW) y
+- Spreadtrum sharkl5pro (TARGET_ums512_20c10) [N/y/?] (NEW) y
+- Spreadtrum sharkl5pro (TARGET_UMS512_2H10) [N/y/?] (NEW) y
+
+- Support Flattened Image Tree (FIT) [N/y/?] (NEW)
+N
+- Use hush shell (HUSH_PARSER) [N/y/?] (NEW)
+Y
+Stop autobooting via specific input key / string (AUTOBOOT_KEYED) [N/y/?] (NEW) y
+  Autoboot stop prompt (AUTOBOOT_PROMPT) [Autoboot in %d seconds\n] (NEW) Hit SPACE to stop autoboot: %2d
+  Enable encryption in autoboot stopping (AUTOBOOT_ENCRYPTION) [N/y] (NEW) n
+    Delay autobooting via specific input key / string (AUTOBOOT_DELAY_STR) [] (NEW)
+    Stop autobooting via specific input key / string (AUTOBOOT_STOP_STR) [] (NEW)
+    Enable Ctrl-C autoboot interruption (AUTOBOOT_KEYED_CTRLC) [N/y/?] (NEW) y
+
+* Info commands
+*
+bdinfo (CMD_BDI) [Y/n/?] (NEW) y
+coninfo (CMD_CONSOLE) [Y/n/?] y
+cpu (CMD_CPU) [N/y/?] (NEW) y
+license (CMD_LICENSE) [N/y/?] (NEW) n
+*
+* Boot commands
+*
+bootd (CMD_BOOTD) [Y/n/?] y
+bootm (CMD_BOOTM) [Y/n/?] y
+go (CMD_GO) [Y/n/?] y
+run (CMD_RUN) [Y/n/?] (NEW) y
+iminfo (CMD_IMI) [Y/n/?] (NEW) y
+imls (CMD_IMLS) [Y/n/?] (NEW) y
+imxtract (CMD_XIMG) [Y/n/?] y
+*
+* Environment commands
+*
+env export (CMD_EXPORTENV) [Y/n/?] y
+env import (CMD_IMPORTENV) [Y/n/?] y
+editenv (CMD_EDITENV) [Y/n/?] y
+saveenv (CMD_SAVEENV) [Y/n/?] (NEW) y
+env exists (CMD_ENV_EXISTS) [Y/n/?] y
+*
+* Memory commands
+*
+md, mm, nm, mw, cp, cmp, base, loop (CMD_MEMORY) [Y/n/?] (NEW) y
+crc32 (CMD_CRC32) [Y/n/?] y
+loopw (LOOPW) [N/y/?] (NEW) n
+memtest (CMD_MEMTEST) [N/y/?] (NEW) y
+mdc, mwc (CMD_MX_CYCLIC) [N/y/?] (NEW) n
+meminfo (CMD_MEMINFO) [N/y/?] (NEW) y
+*
+* Device access commands
+*
+dm - Access to driver model information (CMD_DM) [Y/n/?] y
+demo - Demonstration commands for driver model (CMD_DEMO) [N/y/?] (NEW) n
+loadb (CMD_LOADB) [Y/n/?] y
+loads (CMD_LOADS) [Y/n/?] y
+flinfo, erase, protect (CMD_FLASH) [Y/n/?] (NEW) n
+nand (CMD_NAND) [N/y/?] (NEW) n
+sf (CMD_SF) [N/y/?] (NEW) y
+sspi (CMD_SPI) [N/y/?] (NEW) y
+i2c (CMD_I2C) [N/y/?] (NEW) y
+usb (CMD_USB) [N/y/?] (NEW) y
+fpga (CMD_FPGA) [Y/n/?] y
+*
+* Shell scripting commands
+*
+echo (CMD_ECHO) [Y/n/?] (NEW) y
+itest (CMD_ITEST) [Y/n/?] y
+source (CMD_SOURCE) [Y/n/?] (NEW) y
+setexpr (CMD_SETEXPR) [Y/n/?] y
+*
+* Network commands
+*
+bootp, tftpboot (CMD_NET) [Y/n/?] (NEW) n
+tftp put (CMD_TFTPPUT) [N/y/?] (NEW) n
+tftpsrv (CMD_TFTPSRV) [N/y/?] (NEW) n
+rarpboot (CMD_RARP) [N/y/?] (NEW) n
+dhcp (CMD_DHCP) [N/y/?] (NEW) n
+nfs (CMD_NFS) [Y/n/?] y
+ping (CMD_PING) [N/y/?] (NEW) n
+cdp (CMD_CDP) [N/y/?] (NEW) n
+sntp (CMD_SNTP) [N/y/?] (NEW) n
+dns (CMD_DNS) [N/y/?] (NEW) n
+linklocal (CMD_LINK_LOCAL) [N/y/?] (NEW) n
+*
+* Misc commands
+*
+time (CMD_TIME) [N/y/?] (NEW) y
+sleep (CMD_MISC) [Y/n/?] y
+timer (CMD_TIMER) [N/y/?] (NEW) n
+uboot_it_test (CMD_UBOOT_IT_TEST) [N/y/?] (NEW)
+*
+* Boot timing
+*
+Boot timing and reporting (BOOTSTAGE) [N/y/?] (NEW) y
+  Display a detailed boot timing report before booting the OS (BOOTSTAGE_REPORT) [N/y/?] (NEW) y
+Number of boot ID numbers available for user use (BOOTSTAGE_USER_COUNT) [20] 20
+Enable the 'bootstage' command (CMD_BOOTSTAGE) [N/y/?] (NEW) bootstage mark 100
+Enable the 'bootstage' command (CMD_BOOTSTAGE) [N/y/?] (NEW) bootstage report
+Enable the 'bootstage' command (CMD_BOOTSTAGE) [N/y/?] (NEW)
+Store boot timing information in the OS device tree (BOOTSTAGE_FDT) [N/y/?] (NEW) n
+Stash the boot timing information in memory before booting OS (BOOTSTAGE_STASH) [N/y/?] (NEW) y
+Address to stash boot timing information (BOOTSTAGE_STASH_ADDR) [0] 0
+Size of boot timing stash region (BOOTSTAGE_STASH_SIZE) [4096] 4096
+*
+* Power commands
+*
+Enable Driver Model PMIC command (CMD_PMIC) [N/y/?] (NEW) y
+Enable Driver Model REGULATOR command (CMD_REGULATOR) [N/y/?] (NEW) y
+*
+* Device Tree Control
+*
+Run-time configuration via Device Tree (OF_CONTROL) [Y/n/?] y
+Board-specific manipulation of Device Tree (OF_BOARD_FIXUP) [N/y/?] (NEW) n
+Enable use of a live tree (OF_LIVE) [N/y/?] (NEW) n
+Provider of DTB for DT control
+> 1. Separate DTB for DT control (OF_SEPARATE)
+  2. Embedded DTB for DT control (OF_EMBED) (NEW)
+  3. Provided by the board at runtime (OF_BOARD) (NEW)
+choice[1-3]: 1
+Default Device Tree for DT control (DEFAULT_DEVICE_TREE) []
+*
+* Networking support
+*
+Networking support (NET) [N/y] (NEW) n
+*
+* Generic Driver Options
+*
+Enable Driver Model (DM) [Y/n/?] y
+  Enable warnings in driver model (DM_WARN) [Y/n/?] y
+  Enable debug messages in driver model core (DM_DEBUG) [N/y/?] (NEW) y
+  Support device removal (DM_DEVICE_REMOVE) [Y/n/?] y
+Support stdio registration (DM_STDIO) [Y/n/?] y
+Support numbered aliases in device tree (DM_SEQ_ALIAS) [Y/n/?] y
+Support numbered aliases in device tree in SPL (SPL_DM_SEQ_ALIAS) [N/y/?] (NEW) y
+Support register maps (REGMAP) [N/y/?] (NEW) y
+Support system controllers (SYSCON) [N/y/?] (NEW) y
+Managed device resources (DEVRES) [N/y/?] (NEW) y
+  Managed device resources debugging functions (DEBUG_DEVRES) [N/y/?] (NEW) n
+Support simple-bus driver (SIMPLE_BUS) [Y/n/?] y
+Translate addresses using fdt_translate_address (OF_TRANSLATE) [Y/n/?] y
+Platforms specific translation offset (TRANSLATION_OFFSET) [N/y/?] (NEW) n
+*
+* Device Drivers
+*
+Enable CPU drivers using Driver Model (CPU) [N/y/?] (NEW) n
+Enable demo uclass support (DM_DEMO) [N/y/?] (NEW) n
+*
+* PCI
+*
+Enable driver mode for PCI (DM_PCI) [N/y/?] (NEW)
+
+
+

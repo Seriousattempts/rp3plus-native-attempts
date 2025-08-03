@@ -1,0 +1,15 @@
+
+
+sudo apt update -y
+sudo apt-get install -y build-essential python3 python-is-python3 libssl-dev libgnutls28-dev \
+git-core gcc-7-arm-linux-gnueabihf u-boot-tools sbsigntool efitools \
+device-tree-compiler gcc-aarch64-linux-gnu mtools parted pv bc bison flex swig
+git clone https://github.com/Seriousattempts/prebuilt_gcc-linaro-4.9-2015.05-x86_64_aarch64-linux-gnu.git
+git clone https://github.com/Veynamer/bsp_bootloader_u-boot15_sharkl5pro.git u-boot-sprd
+cd u-boot-sprd
+export PATH=$(pwd)/gcc-linaro-4.9-2015.05-x86_64_aarch64-linux-gnu/bin:$PATHx86_64_aarch64-linux-gnu/bin:$PATH
+export CROSS_COMPILE=aarch64-linux-gnu-
+export ARCH=arm
+make olddefconfig
+make ums512_1h10_defconfig
+make -j$(nproc)
