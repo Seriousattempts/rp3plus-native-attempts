@@ -1,0 +1,46 @@
+
+
+Stock retroid pocket 3 plus boot.img:
+
+ralt@PCHP:~/ums512_kernel/abootimg$ abootimg -i boot.img
+
+Android Boot Image Info:
+
+* file name = boot.img
+
+* image size = 67108864 bytes (64.00 MB)
+page size = 2048 bytes
+
+* Boot Name = ""
+
+* kernel size = 19509264 bytes (18.61 MB)
+ramdisk size = 9159715 bytes (8.74 MB)
+
+* load addresses:
+kernel: 0x00008000
+ramdisk: 0x05400000
+tags: 0x00000100
+
+* cmdline = console=ttyS1,115200n8 buildvariant=user
+
+* id = 0xe0f8a705 0x2239771b 0x6f3a5649 0x0dca003e 0x5fab9684 0x00000000 0x00000000 0x00000000
+
+
+Run
+
+sudo apt install android-tools-mkbootimg
+cp /path/to/your/compiled/kernel/arch/arm64/boot/Image ~/ums512_kernel/abootimg
+cp /ums512_kernel/buildroot/output/images ~/ums512_kernel/abootimg
+
+cd /ums512_kernel/abootimg
+mkbootimg \
+  --kernel kernelImage \
+  --ramdisk rootfs.cpio.gz \
+  --base 0x00000000 \
+  --kernel_offset 0x00008000 \
+  --ramdisk_offset 0x05400000 \
+  --tags_offset 0x00000100 \
+  --pagesize 2048 \
+  --cmdline "console=ttyS1,115200n8 root=/dev/block/by-name/super rootfstype=ext4 rw init=/sbin/init loglevel=7" \
+  -o boot_linux.img
+

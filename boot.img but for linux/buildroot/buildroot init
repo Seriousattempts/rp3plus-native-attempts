@@ -1,0 +1,505 @@
+#!/bin/sh
+
+echo "Starting TS10 | UMS512_1H10 Linux Boot ..."
+
+# Mount essential filesystems first
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+
+# Function to create symbolic links for block devices
+create_block_symlinks() {
+    echo "Creating block device symbolic links..."
+    
+    # Create by-name directory structure
+    mkdir -p /dev/block/by-name
+    
+    # Core boot partitions (using _a slot as default)
+    ln -sf /dev/mmcblk0p8 /dev/block/by-name/uboot
+    ln -sf /dev/mmcblk0p8 /dev/block/by-name/uboot_a
+    ln -sf /dev/mmcblk0p9 /dev/block/by-name/uboot_b
+    ln -sf /dev/mmcblk0p6 /dev/block/by-name/sml
+    ln -sf /dev/mmcblk0p6 /dev/block/by-name/sml_a
+    ln -sf /dev/mmcblk0p7 /dev/block/by-name/sml_b
+    ln -sf /dev/mmcblk0p4 /dev/block/by-name/trustos
+    ln -sf /dev/mmcblk0p4 /dev/block/by-name/trustos_a
+    ln -sf /dev/mmcblk0p5 /dev/block/by-name/trustos_b
+    ln -sf /dev/mmcblk0p38 /dev/block/by-name/teecfg
+    ln -sf /dev/mmcblk0p38 /dev/block/by-name/teecfg_a
+    ln -sf /dev/mmcblk0p39 /dev/block/by-name/teecfg_b
+    
+    # VBMeta partitions
+    ln -sf /dev/mmcblk0p56 /dev/block/by-name/vbmeta
+    ln -sf /dev/mmcblk0p56 /dev/block/by-name/vbmeta_a
+    ln -sf /dev/mmcblk0p57 /dev/block/by-name/vbmeta_b
+    ln -sf /dev/mmcblk0p60 /dev/block/by-name/vbmeta_system
+    ln -sf /dev/mmcblk0p60 /dev/block/by-name/vbmeta_system_a
+    ln -sf /dev/mmcblk0p61 /dev/block/by-name/vbmeta_system_b
+    ln -sf /dev/mmcblk0p62 /dev/block/by-name/vbmeta_vendor
+    ln -sf /dev/mmcblk0p62 /dev/block/by-name/vbmeta_vendor_a
+    ln -sf /dev/mmcblk0p63 /dev/block/by-name/vbmeta_vendor_b
+    ln -sf /dev/mmcblk0p66 /dev/block/by-name/vbmeta_product
+    ln -sf /dev/mmcblk0p66 /dev/block/by-name/vbmeta_product_a
+    ln -sf /dev/mmcblk0p67 /dev/block/by-name/vbmeta_product_b
+    ln -sf /dev/mmcblk0p64 /dev/block/by-name/vbmeta_system_ext
+    ln -sf /dev/mmcblk0p64 /dev/block/by-name/vbmeta_system_ext_a
+    ln -sf /dev/mmcblk0p65 /dev/block/by-name/vbmeta_system_ext_b
+    ln -sf /dev/mmcblk0p68 /dev/block/by-name/vbmeta_odm_a
+    ln -sf /dev/mmcblk0p69 /dev/block/by-name/vbmeta_odm_b
+    
+    # Device tree partitions
+    ln -sf /dev/mmcblk0p48 /dev/block/by-name/dtbo
+    ln -sf /dev/mmcblk0p48 /dev/block/by-name/dtbo_a
+    ln -sf /dev/mmcblk0p49 /dev/block/by-name/dtbo_b
+    ln -sf /dev/mmcblk0p46 /dev/block/by-name/dtb_a
+    ln -sf /dev/mmcblk0p47 /dev/block/by-name/dtb_b
+    
+    # Modem and DSP partitions
+    ln -sf /dev/mmcblk0p30 /dev/block/by-name/l_ldsp
+    ln -sf /dev/mmcblk0p30 /dev/block/by-name/l_ldsp_a
+    ln -sf /dev/mmcblk0p31 /dev/block/by-name/l_ldsp_b
+    ln -sf /dev/mmcblk0p28 /dev/block/by-name/l_gdsp
+    ln -sf /dev/mmcblk0p28 /dev/block/by-name/l_gdsp_a
+    ln -sf /dev/mmcblk0p29 /dev/block/by-name/l_gdsp_b
+    ln -sf /dev/mmcblk0p32 /dev/block/by-name/l_agdsp
+    ln -sf /dev/mmcblk0p32 /dev/block/by-name/l_agdsp_a
+    ln -sf /dev/mmcblk0p33 /dev/block/by-name/l_agdsp_b
+    ln -sf /dev/mmcblk0p34 /dev/block/by-name/l_cdsp
+    ln -sf /dev/mmcblk0p34 /dev/block/by-name/l_cdsp_a
+    ln -sf /dev/mmcblk0p35 /dev/block/by-name/l_cdsp_b
+    ln -sf /dev/mmcblk0p24 /dev/block/by-name/l_modem
+    ln -sf /dev/mmcblk0p24 /dev/block/by-name/l_modem_a
+    ln -sf /dev/mmcblk0p25 /dev/block/by-name/l_modem_b
+    
+    # NVRAM partitions
+    ln -sf /dev/mmcblk0p13 /dev/block/by-name/l_fixnv1
+    ln -sf /dev/mmcblk0p13 /dev/block/by-name/l_fixnv1_a
+    ln -sf /dev/mmcblk0p15 /dev/block/by-name/l_fixnv1_b
+    ln -sf /dev/mmcblk0p14 /dev/block/by-name/l_fixnv2
+    ln -sf /dev/mmcblk0p14 /dev/block/by-name/l_fixnv2_a
+    ln -sf /dev/mmcblk0p16 /dev/block/by-name/l_fixnv2_b
+    ln -sf /dev/mmcblk0p26 /dev/block/by-name/l_deltanv
+    ln -sf /dev/mmcblk0p26 /dev/block/by-name/l_deltanv_a
+    ln -sf /dev/mmcblk0p27 /dev/block/by-name/l_deltanv_b
+    ln -sf /dev/mmcblk0p17 /dev/block/by-name/l_runtimenv1
+    ln -sf /dev/mmcblk0p18 /dev/block/by-name/l_runtimenv2
+    
+    # Connectivity modems
+    ln -sf /dev/mmcblk0p21 /dev/block/by-name/wcnmodem
+    ln -sf /dev/mmcblk0p21 /dev/block/by-name/wcnmodem_a
+    ln -sf /dev/mmcblk0p22 /dev/block/by-name/wcnmodem_b
+    ln -sf /dev/mmcblk0p19 /dev/block/by-name/gnssmodem
+    ln -sf /dev/mmcblk0p19 /dev/block/by-name/gnssmodem_a
+    ln -sf /dev/mmcblk0p20 /dev/block/by-name/gnssmodem_b
+    ln -sf /dev/mmcblk0p36 /dev/block/by-name/pm_sys
+    ln -sf /dev/mmcblk0p36 /dev/block/by-name/pm_sys_a
+    ln -sf /dev/mmcblk0p37 /dev/block/by-name/pm_sys_b
+    
+    # System partitions
+    ln -sf /dev/mmcblk0p3 /dev/block/by-name/misc
+    ln -sf /dev/mmcblk0p42 /dev/block/by-name/boot
+    ln -sf /dev/mmcblk0p42 /dev/block/by-name/boot_a
+    ln -sf /dev/mmcblk0p43 /dev/block/by-name/boot_b
+    ln -sf /dev/mmcblk0p44 /dev/block/by-name/vendor_boot_a
+    ln -sf /dev/mmcblk0p45 /dev/block/by-name/vendor_boot_b
+    ln -sf /dev/mmcblk0p23 /dev/block/by-name/persist
+    ln -sf /dev/mmcblk0p11 /dev/block/by-name/logo
+    ln -sf /dev/mmcblk0p12 /dev/block/by-name/fbootlogo
+    ln -sf /dev/mmcblk0p50 /dev/block/by-name/super
+    ln -sf /dev/mmcblk0p51 /dev/block/by-name/cache
+    ln -sf /dev/mmcblk0p76 /dev/block/by-name/userdata
+    ln -sf /dev/mmcblk0p58 /dev/block/by-name/metadata
+    
+    # Special boot devices
+    ln -sf /dev/mmcblk0boot0 /dev/block/by-name/spl
+    ln -sf /dev/mmcblk0boot1 /dev/block/by-name/spl_bk
+    
+    # Additional partitions
+    ln -sf /dev/mmcblk0p1 /dev/block/by-name/prodnv
+    ln -sf /dev/mmcblk0p2 /dev/block/by-name/miscdata
+    ln -sf /dev/mmcblk0p40 /dev/block/by-name/hypervsior_a
+    ln -sf /dev/mmcblk0p41 /dev/block/by-name/hypervsior_b
+    ln -sf /dev/mmcblk0p52 /dev/block/by-name/socko_a
+    ln -sf /dev/mmcblk0p53 /dev/block/by-name/socko_b
+    ln -sf /dev/mmcblk0p54 /dev/block/by-name/odmko_a
+    ln -sf /dev/mmcblk0p55 /dev/block/by-name/odmko_b
+    ln -sf /dev/mmcblk0p59 /dev/block/by-name/sysdumpdb
+    ln -sf /dev/mmcblk0p70 /dev/block/by-name/avbmeta_rs_a
+    ln -sf /dev/mmcblk0p71 /dev/block/by-name/avbmeta_rs_b
+    ln -sf /dev/mmcblk0p72 /dev/block/by-name/common_rs1_a
+    ln -sf /dev/mmcblk0p73 /dev/block/by-name/common_rs1_b
+    ln -sf /dev/mmcblk0p74 /dev/block/by-name/common_rs2_a
+    ln -sf /dev/mmcblk0p75 /dev/block/by-name/common_rs2_b
+    
+    echo "Block device symbolic links created successfully"
+}
+
+# Function to create essential device nodes manually
+create_device_nodes() {
+    echo "Creating device nodes manually (no devtmpfs)..."
+    
+    # Create /dev directory structure
+    mkdir -p /dev/input /dev/snd /dev/dri /dev/usb-ffs /dev/pts /dev/block /dev/block/by-name
+    
+    # Core system devices
+    mknod /dev/null c 1 3
+    mknod /dev/zero c 1 5
+    mknod /dev/full c 1 7
+    mknod /dev/random c 1 8
+    mknod /dev/urandom c 1 9
+    mknod /dev/console c 5 1
+    mknod /dev/tty c 5 0
+    mknod /dev/ptmx c 5 2
+    
+    # Serial console
+    mknod /dev/ttyS1 c 236 1
+    
+    # Main eMMC block device
+    mknod /dev/mmcblk0 b 179 0
+    # Boot partitions
+    mknod /dev/mmcblk0boot0 b 179 96
+    mknod /dev/mmcblk0boot1 b 179 97
+    # eMMC partitions
+    for i in $(seq 1 76); do
+        mknod /dev/mmcblk0p$i b 179 $i
+    done
+    
+    # Create symbolic links
+    create_block_symlinks
+    
+    # Core input devices for car head unit functionality
+    mknod /dev/input/event0 c 13 64   # sc27xx:vibrator
+    mknod /dev/input/event1 c 13 65   # hynitron-ts (touchscreen)
+    mknod /dev/input/event2 c 13 66   # gpio-keys (VOLUME/POWER buttons)
+    mknod /dev/input/event3 c 13 67   # Headset Jack
+    mknod /dev/input/event4 c 13 68   # Headset Keyboard
+    mknod /dev/input/event5 c 13 69   # Controller
+    mknod /dev/input/js0 c 13 0       # Joystick device
+    
+    # GPU and graphics
+    mknod /dev/mali0 c 10 18
+    mknod /dev/ion c 10 63
+    mknod /dev/gsp c 10 60
+    
+    # Video DSP
+    mknod /dev/vdsp0 c 10 17
+    
+    # Audio
+    mknod /dev/fm c 10 16
+    
+    # HDMI output
+    mknod /dev/retrostation_hdmi c 10 25
+    
+    # IIO sensors (accelerometer, gyro, etc.)
+    mknod /dev/iio:device0 c 247 0
+    mknod /dev/iio:device1 c 247 1
+    
+    # I2C devices
+    mknod /dev/i2c-0 c 89 0
+    mknod /dev/i2c-1 c 89 1
+    mknod /dev/i2c-2 c 89 2
+    mknod /dev/i2c-3 c 89 3
+    mknod /dev/i2c-4 c 89 4
+    mknod /dev/i2c-5 c 89 5
+    
+    # GPIO chips
+    mknod /dev/gpiochip0 c 254 0
+    mknod /dev/gpiochip1 c 254 1
+    mknod /dev/gpiochip2 c 254 2
+    mknod /dev/gpiochip3 c 254 3
+    mknod /dev/gpiochip4 c 254 4
+    mknod /dev/gpiochip5 c 254 5
+    
+    # Real-time clock
+    mknod /dev/rtc0 c 248 0
+    
+    # Network devices
+    mknod /dev/tun c 10 200
+    mknod /dev/ppp c 108 0
+    
+    # System management
+    mknod /dev/rfkill c 10 242
+    mknod /dev/fuse c 10 229
+    mknod /dev/loop-control c 10 237
+    mknod /dev/device-mapper c 10 236
+    
+    # Loop devices for mounting images/containers
+    for i in 0 1 2 3 4 5 6 7; do
+        mknod /dev/loop$i b 7 $i
+    done
+    
+    # Connectivity (Wi-Fi, Bluetooth, Cellular)
+    mknod /dev/wcn c 10 53
+    mknod /dev/wcn_op c 10 26
+    mknod /dev/ttyBT0 c 505 0
+    mknod /dev/gnss_common_ctl c 10 57
+    mknod /dev/gnss_dbg c 10 55
+    mknod /dev/gnss_pmnotify_ctl c 10 56
+    
+    # USB gadget serial
+    mknod /dev/ttyGS0 c 510 0
+    mknod /dev/ttyGS1 c 510 1
+    
+    # USB accessory support
+    mknod /dev/usb_accessory c 10 22
+    
+    # Android shared memory (useful for some Linux apps)
+    mknod /dev/ashmem c 10 43
+    
+    # Android compatibility devices
+    mknod /dev/uhid c 10 239          # USB HID
+    mknod /dev/uinput c 10 223        # User input
+    mknod /dev/trusty-ipc-dev0 c 246 0 # Trusty IPC
+    
+    # Additional car head unit specific devices
+    mknod /dev/rstouch c 10 44        # Touchscreen driver
+    mknod /dev/map_user c 10 45       # Memory mapping
+    mknod /dev/cptl c 10 61           # Control plane
+    mknod /dev/pmic c 10 62           # Power management IC
+    
+    # Camera/video processing
+    mknod /dev/sprd_cpp c 10 19       # Camera post-processing  
+    mknod /dev/sprd_jpg c 10 58       # JPEG encoder
+    mknod /dev/sprd_sensor c 10 21    # Camera sensor
+    mknod /dev/sprd_vsp c 10 59       # Video signal processor
+    
+    # Audio pipes for advanced audio
+    mknod /dev/apipe-cmd-in c 10 51
+    mknod /dev/apipe-cmd-out c 10 50  
+    mknod /dev/apipe-pcm c 10 52
+    
+    # Set basic permissions for original devices
+    chmod 666 /dev/null /dev/zero /dev/full /dev/urandom /dev/tty /dev/ptmx
+    chmod 644 /dev/random /dev/rtc0 /dev/rfkill
+    chmod 600 /dev/console /dev/ttyS1
+    chmod 660 /dev/input/* /dev/mali0 /dev/ion /dev/gsp /dev/vdsp0
+    chmod 660 /dev/fm /dev/iio:device* /dev/i2c-* /dev/gpio*
+    chmod 600 /dev/gpiochip* /dev/retrostation_hdmi
+    chmod 660 /dev/tun /dev/ppp /dev/ttyBT0 /dev/ttyGS*
+    chmod 600 /dev/wcn* /dev/gnss_common_ctl
+    chmod 660 /dev/gnss_dbg /dev/gnss_pmnotify_ctl
+    
+    # Set permissions for loop devices
+    chmod 660 /dev/loop*
+    
+    # Set permissions for eMMC devices
+    chmod 660 /dev/mmcblk0*
+    
+    # Set permissions for new devices
+    chmod 666 /dev/ashmem /dev/rstouch
+    chmod 660 /dev/map_user /dev/cptl /dev/pmic
+    chmod 660 /dev/sprd_cpp /dev/sprd_jpg /dev/sprd_sensor /dev/sprd_vsp
+    chmod 660 /dev/apipe-cmd-in /dev/apipe-cmd-out /dev/apipe-pcm
+    chmod 660 /dev/usb_accessory /dev/uhid /dev/uinput /dev/trusty-ipc-dev0
+}
+
+# Check if devtmpfs is supported by the kernel
+if grep -q devtmpfs /proc/filesystems; then
+    echo "Kernel supports devtmpfs - using automatic device management"
+    mount -t devtmpfs devtmpfs /dev
+    sleep 1
+    
+    # Create additional directories that might not be auto-created
+    mkdir -p /dev/usb-ffs /dev/usb-ffs/adb
+    
+    # Create symbolic links even with devtmpfs
+    create_block_symlinks
+    
+else
+    echo "Kernel does not support devtmpfs - creating device nodes manually"
+    create_device_nodes
+    
+    # Set up mdev for hotplug device management if available
+    if [ -f /sbin/mdev ]; then
+        echo "Setting up mdev for device hotplug..."
+        echo /sbin/mdev > /proc/sys/kernel/hotplug
+        mdev -s
+        sleep 1
+    fi
+fi
+
+# Enhanced debugging output
+echo "=== SYSTEM DEBUG INFORMATION ==="
+
+# Show partition table information
+echo "Partition table from /proc/partitions:"
+if [ -f /proc/partitions ]; then
+    cat /proc/partitions
+else
+    echo "No /proc/partitions found"
+fi
+
+echo ""
+echo "MTD devices:"
+if [ -f /proc/mtd ]; then
+    cat /proc/mtd
+else
+    echo "No MTD devices found"
+fi
+
+echo ""
+echo "Filesystem types supported by kernel:"
+if [ -f /proc/filesystems ]; then
+    cat /proc/filesystems | head -20
+else
+    echo "No /proc/filesystems found"
+fi
+
+echo ""
+echo "Memory information:"
+if [ -f /proc/meminfo ]; then
+    grep -E "MemTotal|MemFree|MemAvailable" /proc/meminfo
+else
+    echo "No /proc/meminfo found"
+fi
+
+# Wait for block devices to settle
+echo ""
+echo "Waiting for block devices to initialize..."
+sleep 3
+
+# Wait for block device initialization
+echo "Waiting for block device initialization..."
+for i in 1 2 3 4 5; do
+    if [ -d /dev/block ]; then
+        break
+    fi
+    sleep 1
+done
+
+# Show available block devices for debugging
+echo ""
+echo "=== BLOCK DEVICE DISCOVERY ==="
+echo "Block devices found:"
+find /dev -name "mmcblk*" -o -name "super" -o -path "*/by-name/*" 2>/dev/null | sort
+
+echo ""
+echo "Contents of /dev/block/by-name/:"
+if [ -d /dev/block/by-name ]; then
+    ls -la /dev/block/by-name/ | head -20
+    echo "... (showing first 20 entries)"
+else
+    echo "Directory /dev/block/by-name does not exist"
+fi
+
+echo ""
+echo "Available eMMC partitions:"
+ls -la /dev/mmcblk0* 2>/dev/null | head -10
+echo "... (showing first 10 partitions)"
+
+# Try multiple potential root device locations (expanded list)
+ROOT_CANDIDATES="/dev/block/by-name/super /dev/mmcblk0p50 /dev/super /dev/block/mmcblk0p50"
+
+echo ""
+echo "=== ROOTFS MOUNTING ATTEMPT ==="
+echo "Searching for persistent rootfs..."
+for ROOT_DEV in $ROOT_CANDIDATES; do
+    if [ -e "$ROOT_DEV" ]; then
+        echo "Found potential root device: $ROOT_DEV"
+        
+        # Show device information
+        if [ -b "$ROOT_DEV" ]; then
+            echo "Device type: Block device"
+            # Try to get device size if possible
+            if command -v blockdev >/dev/null 2>&1; then
+                SIZE=$(blockdev --getsize64 "$ROOT_DEV" 2>/dev/null || echo "unknown")
+                echo "Device size: $SIZE bytes"
+            fi
+        else
+            echo "Device type: $(file "$ROOT_DEV" 2>/dev/null || echo 'unknown')"
+        fi
+        
+        # Create mount point
+        mkdir -p /newroot
+        sleep 3
+        
+        echo "Attempting to mount Linux rootfs from $ROOT_DEV..."
+        if mount -o rw -t ext4 "$ROOT_DEV" /newroot 2>/dev/null; then
+            echo "Successfully mounted rootfs from $ROOT_DEV"
+            sleep 4
+            
+            # Show rootfs information
+            echo "Rootfs contents:"
+            ls -la /newroot/ | head -10
+            
+            # Verify this looks like a Linux rootfs
+            if [ -d /newroot/sbin ] && [ -d /newroot/usr ] && [ -d /newroot/etc ]; then
+                echo "Rootfs verification passed - preparing systemd environment..."
+                
+                # Show more details about the rootfs
+                if [ -f /newroot/etc/os-release ]; then
+                    echo "OS Information:"
+                    cat /newroot/etc/os-release | head -5
+                fi
+                
+                # Prepare systemd environment in new root
+                mkdir -p /newroot/run
+                mkdir -p /newroot/tmp
+                mkdir -p /newroot/var/log
+                
+                # Set up systemd-required environment
+                export SYSTEMD_LOG_LEVEL=info
+                export SYSTEMD_LOG_TARGET=kmsg
+                
+                # Move virtual filesystems to new root
+                if [ -d /newroot/dev ]; then
+                    mount --move /dev /newroot/dev || mount --bind /dev /newroot/dev
+                fi
+                if [ -d /newroot/proc ]; then
+                    mount --move /proc /newroot/proc || mount --bind /proc /newroot/proc
+                fi
+                if [ -d /newroot/sys ]; then
+                    mount --move /sys /newroot/sys || mount --bind /sys /newroot/sys
+                fi
+                
+                # Set up tmpfs for /run in new root (critical for systemd)
+                mount -t tmpfs tmpfs /newroot/run
+                
+                sleep 3
+                
+                # Verify systemd binary exists and is executable
+                if [ -x /newroot/usr/lib/systemd/systemd ]; then
+                    echo "systemd binary found and executable"
+                    echo "Executing switch_root to systemd..."
+                    exec switch_root /newroot /usr/lib/systemd/systemd
+                elif [ -x /newroot/usr/bin/init ]; then
+                    echo "Falling back to /usr/bin/init (Manjaro symlink)..."
+                    exec switch_root /newroot /usr/bin/init  
+                elif [ -x /newroot/sbin/init ]; then
+                    echo "Falling back to /sbin/init..."
+                    exec switch_root /newroot /sbin/init
+                else
+                    echo "ERROR: No valid init system found in rootfs"
+                    echo "Checked locations:"
+                    echo "- /usr/lib/systemd/systemd: $([ -x /newroot/usr/lib/systemd/systemd ] && echo "FOUND" || echo "NOT FOUND")"
+                    echo "- /usr/bin/init: $([ -x /newroot/usr/bin/init ] && echo "FOUND" || echo "NOT FOUND")"  
+                    echo "- /sbin/init: $([ -x /newroot/sbin/init ] && echo "FOUND" || echo "NOT FOUND")"
+                fi
+done
+
+echo ""
+echo "=== EMERGENCY MODE ==="
+echo "! W A R N I N G !"
+echo "Could not find or mount a valid Linux rootfs"
+echo "-- ERROR --"
+echo "Checked devices: $ROOT_CANDIDATES"
+echo ""
+echo "Final device listing:"
+echo "Available block devices:"
+ls -la /dev/block/ 2>/dev/null || echo "No /dev/block/ directory found"
+echo ""
+echo "Available MMC devices:"
+ls -la /dev/mmcblk* 2>/dev/null || echo "No MMC block devices found"
+echo ""
+echo "Available by-name devices:"
+ls -la /dev/block/by-name/ 2>/dev/null || echo "No by-name directory found"
+echo ""
+echo "Kernel command line:"
+cat /proc/cmdline 2>/dev/null || echo "No kernel command line found"
+echo ""
+echo "Dropping to emergency shell for debugging..."
+echo "Available commands: mount, umount, ls, cat, find, grep"
+echo "You can manually mount your rootfs and run 'exec switch_root /newroot /sbin/init'"
+echo "Example: mount -t ext4 /dev/mmcblk0p50 /newroot && exec switch_root /newroot /sbin/init"
+
+# Start emergency shell
+exec /bin/sh

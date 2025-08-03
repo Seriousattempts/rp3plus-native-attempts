@@ -1,0 +1,67 @@
+
+
+
+ralt@PCHP:~/ums512_kernel$ git clone https://github.com/buildroot/buildroot.git
+ralt@PCHP:~/ums512_kernel$ cd ~/ums512_kernel/buildroot
+ralt@PCHP:~/ums512_kernel/buildroot$ make clean
+
+if clean build
+
+ralt@PCHP:~/ums512_kernel/buildroot$ make menuconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ make savedefconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ cp defconfig configs/rp3plus_defconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ mkdir -p ~/ums512_kernel/buildroot_overlay
+
+copy and paste init
+ralt@PCHP:~/ums512_kernel/buildroot$ cat > ~/ums512_kernel/buildroot_overlay/init << 'EOF'
+ralt@PCHP:~/ums512_kernel/buildroot$ chmod +x ~/ums512_kernel/buildroot_overlay/init
+ralt@PCHP:~/ums512_kernel/buildroot$ export PATH=$(echo "$PATH" | tr -d '\t\n' | tr -s ' ' ':')
+ralt@PCHP:~/ums512_kernel/buildroot$ echo "$PATH"
+ralt@PCHP:~/ums512_kernel/buildroot$ make source
+ralt@PCHP:~/ums512_kernel/buildroot$ make -j$(nproc)
+
+If ported .config
+
+ralt@PCHP:~/ums512_kernel/buildroot$ make olddefconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ make savedefconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ cp defconfig configs/rp3plus_defconfig
+ralt@PCHP:~/ums512_kernel/buildroot$ chmod +x ~/ums512_kernel/buildroot_overlay/init
+ralt@PCHP:~/ums512_kernel/buildroot$ export PATH=$(echo "$PATH" | tr -d '\t\n' | tr -s ' ' ':')
+ralt@PCHP:~/ums512_kernel/buildroot$ echo "$PATH"
+ralt@PCHP:~/ums512_kernel/buildroot$ make source
+ralt@PCHP:~/ums512_kernel/buildroot$ make -j$(nproc)
+
+
+
+ralt@PCHP:~/ums512_kernel/buildroot$ cd ~/ums512_kernel/buildroot/output/images
+ralt@PCHP:~/ums512_kernel/buildroot/output/images$ gzip -c rootfs.cpio > new_initrd.img
+ralt@PCHP:~/ums512_kernel/buildroot/output/images$ cd ..
+ralt@PCHP:~/ums512_kernel/buildroot/output$ cd ..
+ralt@PCHP:~/ums512_kernel/buildroot$ cd ..
+ralt@PCHP:~/ums512_kernel/buildroot$ mkdir build
+ralt@PCHP:~/ums512_kernel/$ cd build
+ralt@PCHP:~/ums512_kernel/build$
+
+
+ralt@PCHP:~/ums512_kernel/build$ abootimg --create 4.14.193_boot.img -f bootimg.cfg -k 4.14.193_kernel -r new_initrd.img
+reading config file bootimg.cfg
+reading kernel from zImage
+reading ramdisk from new_initrd.img
+Writing Boot Image 4.14.193_boot.img
+ralt@PCHP:~/ums512_kernel/build$ abootimg --create 5.4.210_boot.img -f bootimg.cfg -k 5.4.210_kernel -r new_initrd.img
+reading config file bootimg.cfg
+reading kernel from 5.4.210_kernel
+reading ramdisk from new_initrd.img
+Writing Boot Image 5.4.210_boot.img
+ralt@PCHP:~/ums512_kernel/build$ abootimg --create 5.15.144_boot.img -f bootimg.cfg -k 5.15.144_kernel -r new_initrd.img
+reading config file bootimg.cfg
+reading kernel from 5.15.144_kernel
+reading ramdisk from new_initrd.img
+Writing Boot Image 5.15.144_boot.img
+ralt@PCHP:~/ums512_kernel/build$ abootimg --create 6.16_boot.img -f bootimg.cfg -k 6.16_kernel -r new_initrd.img
+reading config file bootimg.cfg
+reading kernel from 6.16_kernel
+reading ramdisk from new_initrd.img
+Writing Boot Image 6.16_boot.img
+
+
