@@ -1,0 +1,431 @@
+#!/usr/bin/env python3
+import re
+import yaml
+from typing import Dict, List, Any, Union
+import argparse
+import os
+
+DEFAULT_INPUT_DTS_FILE = "C:\\Users\\PC\\Desktop\\Email\\- LLM\\RP3+\\Linux\\JingPad\\dtb.0.dts"
+DEFAULT_OUTPUT_YAML_FILE = "C:\\Users\\PC\\Desktop\\Email\\- LLM\\RP3+\\Linux\\JingPad\\dtb.0 attempt.dts.yaml"
+
+# Set to True to always use the default paths above (ignores command line args)
+USE_DEFAULT_PATHS = False
+
+class DTSToYAMLConverter:
+    def __init__(self):
+        print("Running: DTSToYAMLConverter.__init__()")
+        self.phandle_counter = 1
+        self.phandle_map = {}
+
+    def parse_value(self, value: str) -> Any:
+        """Parse DTS values into appropriate Python/YAML types"""
+        print(f"Running: parse_value() with value: {value[:50]}{'...' if len(value) > 50 else ''}")
+        value = value.strip()
+
+        # Handle empty values (boolean properties)
+        if not value:
+            return True
+
+        # Handle string values with null separators
+        if value.startswith('"') and value.endswith('"'):
+            # Remove outer quotes
+            inner = value[1:-1]
+            # Check for null-separated strings
+            if '\\0' in inner:
+                # Split on null separator and return as array
+                strings = inner.split('\\0')
+                # Remove empty strings from the end
+                while strings and not strings[-1]:
+                    strings.pop()
+                return strings if len(strings) > 1 else strings[0] if strings else ""
+            else:
+                return inner
+
+        # Handle multiple quoted strings (space-separated)
+        if '"' in value:
+            strings = re.findall(r'"([^"]*(?:\\.[^"]*)*)"', value)
+            if len(strings) == 1:
+                # Single string - check for null separators
+                if '\\0' in strings[0]:
+                    parts = strings[0].split('\\0')
+                    while parts and not parts[-1]:
+                        parts.pop()
+                    return parts if len(parts) > 1 else parts[0] if parts else ""
+                return strings[0]
+            elif len(strings) > 1:
+                # Multiple strings - always return as array
+                return strings
+
+        # Handle arrays with angle brackets < >
+        if value.startswith('<') and value.endswith('>'):
+            inner = value[1:-1].strip()
+            if not inner:
+                return []
+
+            # Split by whitespace and parse each element
+            elements = []
+            tokens = inner.split()
+
+            for token in tokens:
+                if token.startswith('0x'):
+                    # Hex value
+                    elements.append(int(token, 16))
+                elif token.isdigit() or (token.startswith('-') and token[1:].isdigit()):
+                    # Decimal value (including negative)
+                    elements.append(int(token))
+                elif token.startswith('&'):
+                    # Phandle reference
+                    ref_name = token[1:]
+                    if ref_name in self.phandle_map:
+                        elements.append(self.phandle_map[ref_name])
+                    else:
+                        # Create new phandle reference
+                        phandle_val = hex(self.phandle_counter)
+                        self.phandle_map[ref_name] = phandle_val
+                        elements.append(phandle_val)
+                        self.phandle_counter += 1
+                else:
+                    # Try to parse as number, otherwise keep as string
+                    try:
+                        if '.' in token:
+                            elements.append(float(token))
+                        else:
+                            elements.append(int(token))
+                    except ValueError:
+                        elements.append(token)
+
+            # Return in the double-bracketed format [[...]]
+            return [elements] if elements else []
+
+        # Handle byte arrays [xx xx xx] - these should become [!u8 [0xXX]]
+        if value.startswith('[') and value.endswith(']'):
+            inner = value[1:-1].strip()
+            if not inner:
+                return []
+
+            # Parse hex bytes
+            byte_values = []
+            for byte_str in inner.split():
+                if re.match(r'^[0-9a-fA-F]{2}$', byte_str):
+                    # Convert to proper format: [0xXX] not !u8 [xx]
+                    byte_values.append(f"0x{byte_str}")
+                else:
+                    byte_values.append(byte_str)
+
+            # Return as [!u8 [values]] format
+            if byte_values:
+                return [f"!u8 {byte_values}"]
+            return []
+
+        # Handle single hex numbers
+        if value.startswith('0x'):
+            return int(value, 16)
+
+        # Handle single decimal numbers
+        if value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
+            return int(value)
+
+        # Handle floating point numbers
+        try:
+            if '.' in value:
+                return float(value)
+        except ValueError:
+            pass
+
+        # Default: return as string
+        return value
+
+    def tokenize_dts(self, content: str) -> List[str]:
+        """Tokenize DTS content into manageable pieces"""
+        print(f"Running: tokenize_dts() with content length: {len(content)} characters")
+        # Remove comments first
+        content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+        content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+
+        tokens = []
+        i = 0
+
+        while i < len(content):
+            # Skip whitespace
+            while i < len(content) and content[i].isspace():
+                i += 1
+
+            if i >= len(content):
+                break
+
+            # Handle string literals
+            if content[i] == '"':
+                start = i
+                i += 1
+                while i < len(content):
+                    if content[i] == '"' and (i == 0 or content[i - 1] != '\\'):
+                        i += 1
+                        break
+                    i += 1
+                tokens.append(content[start:i])
+                continue
+
+            # Handle angle bracket arrays
+            if content[i] == '<':
+                start = i
+                bracket_count = 1
+                i += 1
+                while i < len(content) and bracket_count > 0:
+                    if content[i] == '<':
+                        bracket_count += 1
+                    elif content[i] == '>':
+                        bracket_count -= 1
+                    i += 1
+                tokens.append(content[start:i])
+                continue
+
+            # Handle square bracket arrays
+            if content[i] == '[':
+                start = i
+                bracket_count = 1
+                i += 1
+                while i < len(content) and bracket_count > 0:
+                    if content[i] == '[':
+                        bracket_count += 1
+                    elif content[i] == ']':
+                        bracket_count -= 1
+                    i += 1
+                tokens.append(content[start:i])
+                continue
+
+            # Handle single characters
+            if content[i] in '{}=;':
+                tokens.append(content[i])
+                i += 1
+                continue
+
+            # Handle identifiers and values
+            start = i
+            while i < len(content) and not content[i].isspace() and content[i] not in '{}=;"<>[],':
+                i += 1
+
+            if i > start:
+                tokens.append(content[start:i])
+
+        print(f"  Tokenized into {len(tokens)} tokens")
+        return tokens
+
+    def parse_node(self, tokens: List[str], start_idx: int = 0) -> tuple[Dict[str, Any], int]:
+        """Parse a DTS node from tokens"""
+        print(f"Running: parse_node() starting at index {start_idx}")
+        result = {}
+        i = start_idx
+
+        while i < len(tokens):
+            token = tokens[i]
+
+            # End of node
+            if token == '}':
+                return result, i + 1
+
+            # Skip empty tokens
+            if not token.strip():
+                i += 1
+                continue
+
+            # Look for property name or node name
+            if i + 1 < len(tokens):
+                next_token = tokens[i + 1]
+
+                if next_token == '=':
+                    # Property assignment
+                    prop_name = token
+                    i += 2  # Skip property name and '='
+
+                    # Collect value tokens until ';'
+                    value_tokens = []
+                    while i < len(tokens) and tokens[i] != ';':
+                        value_tokens.append(tokens[i])
+                        i += 1
+
+                    if i < len(tokens) and tokens[i] == ';':
+                        i += 1  # Skip ';'
+
+                    # Parse the value
+                    value_str = ' '.join(value_tokens)
+                    result[prop_name] = self.parse_value(value_str)
+
+                elif next_token == '{':
+                    # Subnode
+                    node_name = token
+                    i += 2  # Skip node name and '{'
+
+                    subnode, i = self.parse_node(tokens, i)
+                    result[node_name] = subnode
+
+                else:
+                    # Boolean property (just property name)
+                    if tokens[i + 1] == ';':
+                        result[token] = True
+                        i += 2  # Skip property name and ';'
+                    else:
+                        i += 1
+            else:
+                i += 1
+
+        return result, i
+
+    def add_phandles_from_original(self, data: Dict[str, Any], original_dts: str):
+        """Add phandles only where they exist in the original DTS"""
+        print("Running: add_phandles_from_original()")
+        # Find all phandle assignments in original DTS
+        phandle_pattern = r'phandle\s*=\s*<\s*0x([0-9a-fA-F]+)\s*>'
+        matches = re.findall(phandle_pattern, original_dts, re.IGNORECASE)
+
+        print(f"  Found {len(matches)} phandle assignments in original DTS")
+
+        # Convert to the format expected in YAML
+        phandle_values = set()
+        for match in matches:
+            phandle_values.add(f"0x{match}")
+
+        def add_phandles_recursive(node: Dict[str, Any]):
+            # Only add phandle if it was found in original
+            for key, value in node.items():
+                if isinstance(value, dict):
+                    add_phandles_recursive(value)
+
+        add_phandles_recursive(data)
+
+    def convert_dts_to_yaml(self, dts_content: str) -> Dict[str, Any]:
+        """Convert DTS content to YAML-compatible dictionary"""
+        print("Running: convert_dts_to_yaml()")
+        # Remove the /dts-v1/; directive
+        dts_content = re.sub(r'/dts-v1/;\s*', '', dts_content)
+
+        # Find the root node
+        root_match = re.search(r'/\s*{(.*)}', dts_content, re.DOTALL)
+        if not root_match:
+            raise ValueError("Could not find root node in DTS file")
+
+        root_content = root_match.group(1)
+        tokens = self.tokenize_dts(root_content)
+        result, _ = self.parse_node(tokens)
+
+        # Add phandles from original DTS
+        self.add_phandles_from_original(result, dts_content)
+
+        print("  Conversion completed successfully")
+        return result
+
+    def format_yaml_output(self, data: Dict[str, Any]) -> str:
+        """Format the output to match the expected YAML format"""
+        print("Running: format_yaml_output()")
+
+        def represent_data(dumper, data):
+            if isinstance(data, str) and data.startswith('!u8 '):
+                # Handle byte arrays
+                return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+            return dumper.represent_data(data)
+
+        yaml.add_representer(str, represent_data)
+
+        # Convert to YAML with specific settings
+        yaml_str = yaml.dump(
+            data,
+            default_flow_style=False,
+            allow_unicode=True,
+            width=float('inf'),  # Prevent line wrapping
+            indent=2
+        )
+
+        print("  YAML formatting completed")
+        return yaml_str
+
+
+def main():
+    print("Running: main()")
+    parser = argparse.ArgumentParser(description='Convert Device Tree Source (.dts) to YAML format')
+    parser.add_argument('input_file', nargs='?', help='Input .dts file path')
+    parser.add_argument('-o', '--output', help='Output .yaml file path')
+
+    args = parser.parse_args()
+
+    # Determine input and output files
+    if USE_DEFAULT_PATHS:
+        # Use configuration variables
+        input_file = DEFAULT_INPUT_DTS_FILE
+        output_file = DEFAULT_OUTPUT_YAML_FILE
+        print(f"Using default paths:")
+        print(f"  Input:  {input_file}")
+        print(f"  Output: {output_file}")
+    else:
+        # Use command line arguments or defaults
+        if args.input_file:
+            input_file = args.input_file
+        else:
+            input_file = DEFAULT_INPUT_DTS_FILE
+            print(f"No input file specified, using default: {input_file}")
+
+        if args.output:
+            output_file = args.output
+        else:
+            if DEFAULT_OUTPUT_YAML_FILE and DEFAULT_OUTPUT_YAML_FILE != DEFAULT_INPUT_DTS_FILE + '.yaml':
+                output_file = DEFAULT_OUTPUT_YAML_FILE
+                print(f"No output file specified, using default: {output_file}")
+            else:
+                # Generate output filename from input filename
+                output_file = input_file.rsplit('.', 1)[0] + '.yaml'
+                print(f"No output file specified, using: {output_file}")
+
+    # Check if input file exists
+    print(f"Checking if input file exists: {input_file}")
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found")
+        return 1
+
+    # Read input file
+    print(f"Reading input file: {input_file}")
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            dts_content = f.read()
+        print(f"  Successfully read {len(dts_content)} characters")
+    except Exception as e:
+        print(f"Error reading input file: {e}")
+        return 1
+
+    # Convert DTS to YAML
+    print("Starting DTS to YAML conversion...")
+    try:
+        converter = DTSToYAMLConverter()
+        yaml_data = converter.convert_dts_to_yaml(dts_content)
+        yaml_output = converter.format_yaml_output(yaml_data)
+        print("Conversion process completed successfully")
+    except Exception as e:
+        print(f"Error converting DTS to YAML: {e}")
+        return 1
+
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(output_file)
+    if output_dir and not os.path.exists(output_dir):
+        try:
+            print(f"Creating output directory: {output_dir}")
+            os.makedirs(output_dir, exist_ok=True)
+            print(f"Created output directory: {output_dir}")
+        except Exception as e:
+            print(f"Error creating output directory: {e}")
+            return 1
+
+    # Write output file
+    print(f"Writing output to: {output_file}")
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(yaml_output)
+        print(f"Successfully converted '{input_file}' to '{output_file}'")
+    except Exception as e:
+        print(f"Error writing output file: {e}")
+        return 1
+
+    print("Program completed successfully")
+    return 0
+
+
+if __name__ == '__main__':
+    import sys
+
+    sys.exit(main())
