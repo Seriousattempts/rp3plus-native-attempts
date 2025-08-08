@@ -1,0 +1,316 @@
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+
+
+def compare_bma_config_files(file1_path, file2_path):
+    """
+    Compare two BMAConfig XML files and print differences.
+    SchemeList differences are separated by scheme name for each file.
+
+    Args:
+        file1_path (str): Path to the first XML file
+        file2_path (str): Path to the second XML file
+    """
+    # Parse both XML files
+    tree1 = ET.parse(file1_path)
+    root1 = tree1.getroot()
+    tree2 = ET.parse(file2_path)
+    root2 = tree2.getroot()
+
+    def extract_productlist(root):
+        products = {}
+        productlist_elem = root.find('ProductList')
+        if productlist_elem is not None:
+            for product in productlist_elem.findall('Product'):
+                product_name = product.get('name')
+                product_info = {}
+                # Extract simple direct children
+                for tag in ['SchemeName', 'FlashTypeID', 'Mode', 'PowerOff', 'APR']:
+                    elem = product.find(tag)
+                    product_info[tag] = elem.text if elem is not None else None
+                # Extract NVBackup and its NVItems
+                nvbackup_elem = product.find('NVBackup')
+                if nvbackup_elem is not None:
+                    product_info['NVBackup'] = nvbackup_elem.get('backup')
+                    nvitems = {}
+                    for nvitem in nvbackup_elem.findall('NVItem'):
+                        nvname = nvitem.get('name')
+                        nvinfo = {'backup': nvitem.get('backup')}
+                        id_elem = nvitem.find('ID')
+                        nvinfo['ID'] = id_elem.text if id_elem is not None else None
+                        backupflag_elem = nvitem.find('BackupFlag')
+                        if backupflag_elem is not None:
+                            nvinfo['BackupFlag_use'] = backupflag_elem.get('use')
+                            nvflags = {}
+                            for nvflag in backupflag_elem.findall('NVFlag'):
+                                name = nvflag.get('name')
+                                check = nvflag.get('check')
+                                nvflags[name] = check
+                            nvinfo['NVFlags'] = nvflags
+                        nvitems[nvname] = nvinfo
+                    product_info['NVItems'] = nvitems
+                products[product_name] = product_info
+        return products
+
+    def extract_partitions(root):
+        partitions = {}
+        partitions_elem = root.find('Partitions')
+        if partitions_elem is not None:
+            for part in partitions_elem.findall('Partition'):
+                part_id = part.get('id')
+                size = part.get('size')
+                partitions[part_id] = size
+        return partitions
+
+    def extract_schemelist(root):
+        schemelist = {}
+        schemelist_elem = root.find('SchemeList')
+        if schemelist_elem is not None:
+            for scheme in schemelist_elem.findall('Scheme'):
+                scheme_name = scheme.get('name')
+                files = []
+                for file_elem in scheme.findall('File'):
+                    fid = file_elem.find('ID').text if file_elem.find('ID') is not None else None
+                    fidalias = file_elem.find('IDAlias').text if file_elem.find('IDAlias') is not None else None
+                    ftype = file_elem.find('Type').text if file_elem.find('Type') is not None else None
+                    block = file_elem.find('Block')
+                    base = block.find('Base').text if block is not None and block.find('Base') is not None else None
+                    size = block.find('Size').text if block is not None and block.find('Size') is not None else None
+                    flag = file_elem.find('Flag').text if file_elem.find('Flag') is not None else None
+                    checkflag = file_elem.find('CheckFlag').text if file_elem.find('CheckFlag') is not None else None
+                    desc = file_elem.find('Description').text if file_elem.find('Description') is not None else None
+                    files.append({
+                        'ID': fid,
+                        'IDAlias': fidalias,
+                        'Type': ftype,
+                        'Base': base,
+                        'Size': size,
+                        'Flag': flag,
+                        'CheckFlag': checkflag,
+                        'Description': desc
+                    })
+                schemelist[scheme_name] = files
+        return schemelist
+
+    products1 = extract_productlist(root1)
+    products2 = extract_productlist(root2)
+
+    partitions1 = extract_partitions(root1)
+    partitions2 = extract_partitions(root2)
+
+    schemes1 = extract_schemelist(root1)
+    schemes2 = extract_schemelist(root2)
+
+    # Comparison helper function
+    def dict_diff(d1, d2, prefix):
+        diffs = []
+        keys = set(d1.keys()).union(set(d2.keys()))
+        for k in keys:
+            v1 = d1.get(k)
+            v2 = d2.get(k)
+            if v1 != v2:
+                diffs.append(f"{prefix} '{k}': '{v1}' vs '{v2}'")
+        return diffs
+
+    differences = []
+
+    # Compare ProductList
+    all_product_names = set(products1.keys()).union(products2.keys())
+    for pname in all_product_names:
+        p1 = products1.get(pname, {})
+        p2 = products2.get(pname, {})
+        if not p1:
+            differences.append(f"Product '{pname}' missing in first file")
+        if not p2:
+            differences.append(f"Product '{pname}' missing in second file")
+        if p1 and p2:
+            # Compare simple attributes
+            differences.extend(dict_diff({
+                'SchemeName': p1.get('SchemeName'),
+                'FlashTypeID': p1.get('FlashTypeID'),
+                'Mode': p1.get('Mode'),
+                'PowerOff': p1.get('PowerOff'),
+                'APR': p1.get('APR'),
+                'NVBackup_backup': p1.get('NVBackup')
+            }, {
+                'SchemeName': p2.get('SchemeName'),
+                'FlashTypeID': p2.get('FlashTypeID'),
+                'Mode': p2.get('Mode'),
+                'PowerOff': p2.get('PowerOff'),
+                'APR': p2.get('APR'),
+                'NVBackup_backup': p2.get('NVBackup')
+            }, f"Product '{pname}'"))
+
+            # Compare NVItems
+            nvitems1 = p1.get('NVItems', {})
+            nvitems2 = p2.get('NVItems', {})
+            all_nvnames = set(nvitems1.keys()).union(nvitems2.keys())
+            for nvname in all_nvnames:
+                nv1 = nvitems1.get(nvname, {})
+                nv2 = nvitems2.get(nvname, {})
+                if not nv1:
+                    differences.append(f"NVItem '{nvname}' in Product '{pname}' missing in first file")
+                if not nv2:
+                    differences.append(f"NVItem '{nvname}' in Product '{pname}' missing in second file")
+                if nv1 and nv2:
+                    differences.extend(dict_diff({
+                        'backup': nv1.get('backup'),
+                        'ID': nv1.get('ID'),
+                        'BackupFlag_use': nv1.get('BackupFlag_use')
+                    }, {
+                        'backup': nv2.get('backup'),
+                        'ID': nv2.get('ID'),
+                        'BackupFlag_use': nv2.get('BackupFlag_use')
+                    }, f"NVItem '{nvname}' in Product '{pname}'"))
+                    # Compare NVFlags
+                    nvflags1 = nv1.get('NVFlags', {})
+                    nvflags2 = nv2.get('NVFlags', {})
+                    all_nvflags = set(nvflags1.keys()).union(nvflags2.keys())
+                    for nf in all_nvflags:
+                        f1 = nvflags1.get(nf)
+                        f2 = nvflags2.get(nf)
+                        if f1 != f2:
+                            differences.append(
+                                f"NVFlag '{nf}' in NVItem '{nvname}' Product '{pname}': check='{f1}' vs check='{f2}'")
+
+    # Compare Partitions
+    all_parts = set(partitions1.keys()).union(partitions2.keys())
+    for pid in all_parts:
+        s1 = partitions1.get(pid)
+        s2 = partitions2.get(pid)
+        if s1 != s2:
+            differences.append(f"Partition id '{pid}': size '{s1}' vs '{s2}'")
+
+    # Compare SchemeList - separate by scheme name for each file
+    diff_by_scheme_1 = defaultdict(list)
+    diff_by_scheme_2 = defaultdict(list)
+    common_differences = []
+
+    # Find IDs that exist only in first file's schemes
+    for scheme_name, files in schemes1.items():
+        ids_in_scheme = set(f['ID'] for f in files if f['ID'])
+        for fid in ids_in_scheme:
+            # Check if this ID exists in any scheme in the second file
+            found_in_second = False
+            for other_scheme_name, other_files in schemes2.items():
+                if any(fid == f['ID'] for f in other_files if f['ID']):
+                    found_in_second = True
+                    break
+            if not found_in_second:
+                diff_by_scheme_1[scheme_name].append(f"SchemeList ID '{fid}' only in first BMAConfig file")
+
+    # Find IDs that exist only in second file's schemes
+    for scheme_name, files in schemes2.items():
+        ids_in_scheme = set(f['ID'] for f in files if f['ID'])
+        for fid in ids_in_scheme:
+            # Check if this ID exists in any scheme in the first file
+            found_in_first = False
+            for other_scheme_name, other_files in schemes1.items():
+                if any(fid == f['ID'] for f in other_files if f['ID']):
+                    found_in_first = True
+                    break
+            if not found_in_first:
+                diff_by_scheme_2[scheme_name].append(f"SchemeList ID '{fid}' only in second BMAConfig file")
+
+    # Find differences in common IDs across all schemes
+    all_ids_1 = set()
+    all_ids_2 = set()
+    for files in schemes1.values():
+        all_ids_1.update(f['ID'] for f in files if f['ID'])
+    for files in schemes2.values():
+        all_ids_2.update(f['ID'] for f in files if f['ID'])
+
+    common_ids = all_ids_1.intersection(all_ids_2)
+
+    for fid in common_ids:
+        # Find the file with this ID in both files
+        f1 = None
+        f2 = None
+
+        for files in schemes1.values():
+            for f in files:
+                if f['ID'] == fid:
+                    f1 = f
+                    break
+            if f1:
+                break
+
+        for files in schemes2.values():
+            for f in files:
+                if f['ID'] == fid:
+                    f2 = f
+                    break
+            if f2:
+                break
+
+        if f1 and f2:
+            for key in ['IDAlias', 'Type', 'Base', 'Size', 'Flag', 'CheckFlag', 'Description']:
+                v1 = f1.get(key)
+                v2 = f2.get(key)
+                if v1 != v2:
+                    common_differences.append(
+                        f"SchemeList ID = {fid} | {key} = {v1} [First BMAConfig] | {key} = {v2} [Second BMAConfig]")
+
+    # Print the differences
+    print("=" * 60)
+    print("BMAConfig XML File Comparison Results")
+    print("=" * 60)
+
+    # Print product, partition, and NVItem differences
+    if differences:
+        print(f"Found {len(differences)} differences in ProductList, Partitions, or NVItems:")
+        print()
+        for i, diff in enumerate(differences, 1):
+            print(f"{i:3}. {diff}")
+    else:
+        print("No differences found in ProductList, Partitions, or NVItems.")
+
+    # Print common SchemeList differences
+    if common_differences:
+        print()
+        print(f"Found {len(common_differences)} differences in common SchemeList IDs:")
+        print()
+        for i, diff in enumerate(common_differences, 1):
+            print(f"{i:3}. {diff}")
+
+    # Print scheme 1 differences (grouped by scheme name)
+    if diff_by_scheme_1:
+        print()
+        for scheme, diffs in diff_by_scheme_1.items():
+            print(f"{scheme}")
+            for i, diff in enumerate(diffs, 1):
+                print(f" {i}. {diff}")
+            print()
+
+    # Print scheme 2 differences (grouped by scheme name)
+    if diff_by_scheme_2:
+        print()
+        for scheme, diffs in diff_by_scheme_2.items():
+            print(f"{scheme}")
+            for i, diff in enumerate(diffs, 1):
+                print(f"  {i}. {diff}")
+            print()
+
+    print("=" * 60)
+
+
+def main():
+    """Main function to get file paths from user input and run comparison."""
+    print("BMAConfig XML File Comparator")
+    print("=" * 40)
+
+    file1_path = input("Enter path for first BMAConfig XML file: ").strip()
+    file2_path = input("Enter path for second BMAConfig XML file: ").strip()
+
+    try:
+        compare_bma_config_files(file1_path, file2_path)
+    except FileNotFoundError as e:
+        print(f"Error: Could not find file - {e}")
+    except ET.ParseError as e:
+        print(f"Error: Could not parse XML file - {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    main()
