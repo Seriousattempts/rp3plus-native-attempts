@@ -1,0 +1,980 @@
+Directory Comparison Report
+Generated on: 2025-08-25 22:51:22
+Stock folder: C:\Users\RP3+\Linux\GarlicOS\2Plus\boot\unzip_bootstock
+Garlic folder: C:\Users\RP3+\Linux\GarlicOS\3.5\unzip_bootstock3plus
+================================================================================
+
+FILES MISSING IN GARLIC FOLDER:
+----------------------------------------
+  root\first_stage_ramdisk\fstab.ums312_1h10
+  root\first_stage_ramdisk\fstab.ums312_1h10_go_32b
+  root\first_stage_ramdisk\fstab.ums312_2h10
+  root\first_stage_ramdisk\fstab.ums312_2h10_go_32b
+  root\init.recovery.ums312_1h10.rc
+  root\init.recovery.ums312_1h10_go_32b.rc
+  root\init.recovery.ums312_2h10.rc
+  root\init.recovery.ums312_2h10_go_32b.rc
+  root\ueventd.ums312_1h10.rc
+  root\ueventd.ums312_1h10_go_32b.rc
+  root\ueventd.ums312_2h10.rc
+  root\ueventd.ums312_2h10_go_32b.rc
+
+FILES MISSING IN STOCK FOLDER:
+----------------------------------------
+  root\first_stage_ramdisk\fstab.ums512_1h10
+  root\first_stage_ramdisk\fstab.ums512_1h10_go
+  root\first_stage_ramdisk\fstab.ums512_20c10
+  root\first_stage_ramdisk\fstab.ums512_2h10
+  root\init.recovery.ums512_1h10.rc
+  root\init.recovery.ums512_1h10_go.rc
+  root\init.recovery.ums512_20c10.rc
+  root\init.recovery.ums512_2h10.rc
+  root\ueventd.ums512_1h10.rc
+  root\ueventd.ums512_1h10_go.rc
+  root\ueventd.ums512_20c10.rc
+  root\ueventd.ums512_2h10.rc
+
+FILES WITH DIFFERENT SIZES:
+----------------------------------------
+  dtb
+    Stock size: 122560 bytes
+    Garlic size: 154560 bytes
+    Size difference: +32000 bytes
+
+  kernel
+    Stock size: 19476496 bytes
+    Garlic size: 19509264 bytes
+    Size difference: +32768 bytes
+
+  kernel_configs.txt
+    Stock size: 124879 bytes
+    Garlic size: 125842 bytes
+    Size difference: +963 bytes
+
+  ramdisk.img
+    Stock size: 20971008 bytes
+    Garlic size: 21012224 bytes
+    Size difference: +41216 bytes
+
+  ramdisk.img.gz
+    Stock size: 9128631 bytes
+    Garlic size: 9159715 bytes
+    Size difference: +31084 bytes
+
+  ramdisk.img_filelist.txt
+    Stock size: 37400 bytes
+    Garlic size: 37370 bytes
+    Size difference: -30 bytes
+
+  root\default.prop
+    Stock size: 15508 bytes
+    Garlic size: 17007 bytes
+    Size difference: +1499 bytes
+
+  root\prop.default
+    Stock size: 15508 bytes
+    Garlic size: 17007 bytes
+    Size difference: +1499 bytes
+
+  root\res\images\loop00000.png
+    Stock size: 5900 bytes
+    Garlic size: 6238 bytes
+    Size difference: +338 bytes
+
+  root\res\images\loop00001.png
+    Stock size: 5873 bytes
+    Garlic size: 6252 bytes
+    Size difference: +379 bytes
+
+  root\res\images\loop00002.png
+    Stock size: 5854 bytes
+    Garlic size: 6103 bytes
+    Size difference: +249 bytes
+
+  root\res\images\loop00003.png
+    Stock size: 5924 bytes
+    Garlic size: 6131 bytes
+    Size difference: +207 bytes
+
+  root\res\images\loop00004.png
+    Stock size: 5981 bytes
+    Garlic size: 6419 bytes
+    Size difference: +438 bytes
+
+  root\res\images\loop00005.png
+    Stock size: 6052 bytes
+    Garlic size: 6539 bytes
+    Size difference: +487 bytes
+
+  root\res\images\loop00006.png
+    Stock size: 6096 bytes
+    Garlic size: 6517 bytes
+    Size difference: +421 bytes
+
+  root\res\images\loop00007.png
+    Stock size: 6126 bytes
+    Garlic size: 6277 bytes
+    Size difference: +151 bytes
+
+  root\res\images\loop00008.png
+    Stock size: 6132 bytes
+    Garlic size: 5999 bytes
+    Size difference: -133 bytes
+
+  root\res\images\loop00009.png
+    Stock size: 6179 bytes
+    Garlic size: 6642 bytes
+    Size difference: +463 bytes
+
+  root\res\images\loop00010.png
+    Stock size: 6078 bytes
+    Garlic size: 6134 bytes
+    Size difference: +56 bytes
+
+  root\res\images\loop00011.png
+    Stock size: 6167 bytes
+    Garlic size: 6683 bytes
+    Size difference: +516 bytes
+
+  root\res\images\loop00012.png
+    Stock size: 6079 bytes
+    Garlic size: 6244 bytes
+    Size difference: +165 bytes
+
+  root\res\images\loop00013.png
+    Stock size: 6147 bytes
+    Garlic size: 6068 bytes
+    Size difference: -79 bytes
+
+  root\res\images\loop00014.png
+    Stock size: 6052 bytes
+    Garlic size: 6405 bytes
+    Size difference: +353 bytes
+
+  root\res\images\loop00015.png
+    Stock size: 6089 bytes
+    Garlic size: 6315 bytes
+    Size difference: +226 bytes
+
+  root\res\images\loop00016.png
+    Stock size: 6069 bytes
+    Garlic size: 6397 bytes
+    Size difference: +328 bytes
+
+  root\res\images\loop00017.png
+    Stock size: 6040 bytes
+    Garlic size: 5988 bytes
+    Size difference: -52 bytes
+
+  root\res\images\loop00018.png
+    Stock size: 6055 bytes
+    Garlic size: 6502 bytes
+    Size difference: +447 bytes
+
+  root\res\images\loop00019.png
+    Stock size: 5923 bytes
+    Garlic size: 6150 bytes
+    Size difference: +227 bytes
+
+  root\res\images\loop00020.png
+    Stock size: 5831 bytes
+    Garlic size: 6233 bytes
+    Size difference: +402 bytes
+
+  root\res\images\loop00021.png
+    Stock size: 5844 bytes
+    Garlic size: 6200 bytes
+    Size difference: +356 bytes
+
+  root\res\images\loop00022.png
+    Stock size: 5839 bytes
+    Garlic size: 6161 bytes
+    Size difference: +322 bytes
+
+  root\res\images\loop00023.png
+    Stock size: 5865 bytes
+    Garlic size: 6337 bytes
+    Size difference: +472 bytes
+
+  root\res\images\loop00024.png
+    Stock size: 5789 bytes
+    Garlic size: 5927 bytes
+    Size difference: +138 bytes
+
+  root\res\images\loop00025.png
+    Stock size: 5779 bytes
+    Garlic size: 5973 bytes
+    Size difference: +194 bytes
+
+  root\res\images\loop00026.png
+    Stock size: 5819 bytes
+    Garlic size: 6243 bytes
+    Size difference: +424 bytes
+
+  root\res\images\loop00027.png
+    Stock size: 5763 bytes
+    Garlic size: 6016 bytes
+    Size difference: +253 bytes
+
+  root\res\images\loop00028.png
+    Stock size: 5769 bytes
+    Garlic size: 6354 bytes
+    Size difference: +585 bytes
+
+  root\res\images\loop00029.png
+    Stock size: 5932 bytes
+    Garlic size: 5752 bytes
+    Size difference: -180 bytes
+
+  root\res\images\loop00030.png
+    Stock size: 5973 bytes
+    Garlic size: 6386 bytes
+    Size difference: +413 bytes
+
+  root\res\images\loop00031.png
+    Stock size: 5904 bytes
+    Garlic size: 6217 bytes
+    Size difference: +313 bytes
+
+  root\res\images\loop00032.png
+    Stock size: 5872 bytes
+    Garlic size: 6597 bytes
+    Size difference: +725 bytes
+
+  root\res\images\loop00033.png
+    Stock size: 5843 bytes
+    Garlic size: 6635 bytes
+    Size difference: +792 bytes
+
+  root\res\images\loop00034.png
+    Stock size: 5903 bytes
+    Garlic size: 6430 bytes
+    Size difference: +527 bytes
+
+  root\res\images\loop00035.png
+    Stock size: 6000 bytes
+    Garlic size: 6464 bytes
+    Size difference: +464 bytes
+
+  root\res\images\loop00036.png
+    Stock size: 6023 bytes
+    Garlic size: 6590 bytes
+    Size difference: +567 bytes
+
+  root\res\images\loop00037.png
+    Stock size: 6057 bytes
+    Garlic size: 6287 bytes
+    Size difference: +230 bytes
+
+  root\res\images\loop00038.png
+    Stock size: 6204 bytes
+    Garlic size: 6605 bytes
+    Size difference: +401 bytes
+
+  root\res\images\loop00039.png
+    Stock size: 6265 bytes
+    Garlic size: 6239 bytes
+    Size difference: -26 bytes
+
+  root\res\images\loop00040.png
+    Stock size: 6307 bytes
+    Garlic size: 6341 bytes
+    Size difference: +34 bytes
+
+  root\res\images\loop00041.png
+    Stock size: 6420 bytes
+    Garlic size: 6875 bytes
+    Size difference: +455 bytes
+
+  root\res\images\loop00042.png
+    Stock size: 6448 bytes
+    Garlic size: 6739 bytes
+    Size difference: +291 bytes
+
+  root\res\images\loop00043.png
+    Stock size: 6411 bytes
+    Garlic size: 6438 bytes
+    Size difference: +27 bytes
+
+  root\res\images\loop00044.png
+    Stock size: 6504 bytes
+    Garlic size: 7087 bytes
+    Size difference: +583 bytes
+
+  root\res\images\loop00045.png
+    Stock size: 6384 bytes
+    Garlic size: 7130 bytes
+    Size difference: +746 bytes
+
+  root\res\images\loop00046.png
+    Stock size: 6447 bytes
+    Garlic size: 7169 bytes
+    Size difference: +722 bytes
+
+  root\res\images\loop00047.png
+    Stock size: 6437 bytes
+    Garlic size: 6691 bytes
+    Size difference: +254 bytes
+
+  root\res\images\loop00048.png
+    Stock size: 6532 bytes
+    Garlic size: 6860 bytes
+    Size difference: +328 bytes
+
+  root\res\images\loop00049.png
+    Stock size: 6424 bytes
+    Garlic size: 6665 bytes
+    Size difference: +241 bytes
+
+  root\res\images\loop00050.png
+    Stock size: 6323 bytes
+    Garlic size: 6558 bytes
+    Size difference: +235 bytes
+
+  root\res\images\loop00051.png
+    Stock size: 6327 bytes
+    Garlic size: 6649 bytes
+    Size difference: +322 bytes
+
+  root\res\images\loop00052.png
+    Stock size: 6342 bytes
+    Garlic size: 6467 bytes
+    Size difference: +125 bytes
+
+  root\res\images\loop00053.png
+    Stock size: 6263 bytes
+    Garlic size: 6522 bytes
+    Size difference: +259 bytes
+
+  root\res\images\loop00054.png
+    Stock size: 6347 bytes
+    Garlic size: 6545 bytes
+    Size difference: +198 bytes
+
+  root\res\images\loop00055.png
+    Stock size: 6277 bytes
+    Garlic size: 6605 bytes
+    Size difference: +328 bytes
+
+  root\res\images\loop00056.png
+    Stock size: 6133 bytes
+    Garlic size: 6457 bytes
+    Size difference: +324 bytes
+
+  root\res\images\loop00057.png
+    Stock size: 6103 bytes
+    Garlic size: 6762 bytes
+    Size difference: +659 bytes
+
+  root\res\images\loop00058.png
+    Stock size: 6083 bytes
+    Garlic size: 6684 bytes
+    Size difference: +601 bytes
+
+  root\res\images\loop00059.png
+    Stock size: 6014 bytes
+    Garlic size: 6681 bytes
+    Size difference: +667 bytes
+
+  root\res\images\loop00060.png
+    Stock size: 5930 bytes
+    Garlic size: 6715 bytes
+    Size difference: +785 bytes
+
+  root\res\images\loop00061.png
+    Stock size: 5902 bytes
+    Garlic size: 6455 bytes
+    Size difference: +553 bytes
+
+  root\res\images\loop00062.png
+    Stock size: 5927 bytes
+    Garlic size: 6661 bytes
+    Size difference: +734 bytes
+
+  root\res\images\loop00063.png
+    Stock size: 5952 bytes
+    Garlic size: 6534 bytes
+    Size difference: +582 bytes
+
+  root\res\images\loop00064.png
+    Stock size: 5965 bytes
+    Garlic size: 6215 bytes
+    Size difference: +250 bytes
+
+  root\res\images\loop00065.png
+    Stock size: 6010 bytes
+    Garlic size: 6408 bytes
+    Size difference: +398 bytes
+
+  root\res\images\loop00066.png
+    Stock size: 5918 bytes
+    Garlic size: 6070 bytes
+    Size difference: +152 bytes
+
+  root\res\images\loop00067.png
+    Stock size: 5916 bytes
+    Garlic size: 6223 bytes
+    Size difference: +307 bytes
+
+  root\res\images\loop00068.png
+    Stock size: 5976 bytes
+    Garlic size: 6702 bytes
+    Size difference: +726 bytes
+
+  root\res\images\loop00069.png
+    Stock size: 5941 bytes
+    Garlic size: 6242 bytes
+    Size difference: +301 bytes
+
+  root\res\images\loop00070.png
+    Stock size: 5948 bytes
+    Garlic size: 6537 bytes
+    Size difference: +589 bytes
+
+  root\res\images\loop00071.png
+    Stock size: 5867 bytes
+    Garlic size: 6125 bytes
+    Size difference: +258 bytes
+
+  root\res\images\loop00072.png
+    Stock size: 5777 bytes
+    Garlic size: 6610 bytes
+    Size difference: +833 bytes
+
+  root\res\images\loop00073.png
+    Stock size: 5757 bytes
+    Garlic size: 5921 bytes
+    Size difference: +164 bytes
+
+  root\res\images\loop00074.png
+    Stock size: 5602 bytes
+    Garlic size: 6035 bytes
+    Size difference: +433 bytes
+
+  root\res\images\loop00075.png
+    Stock size: 5468 bytes
+    Garlic size: 5842 bytes
+    Size difference: +374 bytes
+
+  root\res\images\loop00076.png
+    Stock size: 5507 bytes
+    Garlic size: 5851 bytes
+    Size difference: +344 bytes
+
+  root\res\images\loop00077.png
+    Stock size: 5417 bytes
+    Garlic size: 6154 bytes
+    Size difference: +737 bytes
+
+  root\res\images\loop00078.png
+    Stock size: 5415 bytes
+    Garlic size: 6477 bytes
+    Size difference: +1062 bytes
+
+  root\res\images\loop00079.png
+    Stock size: 5430 bytes
+    Garlic size: 5886 bytes
+    Size difference: +456 bytes
+
+  root\res\images\loop00080.png
+    Stock size: 5478 bytes
+    Garlic size: 5957 bytes
+    Size difference: +479 bytes
+
+  root\res\images\loop00081.png
+    Stock size: 5633 bytes
+    Garlic size: 6197 bytes
+    Size difference: +564 bytes
+
+  root\res\images\loop00082.png
+    Stock size: 5706 bytes
+    Garlic size: 6219 bytes
+    Size difference: +513 bytes
+
+  root\res\images\loop00083.png
+    Stock size: 5783 bytes
+    Garlic size: 6261 bytes
+    Size difference: +478 bytes
+
+  root\res\images\loop00084.png
+    Stock size: 5750 bytes
+    Garlic size: 6302 bytes
+    Size difference: +552 bytes
+
+  root\res\images\loop00085.png
+    Stock size: 5778 bytes
+    Garlic size: 6762 bytes
+    Size difference: +984 bytes
+
+  root\res\images\loop00086.png
+    Stock size: 5782 bytes
+    Garlic size: 6393 bytes
+    Size difference: +611 bytes
+
+  root\res\images\loop00087.png
+    Stock size: 5927 bytes
+    Garlic size: 6128 bytes
+    Size difference: +201 bytes
+
+  root\res\images\loop00088.png
+    Stock size: 5882 bytes
+    Garlic size: 6510 bytes
+    Size difference: +628 bytes
+
+  root\res\images\loop00089.png
+    Stock size: 5992 bytes
+    Garlic size: 6615 bytes
+    Size difference: +623 bytes
+
+  root\res\images\loop00090.png
+    Stock size: 5900 bytes
+    Garlic size: 6238 bytes
+    Size difference: +338 bytes
+
+  root\sepolicy
+    Stock size: 633813 bytes
+    Garlic size: 636616 bytes
+    Size difference: +2803 bytes
+
+  root\system\bin\init
+    Stock size: 1028920 bytes
+    Garlic size: 1028976 bytes
+    Size difference: +56 bytes
+
+  root\system\bin\make_f2fs
+    Stock size: 116320 bytes
+    Garlic size: 116328 bytes
+    Size difference: +8 bytes
+
+  root\system\bin\ueventd
+    Stock size: 1028920 bytes
+    Garlic size: 1028976 bytes
+    Size difference: +56 bytes
+
+  root\system\bin\update_engine_sideload
+    Stock size: 1378544 bytes
+    Garlic size: 1378616 bytes
+    Size difference: +72 bytes
+
+  root\system\etc\recovery.fstab
+    Stock size: 3928 bytes
+    Garlic size: 4123 bytes
+    Size difference: +195 bytes
+
+  root\system\etc\recovery.tmpfsdata.fstab
+    Stock size: 3069 bytes
+    Garlic size: 3250 bytes
+    Size difference: +181 bytes
+
+  root\system\etc\security\otacerts.zip
+    Stock size: 1040 bytes
+    Garlic size: 1127 bytes
+    Size difference: +87 bytes
+
+  root\vendor_file_contexts
+    Stock size: 31003 bytes
+    Garlic size: 31519 bytes
+    Size difference: +516 bytes
+
+
+DETAILED CONTENT COMPARISON BY DIRECTORY:
+==================================================
+
+Comparing files in root path:
+------------------------------
+  No files to compare in this directory
+
+Comparing files in /root path:
+----------------------------------
+  root\default.prop:
+    SIZE DIFFERENCE: Stock=15508 bytes, Garlic=17007 bytes (diff: +1499 bytes)
+    CONTENT DIFFERENCES:
+    ln 43: STOCK: 'camera.disable_zsl_mode=1' | GARLIC: 'ro.vendor.gpu.boost=0'
+    ln 44: STOCK: 'ro.oem_unlock_supported=1' | GARLIC: 'camera.disable_zsl_mode=1'
+    ln 45: STOCK: 'ro.surface_flinger.vsync_event_phase_offset_ns=1000000' | GARLIC: 'ro.oem_unlock_supported=1'
+    ln 46: STOCK: 'ro.surface_flinger.vsync_sf_event_phase_offset_ns=1000000' | GARLIC: 'ro.surface_flinger.vsync_event_phase_offset_ns=1000000'
+    ln 47: STOCK: 'ro.surface_flinger.use_context_priority=true' | GARLIC: 'ro.surface_flinger.vsync_sf_event_phase_offset_ns=1000000'
+    ln 48: STOCK: 'ro.surface_flinger.has_wide_color_display=false' | GARLIC: 'ro.surface_flinger.use_context_priority=true'
+    ln 49: STOCK: 'ro.surface_flinger.has_HDR_display=false' | GARLIC: 'ro.surface_flinger.has_wide_color_display=false'
+    ln 50: STOCK: 'ro.surface_flinger.present_time_offset_from_vsync_ns=0' | GARLIC: 'ro.surface_flinger.has_HDR_display=false'
+    ln 51: STOCK: 'ro.surface_flinger.force_hwc_copy_for_virtual_displays=false' | GARLIC: 'ro.surface_flinger.present_time_offset_from_vsync_ns=0'
+    ln 52: STOCK: 'ro.surface_flinger.max_virtual_display_dimension=0' | GARLIC: 'ro.surface_flinger.force_hwc_copy_for_virtual_displays=false'
+    ... and 448 more content differences
+
+  root\prop.default:
+    SIZE DIFFERENCE: Stock=15508 bytes, Garlic=17007 bytes (diff: +1499 bytes)
+
+  root\sepolicy:
+    SIZE DIFFERENCE: Stock=633813 bytes, Garlic=636616 bytes (diff: +2803 bytes)
+
+  root\vendor_file_contexts:
+    SIZE DIFFERENCE: Stock=31003 bytes, Garlic=31519 bytes (diff: +516 bytes)
+
+  Summary for this directory: 14 files compared, 4 files with differences
+
+Comparing files in /root\first_stage_ramdisk path:
+------------------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\first_stage_ramdisk\avb path:
+----------------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+Comparing files in /root\first_stage_ramdisk\system\bin path:
+-----------------------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\res\images path:
+---------------------------------------------
+  root\res\images\loop00000.png:
+    SIZE DIFFERENCE: Stock=5900 bytes, Garlic=6238 bytes (diff: +338 bytes)
+
+  root\res\images\loop00001.png:
+    SIZE DIFFERENCE: Stock=5873 bytes, Garlic=6252 bytes (diff: +379 bytes)
+
+  root\res\images\loop00002.png:
+    SIZE DIFFERENCE: Stock=5854 bytes, Garlic=6103 bytes (diff: +249 bytes)
+
+  root\res\images\loop00003.png:
+    SIZE DIFFERENCE: Stock=5924 bytes, Garlic=6131 bytes (diff: +207 bytes)
+
+  root\res\images\loop00004.png:
+    SIZE DIFFERENCE: Stock=5981 bytes, Garlic=6419 bytes (diff: +438 bytes)
+
+  root\res\images\loop00005.png:
+    SIZE DIFFERENCE: Stock=6052 bytes, Garlic=6539 bytes (diff: +487 bytes)
+
+  root\res\images\loop00006.png:
+    SIZE DIFFERENCE: Stock=6096 bytes, Garlic=6517 bytes (diff: +421 bytes)
+
+  root\res\images\loop00007.png:
+    SIZE DIFFERENCE: Stock=6126 bytes, Garlic=6277 bytes (diff: +151 bytes)
+
+  root\res\images\loop00008.png:
+    SIZE DIFFERENCE: Stock=6132 bytes, Garlic=5999 bytes (diff: -133 bytes)
+
+  root\res\images\loop00009.png:
+    SIZE DIFFERENCE: Stock=6179 bytes, Garlic=6642 bytes (diff: +463 bytes)
+
+  root\res\images\loop00010.png:
+    SIZE DIFFERENCE: Stock=6078 bytes, Garlic=6134 bytes (diff: +56 bytes)
+
+  root\res\images\loop00011.png:
+    SIZE DIFFERENCE: Stock=6167 bytes, Garlic=6683 bytes (diff: +516 bytes)
+
+  root\res\images\loop00012.png:
+    SIZE DIFFERENCE: Stock=6079 bytes, Garlic=6244 bytes (diff: +165 bytes)
+
+  root\res\images\loop00013.png:
+    SIZE DIFFERENCE: Stock=6147 bytes, Garlic=6068 bytes (diff: -79 bytes)
+
+  root\res\images\loop00014.png:
+    SIZE DIFFERENCE: Stock=6052 bytes, Garlic=6405 bytes (diff: +353 bytes)
+
+  root\res\images\loop00015.png:
+    SIZE DIFFERENCE: Stock=6089 bytes, Garlic=6315 bytes (diff: +226 bytes)
+
+  root\res\images\loop00016.png:
+    SIZE DIFFERENCE: Stock=6069 bytes, Garlic=6397 bytes (diff: +328 bytes)
+
+  root\res\images\loop00017.png:
+    SIZE DIFFERENCE: Stock=6040 bytes, Garlic=5988 bytes (diff: -52 bytes)
+
+  root\res\images\loop00018.png:
+    SIZE DIFFERENCE: Stock=6055 bytes, Garlic=6502 bytes (diff: +447 bytes)
+
+  root\res\images\loop00019.png:
+    SIZE DIFFERENCE: Stock=5923 bytes, Garlic=6150 bytes (diff: +227 bytes)
+
+  root\res\images\loop00020.png:
+    SIZE DIFFERENCE: Stock=5831 bytes, Garlic=6233 bytes (diff: +402 bytes)
+
+  root\res\images\loop00021.png:
+    SIZE DIFFERENCE: Stock=5844 bytes, Garlic=6200 bytes (diff: +356 bytes)
+
+  root\res\images\loop00022.png:
+    SIZE DIFFERENCE: Stock=5839 bytes, Garlic=6161 bytes (diff: +322 bytes)
+
+  root\res\images\loop00023.png:
+    SIZE DIFFERENCE: Stock=5865 bytes, Garlic=6337 bytes (diff: +472 bytes)
+
+  root\res\images\loop00024.png:
+    SIZE DIFFERENCE: Stock=5789 bytes, Garlic=5927 bytes (diff: +138 bytes)
+
+  root\res\images\loop00025.png:
+    SIZE DIFFERENCE: Stock=5779 bytes, Garlic=5973 bytes (diff: +194 bytes)
+
+  root\res\images\loop00026.png:
+    SIZE DIFFERENCE: Stock=5819 bytes, Garlic=6243 bytes (diff: +424 bytes)
+
+  root\res\images\loop00027.png:
+    SIZE DIFFERENCE: Stock=5763 bytes, Garlic=6016 bytes (diff: +253 bytes)
+
+  root\res\images\loop00028.png:
+    SIZE DIFFERENCE: Stock=5769 bytes, Garlic=6354 bytes (diff: +585 bytes)
+
+  root\res\images\loop00029.png:
+    SIZE DIFFERENCE: Stock=5932 bytes, Garlic=5752 bytes (diff: -180 bytes)
+
+  root\res\images\loop00030.png:
+    SIZE DIFFERENCE: Stock=5973 bytes, Garlic=6386 bytes (diff: +413 bytes)
+
+  root\res\images\loop00031.png:
+    SIZE DIFFERENCE: Stock=5904 bytes, Garlic=6217 bytes (diff: +313 bytes)
+
+  root\res\images\loop00032.png:
+    SIZE DIFFERENCE: Stock=5872 bytes, Garlic=6597 bytes (diff: +725 bytes)
+
+  root\res\images\loop00033.png:
+    SIZE DIFFERENCE: Stock=5843 bytes, Garlic=6635 bytes (diff: +792 bytes)
+
+  root\res\images\loop00034.png:
+    SIZE DIFFERENCE: Stock=5903 bytes, Garlic=6430 bytes (diff: +527 bytes)
+
+  root\res\images\loop00035.png:
+    SIZE DIFFERENCE: Stock=6000 bytes, Garlic=6464 bytes (diff: +464 bytes)
+
+  root\res\images\loop00036.png:
+    SIZE DIFFERENCE: Stock=6023 bytes, Garlic=6590 bytes (diff: +567 bytes)
+
+  root\res\images\loop00037.png:
+    SIZE DIFFERENCE: Stock=6057 bytes, Garlic=6287 bytes (diff: +230 bytes)
+
+  root\res\images\loop00038.png:
+    SIZE DIFFERENCE: Stock=6204 bytes, Garlic=6605 bytes (diff: +401 bytes)
+
+  root\res\images\loop00039.png:
+    SIZE DIFFERENCE: Stock=6265 bytes, Garlic=6239 bytes (diff: -26 bytes)
+
+  root\res\images\loop00040.png:
+    SIZE DIFFERENCE: Stock=6307 bytes, Garlic=6341 bytes (diff: +34 bytes)
+
+  root\res\images\loop00041.png:
+    SIZE DIFFERENCE: Stock=6420 bytes, Garlic=6875 bytes (diff: +455 bytes)
+
+  root\res\images\loop00042.png:
+    SIZE DIFFERENCE: Stock=6448 bytes, Garlic=6739 bytes (diff: +291 bytes)
+
+  root\res\images\loop00043.png:
+    SIZE DIFFERENCE: Stock=6411 bytes, Garlic=6438 bytes (diff: +27 bytes)
+
+  root\res\images\loop00044.png:
+    SIZE DIFFERENCE: Stock=6504 bytes, Garlic=7087 bytes (diff: +583 bytes)
+
+  root\res\images\loop00045.png:
+    SIZE DIFFERENCE: Stock=6384 bytes, Garlic=7130 bytes (diff: +746 bytes)
+
+  root\res\images\loop00046.png:
+    SIZE DIFFERENCE: Stock=6447 bytes, Garlic=7169 bytes (diff: +722 bytes)
+
+  root\res\images\loop00047.png:
+    SIZE DIFFERENCE: Stock=6437 bytes, Garlic=6691 bytes (diff: +254 bytes)
+
+  root\res\images\loop00048.png:
+    SIZE DIFFERENCE: Stock=6532 bytes, Garlic=6860 bytes (diff: +328 bytes)
+
+  root\res\images\loop00049.png:
+    SIZE DIFFERENCE: Stock=6424 bytes, Garlic=6665 bytes (diff: +241 bytes)
+
+  root\res\images\loop00050.png:
+    SIZE DIFFERENCE: Stock=6323 bytes, Garlic=6558 bytes (diff: +235 bytes)
+
+  root\res\images\loop00051.png:
+    SIZE DIFFERENCE: Stock=6327 bytes, Garlic=6649 bytes (diff: +322 bytes)
+
+  root\res\images\loop00052.png:
+    SIZE DIFFERENCE: Stock=6342 bytes, Garlic=6467 bytes (diff: +125 bytes)
+
+  root\res\images\loop00053.png:
+    SIZE DIFFERENCE: Stock=6263 bytes, Garlic=6522 bytes (diff: +259 bytes)
+
+  root\res\images\loop00054.png:
+    SIZE DIFFERENCE: Stock=6347 bytes, Garlic=6545 bytes (diff: +198 bytes)
+
+  root\res\images\loop00055.png:
+    SIZE DIFFERENCE: Stock=6277 bytes, Garlic=6605 bytes (diff: +328 bytes)
+
+  root\res\images\loop00056.png:
+    SIZE DIFFERENCE: Stock=6133 bytes, Garlic=6457 bytes (diff: +324 bytes)
+
+  root\res\images\loop00057.png:
+    SIZE DIFFERENCE: Stock=6103 bytes, Garlic=6762 bytes (diff: +659 bytes)
+
+  root\res\images\loop00058.png:
+    SIZE DIFFERENCE: Stock=6083 bytes, Garlic=6684 bytes (diff: +601 bytes)
+
+  root\res\images\loop00059.png:
+    SIZE DIFFERENCE: Stock=6014 bytes, Garlic=6681 bytes (diff: +667 bytes)
+
+  root\res\images\loop00060.png:
+    SIZE DIFFERENCE: Stock=5930 bytes, Garlic=6715 bytes (diff: +785 bytes)
+
+  root\res\images\loop00061.png:
+    SIZE DIFFERENCE: Stock=5902 bytes, Garlic=6455 bytes (diff: +553 bytes)
+
+  root\res\images\loop00062.png:
+    SIZE DIFFERENCE: Stock=5927 bytes, Garlic=6661 bytes (diff: +734 bytes)
+
+  root\res\images\loop00063.png:
+    SIZE DIFFERENCE: Stock=5952 bytes, Garlic=6534 bytes (diff: +582 bytes)
+
+  root\res\images\loop00064.png:
+    SIZE DIFFERENCE: Stock=5965 bytes, Garlic=6215 bytes (diff: +250 bytes)
+
+  root\res\images\loop00065.png:
+    SIZE DIFFERENCE: Stock=6010 bytes, Garlic=6408 bytes (diff: +398 bytes)
+
+  root\res\images\loop00066.png:
+    SIZE DIFFERENCE: Stock=5918 bytes, Garlic=6070 bytes (diff: +152 bytes)
+
+  root\res\images\loop00067.png:
+    SIZE DIFFERENCE: Stock=5916 bytes, Garlic=6223 bytes (diff: +307 bytes)
+
+  root\res\images\loop00068.png:
+    SIZE DIFFERENCE: Stock=5976 bytes, Garlic=6702 bytes (diff: +726 bytes)
+
+  root\res\images\loop00069.png:
+    SIZE DIFFERENCE: Stock=5941 bytes, Garlic=6242 bytes (diff: +301 bytes)
+
+  root\res\images\loop00070.png:
+    SIZE DIFFERENCE: Stock=5948 bytes, Garlic=6537 bytes (diff: +589 bytes)
+
+  root\res\images\loop00071.png:
+    SIZE DIFFERENCE: Stock=5867 bytes, Garlic=6125 bytes (diff: +258 bytes)
+
+  root\res\images\loop00072.png:
+    SIZE DIFFERENCE: Stock=5777 bytes, Garlic=6610 bytes (diff: +833 bytes)
+
+  root\res\images\loop00073.png:
+    SIZE DIFFERENCE: Stock=5757 bytes, Garlic=5921 bytes (diff: +164 bytes)
+
+  root\res\images\loop00074.png:
+    SIZE DIFFERENCE: Stock=5602 bytes, Garlic=6035 bytes (diff: +433 bytes)
+
+  root\res\images\loop00075.png:
+    SIZE DIFFERENCE: Stock=5468 bytes, Garlic=5842 bytes (diff: +374 bytes)
+
+  root\res\images\loop00076.png:
+    SIZE DIFFERENCE: Stock=5507 bytes, Garlic=5851 bytes (diff: +344 bytes)
+
+  root\res\images\loop00077.png:
+    SIZE DIFFERENCE: Stock=5417 bytes, Garlic=6154 bytes (diff: +737 bytes)
+
+  root\res\images\loop00078.png:
+    SIZE DIFFERENCE: Stock=5415 bytes, Garlic=6477 bytes (diff: +1062 bytes)
+
+  root\res\images\loop00079.png:
+    SIZE DIFFERENCE: Stock=5430 bytes, Garlic=5886 bytes (diff: +456 bytes)
+
+  root\res\images\loop00080.png:
+    SIZE DIFFERENCE: Stock=5478 bytes, Garlic=5957 bytes (diff: +479 bytes)
+
+  root\res\images\loop00081.png:
+    SIZE DIFFERENCE: Stock=5633 bytes, Garlic=6197 bytes (diff: +564 bytes)
+
+  root\res\images\loop00082.png:
+    SIZE DIFFERENCE: Stock=5706 bytes, Garlic=6219 bytes (diff: +513 bytes)
+
+  root\res\images\loop00083.png:
+    SIZE DIFFERENCE: Stock=5783 bytes, Garlic=6261 bytes (diff: +478 bytes)
+
+  root\res\images\loop00084.png:
+    SIZE DIFFERENCE: Stock=5750 bytes, Garlic=6302 bytes (diff: +552 bytes)
+
+  root\res\images\loop00085.png:
+    SIZE DIFFERENCE: Stock=5778 bytes, Garlic=6762 bytes (diff: +984 bytes)
+
+  root\res\images\loop00086.png:
+    SIZE DIFFERENCE: Stock=5782 bytes, Garlic=6393 bytes (diff: +611 bytes)
+
+  root\res\images\loop00087.png:
+    SIZE DIFFERENCE: Stock=5927 bytes, Garlic=6128 bytes (diff: +201 bytes)
+
+  root\res\images\loop00088.png:
+    SIZE DIFFERENCE: Stock=5882 bytes, Garlic=6510 bytes (diff: +628 bytes)
+
+  root\res\images\loop00089.png:
+    SIZE DIFFERENCE: Stock=5992 bytes, Garlic=6615 bytes (diff: +623 bytes)
+
+  root\res\images\loop00090.png:
+    SIZE DIFFERENCE: Stock=5900 bytes, Garlic=6238 bytes (diff: +338 bytes)
+
+  Summary for this directory: 103 files compared, 91 files with differences
+
+Comparing files in /root\system\bin path:
+---------------------------------------------
+  root\system\bin\init:
+    SIZE DIFFERENCE: Stock=1028920 bytes, Garlic=1028976 bytes (diff: +56 bytes)
+
+  root\system\bin\make_f2fs:
+    SIZE DIFFERENCE: Stock=116320 bytes, Garlic=116328 bytes (diff: +8 bytes)
+
+  root\system\bin\ueventd:
+    SIZE DIFFERENCE: Stock=1028920 bytes, Garlic=1028976 bytes (diff: +56 bytes)
+
+  root\system\bin\update_engine_sideload:
+    SIZE DIFFERENCE: Stock=1378544 bytes, Garlic=1378616 bytes (diff: +72 bytes)
+
+  Summary for this directory: 200 files compared, 4 files with differences
+
+Comparing files in /root\system\etc path:
+---------------------------------------------
+  root\system\etc\recovery.fstab:
+    SIZE DIFFERENCE: Stock=3928 bytes, Garlic=4123 bytes (diff: +195 bytes)
+    CONTENT DIFFERENCES:
+    ln 10: STOCK: '/dev/block/by-name/dtbo                  /dtbo               emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/vbmeta_product        /vbmeta_product     emmc    defaults    slotselect'
+    ln 11: STOCK: '' | GARLIC: '/dev/block/by-name/vbmeta_system_ext     /vbmeta_system_ext  emmc    defaults    slotselect'
+    ln 12: STOCK: '/dev/block/by-name/l_ldsp                /ltedsp             emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/dtbo                  /dtbo               emmc    defaults    slotselect'
+    ln 13: STOCK: '/dev/block/by-name/l_gdsp                /ltegdsp            emmc    defaults    slotselect' | GARLIC: ''
+    ln 14: STOCK: '/dev/block/by-name/l_agdsp               /lteagdsp            emmc    defaults   slotselect' | GARLIC: '/dev/block/by-name/l_ldsp                /ltedsp             emmc    defaults    slotselect'
+    ln 15: STOCK: '/dev/block/by-name/l_cdsp                /ltecdsp            emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_gdsp                /ltegdsp            emmc    defaults    slotselect'
+    ln 16: STOCK: '/dev/block/by-name/l_modem               /ltemodem           emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_agdsp               /lteagdsp            emmc    defaults   slotselect'
+    ln 17: STOCK: '/dev/block/by-name/l_fixnv1              /ltefixnv1          emmc    defaults    defaults' | GARLIC: '/dev/block/by-name/l_cdsp                /ltecdsp            emmc    defaults    slotselect'
+    ln 18: STOCK: '/dev/block/by-name/l_fixnv2              /ltefixnv2          emmc    defaults    defaults' | GARLIC: '/dev/block/by-name/l_modem               /ltemodem           emmc    defaults    slotselect'
+    ln 19: STOCK: '/dev/block/by-name/l_deltanv             /ltedeltanv         emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_fixnv1              /ltefixnv1          emmc    defaults    defaults'
+    ... and 25 more content differences
+
+  root\system\etc\recovery.tmpfsdata.fstab:
+    SIZE DIFFERENCE: Stock=3069 bytes, Garlic=3250 bytes (diff: +181 bytes)
+    CONTENT DIFFERENCES:
+    ln 10: STOCK: '/dev/block/by-name/dtbo                  /dtbo               emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/vbmeta_product        /vbmeta_product     emmc    defaults    slotselect'
+    ln 11: STOCK: '' | GARLIC: '/dev/block/by-name/vbmeta_system_ext     /vbmeta_system_ext  emmc    defaults    slotselect'
+    ln 12: STOCK: '/dev/block/by-name/l_ldsp                /ltedsp             emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/dtbo                  /dtbo               emmc    defaults    slotselect'
+    ln 13: STOCK: '/dev/block/by-name/l_gdsp                /ltegdsp            emmc    defaults    slotselect' | GARLIC: ''
+    ln 14: STOCK: '/dev/block/by-name/l_agdsp               /lteagdsp            emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_ldsp                /ltedsp             emmc    defaults    slotselect'
+    ln 15: STOCK: '/dev/block/by-name/l_cdsp                /ltecdsp            emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_gdsp                /ltegdsp            emmc    defaults    slotselect'
+    ln 16: STOCK: '/dev/block/by-name/l_modem               /ltemodem           emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_agdsp               /lteagdsp            emmc    defaults   slotselect'
+    ln 17: STOCK: '/dev/block/by-name/l_fixnv1              /ltefixnv1          emmc    defaults    defaults' | GARLIC: '/dev/block/by-name/l_cdsp                /ltecdsp            emmc    defaults    slotselect'
+    ln 18: STOCK: '/dev/block/by-name/l_fixnv2              /ltefixnv2          emmc    defaults    defaults' | GARLIC: '/dev/block/by-name/l_modem               /ltemodem           emmc    defaults    slotselect'
+    ln 19: STOCK: '/dev/block/by-name/l_deltanv             /ltedeltanv         emmc    defaults    slotselect' | GARLIC: '/dev/block/by-name/l_fixnv1              /ltefixnv1          emmc    defaults    defaults'
+    ... and 18 more content differences
+
+  Summary for this directory: 6 files compared, 2 files with differences
+
+Comparing files in /root\system\etc\init\hw path:
+-----------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\system\etc\security path:
+------------------------------------------------------
+  root\system\etc\security\otacerts.zip:
+    SIZE DIFFERENCE: Stock=1040 bytes, Garlic=1127 bytes (diff: +87 bytes)
+
+  Summary for this directory: 1 files compared, 1 files with differences
+
+Comparing files in /root\system\lib64 path:
+-----------------------------------------------
+  Summary for this directory: 59 files compared, 0 files with differences
+
+Comparing files in /root\system\lib64\hw path:
+--------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+================================================================================
+SUMMARY:
+Total files in stock: 413
+Total files in garlic: 413
+Files missing in garlic: 12
+Files missing in stock: 12
+Common files: 401
+Files with different sizes: 108

@@ -1,0 +1,150 @@
+Directory Comparison Report
+Generated on: 2025-08-20 02:17:43
+Stock folder: C:\Users\GarlicOS\2Plus\boot\unzip_bootstock
+Garlic folder: C:\Users\GarlicOS\2Plus\boot\unzip_bootgarlic
+================================================================================
+
+FILES MISSING IN GARLIC FOLDER:
+----------------------------------------
+  No missing files found.
+
+FILES MISSING IN STOCK FOLDER:
+----------------------------------------
+  root\device-resources\deviceinfo
+  root\device-resources\modules.zip
+  root\firmware\EXEC_CALIBRATE_MAG_IMAGE
+  root\firmware\PortraitSegHP.tflite
+  root\firmware\PortraitSegLP.tflite
+  root\firmware\audio_structure
+  root\firmware\bt_configure_pskey.ini
+  root\firmware\bt_configure_pskey_aa.ini
+  root\firmware\bt_configure_rf.ini
+  root\firmware\bt_configure_rf_aa.ini
+  root\firmware\cvs
+  root\firmware\dsp_vbc
+  root\firmware\faceid_fw.bin
+  root\firmware\fm_board_config.ini
+  root\firmware\focaltech-FT5x46.bin
+  root\firmware\network_coeff_fd_o.bin
+  root\firmware\network_coeff_fd_p.bin
+  root\firmware\network_coeff_fd_r.bin
+  root\firmware\network_coeff_flv.bin
+  root\firmware\network_coeff_fp.bin
+  root\firmware\network_coeff_fv.bin
+  root\firmware\rgx.fw.22.102.54.38
+  root\firmware\rgx.sh.22.102.54.38
+  root\firmware\vdsp_firmware.bin
+  root\firmware\wifi_board_config.ini
+  root\firmware\wifi_board_config_aa.ini
+  root\lib\modules\empty
+  root\system\bin\erasebootrecord
+  root\system\bin\realrecovery
+
+FILES WITH DIFFERENT SIZES:
+----------------------------------------
+  boot.json
+    Stock size: 1105 bytes
+    Garlic size: 1106 bytes
+    Size difference: +1 bytes
+
+  ramdisk.img
+    Stock size: 20971008 bytes
+    Garlic size: 55321344 bytes
+    Size difference: +34350336 bytes
+
+  ramdisk.img.gz
+    Stock size: 9128631 bytes
+    Garlic size: 37459333 bytes
+    Size difference: +28330702 bytes
+
+  ramdisk.img_filelist.txt
+    Stock size: 37400 bytes
+    Garlic size: 40277 bytes
+    Size difference: +2877 bytes
+
+  root\system\bin\recovery
+    Stock size: 424064 bytes
+    Garlic size: 2465 bytes
+    Size difference: -421599 bytes
+
+
+DETAILED CONTENT COMPARISON BY DIRECTORY:
+==================================================
+
+Comparing files in root path:
+------------------------------
+  No files to compare in this directory
+
+Comparing files in /root path:
+----------------------------------
+  root\default.prop:
+    CONTENT DIFFERENCES:
+    ln 6: STOCK: 'ro.secure=1' | GARLIC: 'ro.secure=0'
+    ln 8: STOCK: 'ro.adb.secure=1' | GARLIC: 'ro.adb.secure=0'
+    ln 10: STOCK: 'ro.debuggable=0' | GARLIC: 'ro.debuggable=1'
+
+  Summary for this directory: 22 files compared, 1 files with differences
+
+Comparing files in /root\device-resources path:
+---------------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\firmware path:
+-------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\first_stage_ramdisk path:
+------------------------------------------------------
+  Summary for this directory: 4 files compared, 0 files with differences
+
+Comparing files in /root\first_stage_ramdisk\avb path:
+----------------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+Comparing files in /root\first_stage_ramdisk\system\bin path:
+-----------------------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\lib\modules path:
+----------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\res\images path:
+---------------------------------------------
+  Summary for this directory: 103 files compared, 0 files with differences
+
+Comparing files in /root\system\bin path:
+---------------------------------------------
+  root\system\bin\recovery:
+    SIZE DIFFERENCE: Stock=424064 bytes, Garlic=2465 bytes (diff: -421599 bytes)
+
+  Summary for this directory: 200 files compared, 1 files with differences
+
+Comparing files in /root\system\etc path:
+---------------------------------------------
+  Summary for this directory: 6 files compared, 0 files with differences
+
+Comparing files in /root\system\etc\init\hw path:
+-----------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\system\etc\security path:
+------------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\system\lib64 path:
+-----------------------------------------------
+  Summary for this directory: 59 files compared, 0 files with differences
+
+Comparing files in /root\system\lib64\hw path:
+--------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+================================================================================
+SUMMARY:
+Total files in stock: 413
+Total files in garlic: 442
+Files missing in garlic: 0
+Files missing in stock: 29
+Common files: 413
+Files with different sizes: 5

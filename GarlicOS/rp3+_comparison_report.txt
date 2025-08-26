@@ -1,0 +1,109 @@
+Directory Comparison Report
+Generated on: 2025-08-20 02:21:08
+Stock folder: C:\Users\Linux\GarlicOS\3.5\unzip_bootstock3plus
+Garlic folder: C:\Users\Linux\GarlicOS\3.5\unzip_bootmagisk3plus
+================================================================================
+
+FILES MISSING IN GARLIC FOLDER:
+----------------------------------------
+  No missing files found.
+
+FILES MISSING IN STOCK FOLDER:
+----------------------------------------
+  root\.backup\.magisk
+  root\.backup\.rmlist
+  root\init
+  root\overlay.d\sbin\init-ld.xz
+  root\overlay.d\sbin\magisk.xz
+  root\overlay.d\sbin\stub.xz
+
+FILES WITH DIFFERENT SIZES:
+----------------------------------------
+  boot.avb.json
+    Stock size: 4496 bytes
+    Garlic size: 4111 bytes
+    Size difference: -385 bytes
+
+  ramdisk.img
+    Stock size: 21012224 bytes
+    Garlic size: 21387264 bytes
+    Size difference: +375040 bytes
+
+  ramdisk.img.gz
+    Stock size: 9159715 bytes
+    Garlic size: 9395571 bytes
+    Size difference: +235856 bytes
+
+  ramdisk.img_filelist.txt
+    Stock size: 37370 bytes
+    Garlic size: 38071 bytes
+    Size difference: +701 bytes
+
+
+DETAILED CONTENT COMPARISON BY DIRECTORY:
+==================================================
+
+Comparing files in root path:
+------------------------------
+  No files to compare in this directory
+
+Comparing files in /root path:
+----------------------------------
+  Summary for this directory: 22 files compared, 0 files with differences
+
+Comparing files in /root\.backup path:
+------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\first_stage_ramdisk path:
+------------------------------------------------------
+  Summary for this directory: 4 files compared, 0 files with differences
+
+Comparing files in /root\first_stage_ramdisk\avb path:
+----------------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+Comparing files in /root\first_stage_ramdisk\system\bin path:
+-----------------------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\overlay.d\sbin path:
+-------------------------------------------------
+  No files to compare in this directory
+
+Comparing files in /root\res\images path:
+---------------------------------------------
+  Summary for this directory: 103 files compared, 0 files with differences
+
+Comparing files in /root\system\bin path:
+---------------------------------------------
+  Summary for this directory: 200 files compared, 0 files with differences
+
+Comparing files in /root\system\etc path:
+---------------------------------------------
+  Summary for this directory: 6 files compared, 0 files with differences
+
+Comparing files in /root\system\etc\init\hw path:
+-----------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\system\etc\security path:
+------------------------------------------------------
+  Summary for this directory: 1 files compared, 0 files with differences
+
+Comparing files in /root\system\lib64 path:
+-----------------------------------------------
+  Summary for this directory: 59 files compared, 0 files with differences
+
+Comparing files in /root\system\lib64\hw path:
+--------------------------------------------------
+  Summary for this directory: 3 files compared, 0 files with differences
+
+================================================================================
+SUMMARY:
+Total files in stock: 413
+Total files in garlic: 419
+Files missing in garlic: 0
+Files missing in stock: 6
+Common files: 413
+Files with different sizes: 4
