@@ -9,3 +9,5 @@
   5. [Unix-like](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/5)
   6. [JingOS](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/6)
   7. [UBPorts](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/7)
+  8. [GarlicOS](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/8)
+        
