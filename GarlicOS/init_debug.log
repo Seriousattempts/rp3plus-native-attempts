@@ -1,0 +1,2517 @@
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] === INVESTIGATING MOUNTED ROOTFS CONTENTS ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Mounting rootfs loopback file...
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] ✓ /root is properly mounted
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] === COMPLETE DIRECTORY STRUCTURE OF MOUNTED ROOTFS ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Root level contents:
+total 73
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwxr-xr-x 20 root root 4096 2023-07-04 09:07 .
+drwxr-xr-x 34 root root    0 2023-07-04 14:36 ..
+drwxr-xr-x  2 root root 4096 2024-05-04 10:37 bin
+drwxr-xr-x  4 root root 4096 2024-05-02 15:42 dev
+drwx------  2 root root 3488 2023-07-04 09:07 device-resources
+drwxr-xr-x  8 root root 4096 2024-05-04 11:00 etc
+drwx------  2 root root 3488 2023-07-04 09:07 firmware
+drwxr-xr-x  6 root root 4096 2023-07-04 09:07 lib
+lrwxrwxrwx  1 root root    3 2024-05-04 10:29 lib64 -> lib
+lrwxrwxrwx  1 root root   11 2024-05-04 10:37 linuxrc -> bin/busybox
+drwxr-xr-x  5 root root 4096 2023-07-04 13:18 media
+drwxr-xr-x  2 root root 4096 2024-05-02 15:42 mnt
+drwxr-xr-x  2 root root 4096 2024-05-02 15:42 opt
+drwxr-xr-x  2 root root 4096 2024-05-02 15:42 proc
+drwx------  3 root root 4096 2024-05-04 10:33 root
+drwxr-xr-x  2 root root 4096 2024-05-04 11:00 run
+drwxr-xr-x  2 root root 4096 2024-05-04 10:59 sbin
+drwxr-xr-x  2 root root 4096 2024-05-02 15:42 sys
+drwxrwxrwt  2 root root 4096 2024-05-04 11:00 tmp
+drwxr-xr-x  7 root root 4096 2024-05-04 11:00 usr
+drwxr-xr-x  4 root root 4096 2024-05-04 11:00 var
+drwx------  3 root root 3488 2023-07-04 09:07 vendor
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Media directory (if it exists):
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] /root/media exists:
+total 17
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwxr-xr-x  5 root root 4096 2023-07-04 13:18 .
+drwxr-xr-x 20 root root 4096 2023-07-04 09:07 ..
+drwx------ 75 root root 3488 2023-07-04 13:18 Library
+drwx------  7 root root 3488 2023-07-04 13:18 RetroArch
+drwx------  2 root root 3488 2023-07-04 13:18 boot
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] /root/media/boot exists:
+total 7
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwx------ 2 root root 3488 2023-07-04 13:18 .
+drwxr-xr-x 5 root root 4096 2023-07-04 13:18 ..
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] === SEARCHING FOR CONFIG.XML FILES INSIDE ROOTFS ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Found config.xml at: /root/media/Library/32X/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29]   Size: 151 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.32x</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Found config.xml at: /root/media/Library/3DO/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29]   Size: 211 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29]   Contents: <Configuration>
+  <Run>opera</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.cue</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:29] Found config.xml at: /root/media/Library/Amiga/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 760 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>puae2021</Run>
+  <Extensions>
+    <Extension>.adf</Extension>
+    <Extension>.adz</Extension>
+    <Extension>.dms</Extension>
+    <Extension>.fdi</Extension>
+    <Extension>.ipf</Extension>
+    <Extension>.hdf</Extension>
+    <Extension>.hdz</Extension>
+    <Extension>.lha</Extension>
+    <Extension>.slave</Extension>
+    <Extension>.info</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.nrg</Extension>
+    <Extension>.mds</Extension>
+    <Extension>.iso</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.uae</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.rp9</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Apps/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 116 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>/bin/sh</Run>
+  <Extensions>
+    <Extension>.sh</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Arduboy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 149 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>arduous</Run>
+  <Extensions>
+    <Extension>.hex</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Atari 2600/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>stella2014</Run>
+  <Extensions>
+    <Extension>.a26</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Atari 5200/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 470 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>atari800</Run>
+  <Extensions>
+    <Extension>.xfd</Extension>
+    <Extension>.atr</Extension>
+    <Extension>.cdm</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.a52</Extension>
+    <Extension>.atx</Extension>
+    <Extension>.car</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.com</Extension>
+    <Extension>.xex</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Atari 7800/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 215 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>prosystem</Run>
+  <Extensions>
+    <Extension>.a78</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.cdf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/Atari ST/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 307 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Contents: <Configuration>
+  <Run>hatari</Run>
+  <Extensions>
+    <Extension>.st</Extension>
+    <Extension>.msa</Extension>
+    <Extension>.stx</Extension>
+    <Extension>.dim</Extension>
+    <Extension>.ipf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30] Found config.xml at: /root/media/Library/C128/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:30]   Size: 1046 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>vice_x128</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/C64/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 1045 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>vice_x64</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/CP System I/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/CP System II/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/CP System III/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/CPC/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>crocods</Run>
+  <Extensions>
+    <Extension>.dsk</Extension>
+    <Extension>.sna</Extension>
+    <Extension>.kcr</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/Channel F/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 182 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Contents: <Configuration>
+  <Run>freechaf</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.chf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31] Found config.xml at: /root/media/Library/ColecoVision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:31]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/DOOM/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 182 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>prboom</Run>
+  <Extensions>
+    <Extension>.wad</Extension>
+    <Extension>.iwad</Extension>
+    <Extension>.pwad</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/DOS/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 121 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>dosbox_pure</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/FinalBurn Alpha/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/FinalBurn Neo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 210 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>fbneo</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/Game & Watch/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 144 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>gw</Run>
+  <Extensions>
+    <Extension>.mgw</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/Game Boy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 149 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>gambatte</Run>
+  <Extensions>
+    <Extension>.gb</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32] Found config.xml at: /root/media/Library/Game Boy Advance/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:32]   Contents: <Configuration>
+  <Run>mgba</Run>
+  <Extensions>
+    <Extension>.gba</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/Game Boy Color/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>gambatte</Run>
+  <Extensions>
+    <Extension>.gbc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/Game Gear/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.gg</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/Intellivision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 214 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>freeintv</Run>
+  <Extensions>
+    <Extension>.int</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/Jaguar/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 347 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>virtualjaguar</Run>
+  <Extensions>
+    <Extension>.j64</Extension>
+    <Extension>.jag</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.abs</Extension>
+    <Extension>.cof</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/Lynx/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 177 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>handy</Run>
+  <Extensions>
+    <Extension>.lnx</Extension>
+    <Extension>.o</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/MAME 2000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 181 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>mame2000</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/MAME 2003/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Size: 134 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33]   Contents: <Configuration>
+  <Run>km_mame2003_xtreme_amped</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:33] Found config.xml at: /root/media/Library/MSX/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/MSX2/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Master System/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 151 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.sms</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Mega Drive/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.md</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Mega Duck/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>sameduck</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Neo Geo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 128 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>fbalpha2012_neogeo</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Neo Geo CD/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34]   Contents: <Configuration>
+  <Run>neocd</Run>
+  <Extensions>
+    <Extension>.cue</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:34] Found config.xml at: /root/media/Library/Neo Geo Pocket/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 251 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>mednafen_ngp</Run>
+  <Extensions>
+    <Extension>.ngp</Extension>
+    <Extension>.ngc</Extension>
+    <Extension>.ngpc</Extension>
+    <Extension>.npc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/Nintendo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 245 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>fceumm</Run>
+  <Extensions>
+    <Extension>.fds</Extension>
+    <Extension>.nes</Extension>
+    <Extension>.unif</Extension>
+    <Extension>.unf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/Odyssey2/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>o2em</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/PC Engine/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 319 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>mednafen_pce_fast</Run>
+  <Extensions>
+    <Extension>.pce</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/PC Engine SuperGrafx/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 257 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>mednafen_supergrafx</Run>
+  <Extensions>
+    <Extension>.pce</Extension>
+    <Extension>.sgx</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/PC-8000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>quasi88</Run>
+  <Extensions>
+    <Extension>.d88</Extension>
+    <Extension>.u88</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/PC-8800/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Contents: <Configuration>
+  <Run>quasi88</Run>
+  <Extensions>
+    <Extension>.d88</Extension>
+    <Extension>.u88</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35] Found config.xml at: /root/media/Library/PC-98/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:35]   Size: 628 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>nekop2</Run>
+  <Extensions>
+    <Extension>.d98</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.98d</Extension>
+    <Extension>.fdi</Extension>
+    <Extension>.fdd</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.tfd</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.hdi</Extension>
+    <Extension>.thd</Extension>
+    <Extension>.nhd</Extension>
+    <Extension>.hdd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/PC-FX/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 219 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>mednafen_pcfx</Run>
+  <Extensions>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/PET/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 1046 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>vice_xpet</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/Pico-8/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>fake08</Run>
+  <Extensions>
+    <Extension>.p8</Extension>
+    <Extension>.png</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/PlayStation/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 410 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>pcsx_rearmed</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.img</Extension>
+    <Extension>.mdf</Extension>
+    <Extension>.pbp</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.cbn</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/Plus-4/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 1048 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>vice_xplus4</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/Pokemon Mini/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Contents: <Configuration>
+  <Run>pokemini</Run>
+  <Extensions>
+    <Extension>.min</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36] Found config.xml at: /root/media/Library/Ports/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:36]   Size: 116 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>/bin/sh</Run>
+  <Extensions>
+    <Extension>.sh</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/Quake/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 118 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>tyrquake</Run>
+  <Extensions>
+    <Extension>.pak</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/SG-1000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 278 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>gearsystem</Run>
+  <Extensions>
+    <Extension>.sms</Extension>
+    <Extension>.gg</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/Satellaview/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 306 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.bs</Extension>
+    <Extension>.st</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/ScummVM/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 96 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>scummvm</Run>
+  <ListDirectories>true</ListDirectories>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/Sega CD/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 221 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>genesis_plus_gx</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.iso</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/Sufami Turbo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 306 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.bs</Extension>
+    <Extension>.st</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37] Found config.xml at: /root/media/Library/Super Nintendo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Size: 372 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:37]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.gd3</Extension>
+    <Extension>.gd7</Extension>
+    <Extension>.dx2</Extension>
+    <Extension>.bsx</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/Supervision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 180 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>potator</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.sv</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/TIC-80/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>tic80</Run>
+  <Extensions>
+    <Extension>.tic</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/Uzebox/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>uzem</Run>
+  <Extensions>
+    <Extension>.uze</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/VIC-20/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 1233 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>vice_xvic</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+    <Extension>.20</Extension>
+    <Extension>.40</Extension>
+    <Extension>.60</Extension>
+    <Extension>.a0</Extension>
+    <Extension>.b0</Extension>
+    <Extension>.rom</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/VMU/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 215 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>vemulator</Run>
+  <Extensions>
+    <Extension>.vms</Extension>
+    <Extension>.dci</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/Vectrex/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 178 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>vecx</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.vec</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38] Found config.xml at: /root/media/Library/Videopac+/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:38]   Contents: <Configuration>
+  <Run>o2em</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/Virtual Boy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 217 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>mednafen_vb</Run>
+  <Extensions>
+    <Extension>.vb</Extension>
+    <Extension>.vboy</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/WonderSwan/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 252 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>mednafen_wswan</Run>
+  <Extensions>
+    <Extension>.ws</Extension>
+    <Extension>.wsc</Extension>
+    <Extension>.pc2</Extension>
+    <Extension>.pcv2</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/X1/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 463 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>x1</Run>
+  <Extensions>
+    <Extension>.dx1</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.2d</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.tfd</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.cmd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/X68000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 467 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>px68k</Run>
+  <Extensions>
+    <Extension>.dim</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.img</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.hdf</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/ZX 81/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 206 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>81</Run>
+  <Extensions>
+    <Extension>.p</Extension>
+    <Extension>.tzx</Extension>
+    <Extension>.t81</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/media/Library/ZX Spectrum/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 338 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>fuse</Run>
+  <Extensions>
+    <Extension>.tzx</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.z80</Extension>
+    <Extension>.rzx</Extension>
+    <Extension>.scl</Extension>
+    <Extension>.trd</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/usr/share/library/32X/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Size: 151 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.32x</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:39] Found config.xml at: /root/usr/share/library/3DO/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 211 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>opera</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.cue</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Amiga/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 760 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>puae2021</Run>
+  <Extensions>
+    <Extension>.adf</Extension>
+    <Extension>.adz</Extension>
+    <Extension>.dms</Extension>
+    <Extension>.fdi</Extension>
+    <Extension>.ipf</Extension>
+    <Extension>.hdf</Extension>
+    <Extension>.hdz</Extension>
+    <Extension>.lha</Extension>
+    <Extension>.slave</Extension>
+    <Extension>.info</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.nrg</Extension>
+    <Extension>.mds</Extension>
+    <Extension>.iso</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.uae</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.rp9</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Apps/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 116 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>/bin/sh</Run>
+  <Extensions>
+    <Extension>.sh</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Arduboy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 149 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>arduous</Run>
+  <Extensions>
+    <Extension>.hex</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Atari 2600/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>stella2014</Run>
+  <Extensions>
+    <Extension>.a26</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Atari 5200/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 470 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>atari800</Run>
+  <Extensions>
+    <Extension>.xfd</Extension>
+    <Extension>.atr</Extension>
+    <Extension>.cdm</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.a52</Extension>
+    <Extension>.atx</Extension>
+    <Extension>.car</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.com</Extension>
+    <Extension>.xex</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Atari 7800/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Size: 215 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40]   Contents: <Configuration>
+  <Run>prosystem</Run>
+  <Extensions>
+    <Extension>.a78</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.cdf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:40] Found config.xml at: /root/usr/share/library/Atari ST/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 307 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>hatari</Run>
+  <Extensions>
+    <Extension>.st</Extension>
+    <Extension>.msa</Extension>
+    <Extension>.stx</Extension>
+    <Extension>.dim</Extension>
+    <Extension>.ipf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/C128/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 1046 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>vice_x128</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/C64/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 1045 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>vice_x64</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/CP System I/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/CP System II/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/CP System III/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/CPC/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Contents: <Configuration>
+  <Run>crocods</Run>
+  <Extensions>
+    <Extension>.dsk</Extension>
+    <Extension>.sna</Extension>
+    <Extension>.kcr</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41] Found config.xml at: /root/usr/share/library/Channel F/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:41]   Size: 182 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>freechaf</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.chf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/ColecoVision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/DOOM/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 182 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>prboom</Run>
+  <Extensions>
+    <Extension>.wad</Extension>
+    <Extension>.iwad</Extension>
+    <Extension>.pwad</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/DOS/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 121 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>dosbox_pure</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/FinalBurn Alpha/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 184 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>fbalpha2012</Run>
+  <Extensions>
+    <Extension>.iso</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/FinalBurn Neo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 210 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>fbneo</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/Game & Watch/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 144 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Contents: <Configuration>
+  <Run>gw</Run>
+  <Extensions>
+    <Extension>.mgw</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42] Found config.xml at: /root/usr/share/library/Game Boy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:42]   Size: 149 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>gambatte</Run>
+  <Extensions>
+    <Extension>.gb</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Game Boy Advance/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>mgba</Run>
+  <Extensions>
+    <Extension>.gba</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Game Boy Color/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>gambatte</Run>
+  <Extensions>
+    <Extension>.gbc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Game Gear/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.gg</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Intellivision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 214 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>freeintv</Run>
+  <Extensions>
+    <Extension>.int</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Jaguar/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 347 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>virtualjaguar</Run>
+  <Extensions>
+    <Extension>.j64</Extension>
+    <Extension>.jag</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.abs</Extension>
+    <Extension>.cof</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/Lynx/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 177 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>handy</Run>
+  <Extensions>
+    <Extension>.lnx</Extension>
+    <Extension>.o</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43] Found config.xml at: /root/usr/share/library/MAME 2000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Size: 181 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:43]   Contents: <Configuration>
+  <Run>mame2000</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+    <Extension>.7z</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/MAME 2003/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 134 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>km_mame2003_xtreme_amped</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/MSX/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/MSX2/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 465 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>bluemsx</Run>
+  <Extensions>
+    <Extension>.rom</Extension>
+    <Extension>.ri</Extension>
+    <Extension>.mx1</Extension>
+    <Extension>.mx2</Extension>
+    <Extension>.col</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.cas</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.sc</Extension>
+    <Extension>.sf</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/Master System/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 151 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.sms</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/Mega Drive/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>picodrive</Run>
+  <Extensions>
+    <Extension>.md</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/Mega Duck/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>sameduck</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/Neo Geo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Size: 128 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44]   Contents: <Configuration>
+  <Run>fbalpha2012_neogeo</Run>
+  <Extensions>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:44] Found config.xml at: /root/usr/share/library/Neo Geo CD/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>neocd</Run>
+  <Extensions>
+    <Extension>.cue</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/Neo Geo Pocket/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 251 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>mednafen_ngp</Run>
+  <Extensions>
+    <Extension>.ngp</Extension>
+    <Extension>.ngc</Extension>
+    <Extension>.ngpc</Extension>
+    <Extension>.npc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/Nintendo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 245 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>fceumm</Run>
+  <Extensions>
+    <Extension>.fds</Extension>
+    <Extension>.nes</Extension>
+    <Extension>.unif</Extension>
+    <Extension>.unf</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/Odyssey2/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>o2em</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/PC Engine/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 319 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>mednafen_pce_fast</Run>
+  <Extensions>
+    <Extension>.pce</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/PC Engine SuperGrafx/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 257 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>mednafen_supergrafx</Run>
+  <Extensions>
+    <Extension>.pce</Extension>
+    <Extension>.sgx</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/PC-8000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45]   Contents: <Configuration>
+  <Run>quasi88</Run>
+  <Extensions>
+    <Extension>.d88</Extension>
+    <Extension>.u88</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:45] Found config.xml at: /root/usr/share/library/PC-8800/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 213 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>quasi88</Run>
+  <Extensions>
+    <Extension>.d88</Extension>
+    <Extension>.u88</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/PC-98/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 628 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>nekop2</Run>
+  <Extensions>
+    <Extension>.d98</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.98d</Extension>
+    <Extension>.fdi</Extension>
+    <Extension>.fdd</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.tfd</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.hdi</Extension>
+    <Extension>.thd</Extension>
+    <Extension>.nhd</Extension>
+    <Extension>.hdd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/PC-FX/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 219 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>mednafen_pcfx</Run>
+  <Extensions>
+    <Extension>.cue</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/PET/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 1046 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>vice_xpet</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/Pico-8/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>fake08</Run>
+  <Extensions>
+    <Extension>.p8</Extension>
+    <Extension>.png</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/PlayStation/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 410 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>pcsx_rearmed</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.img</Extension>
+    <Extension>.mdf</Extension>
+    <Extension>.pbp</Extension>
+    <Extension>.toc</Extension>
+    <Extension>.cbn</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.ccd</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/Plus-4/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Size: 1048 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46]   Contents: <Configuration>
+  <Run>vice_xplus4</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:46] Found config.xml at: /root/usr/share/library/Pokemon Mini/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 150 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>pokemini</Run>
+  <Extensions>
+    <Extension>.min</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/Ports/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 116 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>/bin/sh</Run>
+  <Extensions>
+    <Extension>.sh</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/Quake/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 118 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>tyrquake</Run>
+  <Extensions>
+    <Extension>.pak</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/SG-1000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 278 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>gearsystem</Run>
+  <Extensions>
+    <Extension>.sms</Extension>
+    <Extension>.gg</Extension>
+    <Extension>.sg</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.rom</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/Satellaview/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 306 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.bs</Extension>
+    <Extension>.st</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/ScummVM/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 96 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>scummvm</Run>
+  <ListDirectories>true</ListDirectories>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/Sega CD/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 221 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Contents: <Configuration>
+  <Run>genesis_plus_gx</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.cue</Extension>
+    <Extension>.iso</Extension>
+    <Extension>.chd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47] Found config.xml at: /root/usr/share/library/Sufami Turbo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:47]   Size: 306 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.bs</Extension>
+    <Extension>.st</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/Super Nintendo/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 372 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>snes9x</Run>
+  <Extensions>
+    <Extension>.smc</Extension>
+    <Extension>.fig</Extension>
+    <Extension>.sfc</Extension>
+    <Extension>.gd3</Extension>
+    <Extension>.gd7</Extension>
+    <Extension>.dx2</Extension>
+    <Extension>.bsx</Extension>
+    <Extension>.swc</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/Supervision/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 180 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>potator</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.sv</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/TIC-80/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 147 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>tic80</Run>
+  <Extensions>
+    <Extension>.tic</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/Uzebox/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>uzem</Run>
+  <Extensions>
+    <Extension>.uze</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/VIC-20/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 1233 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>vice_xvic</Run>
+  <Extensions>
+    <Extension>.d64</Extension>
+    <Extension>.d71</Extension>
+    <Extension>.d80</Extension>
+    <Extension>.d81</Extension>
+    <Extension>.d82</Extension>
+    <Extension>.g64</Extension>
+    <Extension>.g41</Extension>
+    <Extension>.x64</Extension>
+    <Extension>.t64</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.prg</Extension>
+    <Extension>.p00</Extension>
+    <Extension>.crt</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.gz</Extension>
+    <Extension>.d6z</Extension>
+    <Extension>.d7z</Extension>
+    <Extension>.d8z</Extension>
+    <Extension>.g6z</Extension>
+    <Extension>.g4z</Extension>
+    <Extension>.x6z</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+    <Extension>.vfl</Extension>
+    <Extension>.vsf</Extension>
+    <Extension>.nib</Extension>
+    <Extension>.nbz</Extension>
+    <Extension>.d2m</Extension>
+    <Extension>.d4m</Extension>
+    <Extension>.20</Extension>
+    <Extension>.40</Extension>
+    <Extension>.60</Extension>
+    <Extension>.a0</Extension>
+    <Extension>.b0</Extension>
+    <Extension>.rom</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/VMU/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 215 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Contents: <Configuration>
+  <Run>vemulator</Run>
+  <Extensions>
+    <Extension>.vms</Extension>
+    <Extension>.dci</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48] Found config.xml at: /root/usr/share/library/Vectrex/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:48]   Size: 178 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>vecx</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.vec</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/Videopac+/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 146 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>o2em</Run>
+  <Extensions>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/Virtual Boy/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 217 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>mednafen_vb</Run>
+  <Extensions>
+    <Extension>.vb</Extension>
+    <Extension>.vboy</Extension>
+    <Extension>.bin</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/WonderSwan/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 252 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>mednafen_wswan</Run>
+  <Extensions>
+    <Extension>.ws</Extension>
+    <Extension>.wsc</Extension>
+    <Extension>.pc2</Extension>
+    <Extension>.pcv2</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/X1/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 463 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>x1</Run>
+  <Extensions>
+    <Extension>.dx1</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.2d</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.tfd</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.cmd</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/X68000/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 467 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>px68k</Run>
+  <Extensions>
+    <Extension>.dim</Extension>
+    <Extension>.zip</Extension>
+    <Extension>.img</Extension>
+    <Extension>.d88</Extension>
+    <Extension>.88d</Extension>
+    <Extension>.hdm</Extension>
+    <Extension>.dup</Extension>
+    <Extension>.2hd</Extension>
+    <Extension>.xdf</Extension>
+    <Extension>.hdf</Extension>
+    <Extension>.cmd</Extension>
+    <Extension>.m3u</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/ZX 81/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 206 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>81</Run>
+  <Extensions>
+    <Extension>.p</Extension>
+    <Extension>.tzx</Extension>
+    <Extension>.t81</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49] Found config.xml at: /root/usr/share/library/ZX Spectrum/config.xml
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Size: 338 bytes
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:49]   Contents: <Configuration>
+  <Run>fuse</Run>
+  <Extensions>
+    <Extension>.tzx</Extension>
+    <Extension>.tap</Extension>
+    <Extension>.z80</Extension>
+    <Extension>.rzx</Extension>
+    <Extension>.scl</Extension>
+    <Extension>.trd</Extension>
+    <Extension>.dsk</Extension>
+    <Extension>.zip</Extension>
+  </Extensions>
+</Configuration>
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] === CHECKING FOR MEDIA DIRECTORIES IN ROOTFS ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] Found media directory: /root/media
+total 17
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwxr-xr-x  5 root root 4096 2023-07-04 13:18 .
+drwxr-xr-x 20 root root 4096 2023-07-04 09:07 ..
+drwx------ 75 root root 3488 2023-07-04 13:18 Library
+drwx------  7 root root 3488 2023-07-04 13:18 RetroArch
+drwx------  2 root root 3488 2023-07-04 13:18 boot
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] === CONTINUING WITH BIND MOUNTS ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] After bind mounting /boot to /root/media:
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✗ /root/media/config.xml does NOT exist
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✗ /root/media/boot/config.xml does NOT exist
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /dev
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /dev/pts
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /proc
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /sys
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /tmp
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /firmware
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /vendor/firmware
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /lib/firmware
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:50] ✓ Bound /lib/modules
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] ✓ Bound /device-resources
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] === FINAL CONFIG.XML LOCATION CHECK ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] Checking all possible config.xml locations inside chroot:
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] ✗ /root/media/config.xml missing
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] ✗ /root/media/boot/config.xml missing
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] ✗ /root/config.xml missing
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] === ABOUT TO CHROOT ===
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[2023-07-04 14:36:51] All mounts complete, starting chroot to /root /usr/bin/init
+I/O warning : failed to load external entity "/media/boot/config.xml"

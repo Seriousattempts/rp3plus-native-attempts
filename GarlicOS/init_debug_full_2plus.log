@@ -1,0 +1,154 @@
+[T] === Starting Linux rootfs initialization ===
+[T] LOG FILE: /boot/init_debug_full.log
+[T] BOOTLOADER LCD INFO: lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752
+[T] MOUNT: Mounting F2FS rootfs from /boot/boot/rootfs.f2fs
+[T] MOUNT: Rootfs mounted successfully
+[T] MOUNT: Bind mounting boot partition to /root/media
+[T] CREATED: /root/media directory
+[T] MOUNT: Bound /boot -> /root/media
+[T] === GRAPHICS SETUP START ===
+[T] CREATED: /root/dev/dri and /root/dev/graphics directories
+[T] MOUNT: Bound /dev/dri -> /root/dev/dri
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[T] DRI DEVICE: total 0
+[T] DRI DEVICE: drwxr-xr-x  2 root root           60 2023-07-04 11:57 .
+[T] DRI DEVICE: drwxr-xr-x 13 root root         3340 2023-07-04 11:58 ..
+[T] DRI DEVICE: crw-rw-rw-  1 root graphics 226,   0 2023-07-04 11:57 card0
+[T] === GRAPHICS SETUP END ===
+[T] === CONFIG.XML SEARCH START ===
+[T] Searching for config.xml on SD card...
+[T] WARNING: config.xml not found at /boot/config.xml
+[T] Available files in /boot:
+[T] BOOT: total 1792
+[T] BOOT: drwx------  7 root root 262144 2023-07-04 11:58 .
+[T] BOOT: drwxr-xr-x 34 root root      0 2023-07-04 11:58 ..
+[T] BOOT: drwx------  3 root root 262144 2023-07-04 07:57 Android
+[T] BOOT: drwx------  3 root root 262144 2023-07-04 07:57 Movies
+[T] BOOT: drwx------  3 root root 262144 2023-07-04 07:57 Music
+[T] BOOT: drwx------  3 root root 262144 2023-07-04 07:57 Pictures
+[T] BOOT: drwx------  2 root root 262144 2023-07-04 07:57 boot
+[T] BOOT: -rwx------  1 root root   1061 2023-07-04 11:58 init_debug_full.log
+[T] === CONFIG.XML SEARCH END ===
+[T] === FILESYSTEM BIND MOUNTS START ===
+[T] PROCESSING: directory dev
+[T] CREATED: /root/dev directory
+[T] MOUNT: Successfully bound /dev -> /root/dev
+[T] PROCESSING: directory dev/pts
+[T] CREATED: /root/dev/pts directory
+[T] MOUNT: Successfully bound /dev/pts -> /root/dev/pts
+[T] PROCESSING: directory proc
+[T] CREATED: /root/proc directory
+[T] MOUNT: Successfully bound /proc -> /root/proc
+[T] PROCESSING: directory sys
+[T] CREATED: /root/sys directory
+[T] MOUNT: Successfully bound /sys -> /root/sys
+[T] PROCESSING: directory tmp
+[T] CREATED: /root/tmp directory
+[T] MOUNT: Successfully bound /tmp -> /root/tmp
+[T] PROCESSING: directory device-resources
+[T] CREATED: /root/device-resources directory
+[T] MOUNT: Successfully bound /device-resources -> /root/device-resources
+[T] === FILESYSTEM BIND MOUNTS END ===
+[T] === FIRMWARE SETUP START ===
+[T] CREATED: firmware and modules directories
+[T] MOUNT: Bound all firmware and modules directories
+[T] === FIRMWARE SETUP END ===
+[T] === BINDERFS SETUP START ===
+[T] CREATED: /root/dev/binderfs directory
+[T] MOUNT: Bound /dev/binderfs -> /root/dev/binderfs
+[T] SYMLINK: Created binderfs device symlinks in chroot
+[T] === BINDERFS SETUP END ===
+[T] === ENVIRONMENT SETUP START ===
+[T] ENVIRONMENT: Set PATH, HOME, SHELL
+[T] ENVIRONMENT: Set DEVICE_CODENAME=pocket2plus
+[T] CPU: Set policy0 governor to performance
+[T] CPU: Set policy6 governor to performance
+[T] CPU: Set 2 governors to performance mode
+[T] === ENVIRONMENT SETUP END ===
+[T] === ROOTFS CONTENT AUDIT START ===
+[T] FOUND EXECUTABLE: /usr/bin/display
+[T] FILE TYPE: /root/usr/bin/display: ELF shared object, 64-bit LSB arm64, dynamic (/lib/ld-linux-aarch64.so.1), not stripped
+[T] BINARY STRINGS (graphics/audio related):
+[T] MISSING: /bin/display
+[T] MISSING: /sbin/display
+[T] FOUND EXECUTABLE: /usr/bin/audio
+[T] FILE TYPE: /root/usr/bin/audio: ELF shared object, 64-bit LSB arm64, dynamic (/lib/ld-linux-aarch64.so.1), not stripped
+[T] BINARY STRINGS (graphics/audio related):
+[T] STRINGS: libtinyalsa.so.2
+[T] STRINGS: /tmp/audio_control
+[T] STRINGS: /tmp/audio_response
+[T] STRINGS: /dev/audio_pipe_voice
+[T] STRINGS: /tmp/audio_control
+[T] STRINGS: /tmp/audio_response
+[T] STRINGS: audio.c
+[T] STRINGS: switch_audio_route
+[T] STRINGS: init_rg35xxplus_alsa
+[T] STRINGS: init_spreadtrum_alsa
+[T] MISSING: /bin/audio
+[T] MISSING: /sbin/audio
+[T] FOUND EXECUTABLE: /usr/bin/gamepad
+[T] FILE TYPE: /root/usr/bin/gamepad: ELF shared object, 64-bit LSB arm64, dynamic (/lib/ld-linux-aarch64.so.1), not stripped
+[T] BINARY STRINGS (graphics/audio related):
+[T] STRINGS: /tmp/audio_control
+[T] STRINGS: /tmp/audio_response
+[T] MISSING: /bin/gamepad
+[T] FOUND EXECUTABLE: /usr/bin/garlicui
+[T] FILE TYPE: /root/usr/bin/garlicui: ELF shared object, 64-bit LSB arm64, dynamic (/lib/ld-linux-aarch64.so.1), not stripped
+[T] BINARY STRINGS (graphics/audio related):
+[T] STRINGS: AUDIO_U16MSB 0x1010
+[T] STRINGS: AUDIO_S16SYS AUDIO_S16LSB
+[T] STRINGS: _CS_POSIX_V6_ILP32_OFFBIG_LINTFLAGS _CS_POSIX_V6_ILP32_OFFBIG_LINTFLAGS
+[T] STRINGS: AUDIO_U16 AUDIO_U16LSB
+[T] STRINGS: AUDIO_U8 0x0008
+[T] STRINGS: _CS_POSIX_V6_ILP32_OFFBIG_LIBS _CS_POSIX_V6_ILP32_OFFBIG_LIBS
+[T] STRINGS: _CS_POSIX_V6_LPBIG_OFFBIG_LINTFLAGS _CS_POSIX_V6_LPBIG_OFFBIG_LINTFLAGS
+[T] STRINGS: _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS _CS_POSIX_V7_ILP32_OFFBIG_CFLAGS
+[T] STRINGS: _CS_XBS5_LPBIG_OFFBIG_LINTFLAGS _CS_XBS5_LPBIG_OFFBIG_LINTFLAGS
+[T] STRINGS: _SC_V7_ILP32_OFFBIG _SC_V7_ILP32_OFFBIG
+[T] MISSING: /bin/garlicui
+[T] AUDIO DEVICES IN CHROOT:
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+[T] AUDIO: total 0
+[T] AUDIO: drwxr-xr-x  2 root   root       600 2023-07-04 11:57 .
+[T] AUDIO: drwxr-xr-x 13 root   root      3340 2023-07-04 11:58 ..
+[T] AUDIO: crw-rw----  1 system audio 116,  28 2023-07-04 11:57 comprC0D11
+[T] AUDIO: crw-rw----  1 system audio 116,  27 2023-07-04 11:57 comprC0D4
+[T] AUDIO: crw-rw----  1 system audio 116,   2 2023-07-04 11:57 controlC0
+[T] AUDIO: crw-rw----  1 system audio 116,   4 2023-07-04 11:57 pcmC0D0c
+[T] AUDIO: crw-rw----  1 system audio 116,   3 2023-07-04 11:57 pcmC0D0p
+[T] AUDIO: crw-rw----  1 system audio 116,  17 2023-07-04 11:57 pcmC0D10c
+[T] AUDIO: crw-rw----  1 system audio 116,  16 2023-07-04 11:57 pcmC0D10p
+[T] AUDIO: crw-rw----  1 system audio 116,  18 2023-07-04 11:57 pcmC0D12p
+[T] AUDIO: crw-rw----  1 system audio 116,  19 2023-07-04 11:57 pcmC0D13c
+[T] AUDIO: crw-rw----  1 system audio 116,  20 2023-07-04 11:57 pcmC0D14c
+[T] AUDIO: crw-rw----  1 system audio 116,  21 2023-07-04 11:57 pcmC0D15p
+[T] AUDIO: crw-rw----  1 system audio 116,  22 2023-07-04 11:57 pcmC0D16c
+[T] AUDIO: crw-rw----  1 system audio 116,  23 2023-07-04 11:57 pcmC0D17c
+[T] AUDIO: crw-rw----  1 system audio 116,   6 2023-07-04 11:57 pcmC0D1c
+[T] AUDIO: crw-rw----  1 system audio 116,   5 2023-07-04 11:57 pcmC0D1p
+[T] AUDIO: crw-rw----  1 system audio 116,   7 2023-07-04 11:57 pcmC0D2c
+[T] AUDIO: crw-rw----  1 system audio 116,   8 2023-07-04 11:57 pcmC0D3p
+[T] AUDIO: crw-rw----  1 system audio 116,  25 2023-07-04 11:57 pcmC0D49c
+[T] AUDIO: crw-rw----  1 system audio 116,  24 2023-07-04 11:57 pcmC0D49p
+[T] AUDIO: crw-rw----  1 system audio 116,  26 2023-07-04 11:57 pcmC0D53p
+[T] AUDIO: crw-rw----  1 system audio 116,  10 2023-07-04 11:57 pcmC0D5c
+[T] AUDIO: crw-rw----  1 system audio 116,   9 2023-07-04 11:57 pcmC0D5p
+[T] AUDIO: crw-rw----  1 system audio 116,  12 2023-07-04 11:57 pcmC0D6c
+[T] AUDIO: crw-rw----  1 system audio 116,  11 2023-07-04 11:57 pcmC0D6p
+[T] AUDIO: crw-rw----  1 system audio 116,  13 2023-07-04 11:57 pcmC0D7p
+[T] AUDIO: crw-rw----  1 system audio 116,  14 2023-07-04 11:57 pcmC0D8c
+[T] AUDIO: crw-rw----  1 system audio 116,  15 2023-07-04 11:57 pcmC0D9c
+[T] AUDIO: crw-rw----  1 system audio 116,  33 2023-07-04 11:57 timer
+[T] === ROOTFS CONTENT AUDIT END ===
+[T] === PRE-CHROOT VERIFICATION START ===
+[T] MEMORY: Available 3467600kB
+[T] INIT: /usr/bin/init verified executable
+[T] ERROR: config.xml still not accessible in chroot
+[T] === PRE-CHROOT VERIFICATION END ===
+[T] === CHROOT HANDOFF ===
+[T] Environment variables being passed to chroot:
+[T] DEVICE_CODENAME=pocket2plus
+[T] PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/system/bin:/vendor/bin
+[T] Executing chroot to /root with /usr/bin/init
+[T] === END OF INIT SCRIPT (pre-chroot) ===
+[T] ERROR: chroot returned unexpectedly with exit code 0

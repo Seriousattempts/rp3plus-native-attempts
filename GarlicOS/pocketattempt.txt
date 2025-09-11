@@ -1,0 +1,56 @@
+
+
+Remade recovery to use existing binderfs and ueventd.rc from stock kernel
+
+The chroot init shows this: 
+"#!/bin/sh
+# Start the gamepad provider
+gamepad &
+# Start the audio provider
+audio &
+# Start the display provider
+display &
+# Be crash resistant
+while true
+do
+	if [ -f /tmp/command ]
+	then
+		# Move the command (so we don't risk getting deadlocked by crashing processes)
+		mv /tmp/command /tmp/current_command
+		# Execute the command
+		/bin/sh /tmp/current_command
+	else
+		# Start GarlicUI
+		garlicui
+	fi
+done"
+
+gamepad, audio and display are configured by deviceinfo under device-resources that you'd usually find in vendor_boot_a (if using android 12 GKI i think, or within another vendor specific area)
+
+Do all the following requirements:
+Boot device, turn on developer mode by tapping build # 7 times in about console
+USB Debugging
+
+Use platform tools cmd via windows or linux:
+adb devices
+adb reboot fastboot
+fastboot flash boot testboot.img
+fastboot reboot
+
+Device will boot back to "normal"
+
+Connect your device for file transfer
+Change the init script within the boot folder, then within cmd type
+adb reboot recovery
+
+When unsatified with the results, restart the 3plus, file transfer and use a different init.
+
+If you want stock recovery, magisk or twrp, in cmd:
+adb devices
+adb reboot bootloader
+fastboot flash boot_a yourbootimghere.img
+fastboot reboot
+
+I got it to get to garlic once and now I cannot anymore. I wasn't recording, nor did I take a picture assuming I can get back to it again.
+
+But the fact that I cannot repeat it is sort of telling.
