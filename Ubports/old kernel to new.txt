@@ -1,0 +1,207 @@
+Samsung stock kernel:
+
+Linux version 4.14.199-23118819-abX200XXU1AUKG (dpi@21DJF823) (Android (6443078 based on r383902) clang version 11.0.1 (https://android.googlesource.com/toolchain/llvm-project b397f81060ce6d701042b782172ed13bee898b79), LLD 11.0.1 (/buildbot/tmp/tmp6_m7QH b397f81060ce6d701042b782172ed13bee898b79)) #2 SMP PREEMPT Wed Nov 24 23:42:05 KST 2021
+
+Non samsung kernel:
+
+sudo apt update
+sudo apt install libyaml-0-2 libyaml-dev pkg-config
+sudo apt install gcc-aarch64-linux-gnu libyaml-dev
+git clone https://gitlab.com/ubports/porting/community-ports/android11/samsung-galaxy-tab-a8/kernel-samsung-ums512.git
+# Change to the repository directory
+cd kernel-samsung-ums512
+git checkout halium-11.0
+git branch
+export ARCH=arm64
+export CROSS_COMPILE=aarch64-linux-gnu-
+make clean
+make mrproper
+cp /path/to/.config /ums512_kernel/boot/kernel-samsung-ums512
+# replace arch\arm64\boot\dts\sprd\ums512-1h10-overlay with extracted .dts, renamed to it
+
+# Modify Makefile yaml issue
+nano scripts/dtc/Makefile
+
+# Find this section:
+ifeq ($(wildcard /usr/include/yaml.h),)
+HOST_EXTRACFLAGS += -DNO_YAML
+else
+dtc-objs	+= yamltree.o
+HOSTLDLIBS_dtc	:= -lyaml
+endif
+
+# Change the first line to:
+ifeq (1,1)
+HOST_EXTRACFLAGS += -DNO_YAML
+else
+dtc-objs	+= yamltree.o
+HOSTLDLIBS_dtc	:= -lyaml
+endif
+ln -s drivers/devfreq/sprd/sprd_dfs_trace.h ./sprd_dfs_trace.h
+
+sed -i '1i\
+#define DOMAIN_NAME_LEN_NAP 256\
+#define PROCESS_NAME_LEN_NAP 256\
+static inline int check_ncm_flag(void) { return 0; }' net/core/sock.c
+
+
+
+scripts/config --disable CONFIG_SPRD_7SRESET
+scripts/config --disable CONFIG_SPRD_WATCHDOG_SYS
+scripts/config --disable CONFIG_SEC_CMD
+scripts/config --disable CONFIG_SEC_DEBUG
+scripts/config --disable CONFIG_SEC_FACTORY
+scripts/config --disable CONFIG_SAMSUNG_DEBUG
+scripts/config --disable CONFIG_INPUT_BOOSTER
+scripts/config --disable CONFIG_INPUT_BOOSTER_UNISOC
+scripts/config --disable CONFIG_SPRD_PTM
+scripts/config --disable CONFIG_SPRD_PERFORMANCE  
+scripts/config --disable CONFIG_SPRD_DEBUG
+scripts/config --disable CONFIG_SPRD_7SRESET
+scripts/config --disable CONFIG_SPRD_WATCHDOG_SYS
+scripts/config --disable CONFIG_KNOX
+scripts/config --disable CONFIG_SECURITY_KNOX
+scripts/config --disable CONFIG_KNOX_KAP
+scripts/config --disable CONFIG_TOUCHSCREEN_HIMAX_CHIPSET
+scripts/config --disable CONFIG_TOUCHSCREEN_NOVA
+scripts/config --disable CONFIG_TOUCHSCREEN_FTS
+scripts/config --disable CONFIG_INPUT_BOOSTER_UNISOC
+scripts/config --disable CONFIG_SENSORS_HX9031
+scripts/config --disable CONFIG_SAR_SENSOR
+scripts/config --disable CONFIG_TYPEC_TCPM
+scripts/config --disable CONFIG_USB_ROLE_SWITCH
+scripts/config --disable CONFIG_NETFILTER
+scripts/config --disable CONFIG_NETFILTER_ADVANCED
+scripts/config --disable CONFIG_NETFILTER_NETLINK
+scripts/config --disable CONFIG_DRM_SPRD
+scripts/config --disable CONFIG_DRM_PANEL
+scripts/config --disable CONFIG_FB_SPRD
+scripts/config --disable CONFIG_INPUT_BOOSTER
+scripts/config --disable CONFIG_SEC_CMD
+scripts/config --disable CONFIG_SAMSUNG_DEBUG
+scripts/config --disable CONFIG_NETFILTER
+scripts/config --disable CONFIG_NETFILTER_ADVANCED
+scripts/config --disable CONFIG_NETFILTER_XTABLES
+scripts/config --disable CONFIG_SECURITY_KNOX
+scripts/config --disable CONFIG_KNOX
+scripts/config --disable CONFIG_SEC_DEBUG
+scripts/config --disable CONFIG_SEC_FACTORY
+scripts/config --disable CONFIG_SPRD_PTM
+scripts/config --disable CONFIG_SPRD_DEBUG
+scripts/config --disable CONFIG_SPRD_7SRESET
+scripts/config --disable CONFIG_NETFILTER
+scripts/config --disable CONFIG_NF_CONNTRACK
+scripts/config --disable CONFIG_NF_CONNTRACK_IPV4
+scripts/config --disable CONFIG_NF_CONNTRACK_IPV6
+scripts/config --disable CONFIG_NF_NAT
+scripts/config --disable CONFIG_NF_NAT_IPV4
+scripts/config --disable CONFIG_NF_TABLES
+scripts/config --disable CONFIG_NETFILTER_XTABLES
+scripts/config --disable CONFIG_SECURITY_NETWORK
+scripts/config --disable CONFIG_SECURITY_NETWORK_XFRM
+scripts/config --disable CONFIG_CGROUP_NET_CLASSID
+scripts/config --disable CONFIG_CGROUP_NET_PRIO
+scripts/config --disable CONFIG_USB_NET_CDC_NCM
+scripts/config --disable CONFIG_USB_NET_CDC_MBIM
+scripts/config --disable CONFIG_SENSORS_FINGERPRINT
+scripts/config --disable CONFIG_SAMSUNG_PRODUCT_SHIP
+scripts/config --disable CONFIG_SEC_BOOTSTAT
+scripts/config --disable CONFIG_SEC_INITCALL_DEBUG
+scripts/config --disable CONFIG_SEC_DEBUG_USER
+scripts/config --disable CONFIG_SEC_DEBUG_AUTO_COMMENT
+scripts/config --disable CONFIG_SEC_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_LAST_KMSG
+scripts/config --disable CONFIG_SEC_AVC_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_IRQ_EXIT_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_SCHED_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_TIMER_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_SEMAPHORE_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_USER
+scripts/config --disable CONFIG_SEC_DEBUG_DCVS_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_LOW_LOG
+scripts/config --disable CONFIG_SEC_DEBUG_AUXILIARY_LOG
+# Fix the sed commands by using different delimiters
+sed -i 's|himax_resume_by_ddi.*|// &|' drivers/gpu/drm/sprd/sprd_panel.c
+sed -i 's|nvt_resume_for_earlier.*|// &|' drivers/gpu/drm/sprd/sprd_panel.c
+sed -i 's|sc27xx_get_dr_swap_flag.*|// &|' drivers/usb/musb/musb_sprd.c
+sed -i 's|sdcard_hx9031_notify.*|// &|' drivers/mmc/core/slot-gpio.c
+sed -i 's|scene_dfs_request.*|// &|' drivers/input/input_booster_unisoc.c
+sed -i 's|change_scene_freq.*|// &|' drivers/input/input_booster_unisoc.c
+sed -i 's|scene_exit.*|// &|' drivers/input/input_booster_unisoc.c
+sed -i 's|sec_device_create.*|// &|' drivers/input/sec_cmd.c
+sed -i 's|check_ncm_flag.*|// &|' net/core/sock.c
+sed -i 's|knox_collect_conntrack_data.*|// &|' net/netfilter/nf_conntrack_core.c
+sed -i 's|check_intermediate_flag.*|// &|' net/netfilter/nf_conntrack_core.c
+sed -i 's|get_intermediate_timeout.*|// &|' net/netfilter/nf_conntrack_core.c
+sed -i 's|check_ncm_flag.*|// &|' net/ipv4/udp.c
+sed -i 's|check_intermediate_flag.*|// &|' net/ipv4/udp.c
+sed -i 's|get_intermediate_timeout.*|// &|' net/ipv4/udp.c
+sed -i 's|knox_collect_conntrack_data.*|// &|' net/ipv4/udp.c
+sed -i 's/.*sprd_panel.o/# &/' drivers/gpu/drm/sprd/Makefile
+sed -i 's/.*musb_sprd.o/# &/' drivers/usb/musb/Makefile  
+sed -i 's/.*sec_cmd.o/# &/' drivers/input/Makefile
+sed -i 's/.*input_booster_unisoc.o/# &/' drivers/input/Makefile
+sed -i 's/.*sprd_dsi.o/# &/' drivers/gpu/drm/sprd/Makefile
+sed -i 's/.*sprd_panel.o/# &/' drivers/gpu/drm/sprd/Makefile
+sed -i 's/.*sysfs_panel.o/# &/' drivers/gpu/drm/sprd/sysfs/Makefile
+sed -i 's/.*global_dp.o/# &/' drivers/gpu/drm/sprd/qogirn6pro/Makefile
+sed -i 's/.*input_booster.o/# &/' drivers/input/Makefile
+sed -i 's/.*input_booster_unisoc.o/# &/' drivers/input/Makefile
+sed -i 's/.*sec_cmd.o/# &/' drivers/input/Makefile
+sed -i 's/return ARRAY_SIZE(cdc_ncm_gstrings_stats);/return 0;/' drivers/net/usb/cdc_ncm.c
+sed -i 's/for (i = 0; i < ARRAY_SIZE(cdc_ncm_gstrings_stats); i++)/for (i = 0; i < 0; i++)/' drivers/net/usb/cdc_ncm.c
+sed -i 's|obj-.*cdc_ncm.*|# &|' drivers/net/usb/Makefile
+sed -i 's|.*CONFIG_USB_NET_CDC_NCM.*|# &|' drivers/net/usb/Kconfig
+export KCFLAGS="-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=format-security -Wno-visibility"
+make -j$(nproc) \
+    ARCH=arm64 \
+    LLVM=1 \
+    LLVM_IAS=1 \
+    CC=clang \
+    CROSS_COMPILE=aarch64-linux-gnu- \
+    KCFLAGS="$KCFLAGS" \
+    Image.gz
+
+
+Note I do not have everything that I've done, but the point is to remove any to all samsung specific flags
+When turning off samsung specific flags, you have to do things like:
+
+# Back up the current header file
+cp drivers/gpu/drm/sprd/sprd_panel.h ~/kernel_backup/
+# Replace the header file with similar 4.14.199 version to match the source file
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sprd_panel.h" -O drivers/gpu/drm/sprd/sprd_panel.h
+# GPU DRM Panel Driver
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sprd_panel.c" -O drivers/gpu/drm/sprd/sprd_panel.c
+# USB MUSB Driver
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/usb/musb/musb_sprd.c" -O drivers/usb/musb/musb_sprd.c
+# USB Type-C Driver (as you showed)
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/usb/typec/tcpm/tcpm.c" -O drivers/usb/typec/tcpm/tcpm.c
+# Back up and replace the panel header
+cp drivers/gpu/drm/sprd/sprd_panel.h ~/kernel_backup/
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sprd_panel.h" -O drivers/gpu/drm/sprd/sprd_panel.h
+# Back up the current header file
+cp drivers/gpu/drm/sprd/sprd_panel.h ~/kernel_backup/
+# Replace the header file with iscle's version to match the source file
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sprd_panel.h" -O drivers/gpu/drm/sprd/sprd_panel.h
+# Back up Samsung's DSI driver
+cp drivers/gpu/drm/sprd/sprd_dsi.c ~/kernel_backup/
+# Replace with iscle's version
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sprd_dsi.c" -O drivers/gpu/drm/sprd/sprd_dsi.c
+# Back up Samsung's sysfs file
+cp drivers/gpu/drm/sprd/sysfs/sysfs_panel.c ~/kernel_backup/
+# Try to replace with iscle's version
+wget "https://raw.githubusercontent.com/iscle/android_kernel_unisoc_ums512/W20.13.3/drivers/gpu/drm/sprd/sysfs/sysfs_panel.c" -O drivers/gpu/drm/sprd/sysfs/sysfs_panel.c
+# Edit the Makefile to remove input booster compilation
+sed -i 's/obj.*input_booster.*/#&/' drivers/input/Makefile
+# Check what was commented out
+grep "input_booster" drivers/input/Makefile
+ralt@PCHP:~/ums512_kernel/boot/kernel-samsung-ums512$ grep "SEC_INPUT_BOOSTER" drivers/input/Makefile
+#obj-$(CONFIG_SEC_INPUT_BOOSTER)        += input_booster.o
+obj-$(CONFIG_SEC_INPUT_BOOSTER) += evdev_booster.o
+#obj-$(CONFIG_SEC_INPUT_BOOSTER)        += input_booster_unisoc.o
+# Comment out the remaining evdev_booster line
+sed -i 's/obj.*evdev_booster.*/#&/' drivers/input/Makefile
+# Verify all input booster lines are commented out
+grep "input_booster\|evdev_booster" drivers/input/Makefile
+
+# Can also use https://git.sceen.net/linux/linux-stable.git/tree/?h=v4.14.199&id=ca87c82811906f4fc5e936705564ba8176ba497f
