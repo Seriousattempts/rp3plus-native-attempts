@@ -1,0 +1,752 @@
+[22:06:18] === Recovery Environment Diagnostics Started ===
+[22:06:19] 
+[22:06:19] Checking boot partition: /dev/block/mmcblk1p1
+[22:06:19] ✓ Boot partition block device exists
+[22:06:19] Boot partition is already mounted:
+/dev/block/mmcblk1p1 on /boot type exfat (rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro)
+[22:06:19] Primary mount point: 
+[22:06:19] Mounted at  instead of /boot
+[22:06:19] ✓ Switched to boot partition logging
+[22:06:19] 
+[22:06:19] === PROCESS DIAGNOSTICS ===
+[22:06:19] 
+[22:06:19] --- All Running Processes ---
+USER            PID   PPID     VSZ    RSS WCHAN            ADDR S NAME                       
+root              1      0 8720808   8968 SyS_epoll_wait      0 S init
+root              2      0       0      0 kthreadd            0 S [kthreadd]
+root              3      2       0      0 worker_thread       0 I [kworker/0:0]
+root              4      2       0      0 worker_thread       0 I [kworker/0:0H]
+root              5      2       0      0 worker_thread       0 I [kworker/u16:0]
+root              6      2       0      0 rescuer_thread      0 I [mm_percpu_wq]
+root              7      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/0]
+root              8      2       0      0 rcu_gp_kthread      0 I [rcu_preempt]
+root              9      2       0      0 rcu_gp_kthread      0 I [rcu_sched]
+root             10      2       0      0 rcu_gp_kthread      0 I [rcu_bh]
+root             11      2       0      0 smpboot_thread_fn   0 S [migration/0]
+root             12      2       0      0 smpboot_thread_fn   0 S [cpuhp/0]
+root             13      2       0      0 smpboot_thread_fn   0 S [cpuhp/1]
+root             14      2       0      0 smpboot_thread_fn   0 S [migration/1]
+root             15      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/1]
+root             16      2       0      0 worker_thread       0 I [kworker/1:0]
+root             17      2       0      0 worker_thread       0 I [kworker/1:0H]
+root             18      2       0      0 smpboot_thread_fn   0 S [cpuhp/2]
+root             19      2       0      0 smpboot_thread_fn   0 S [migration/2]
+root             20      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/2]
+root             21      2       0      0 worker_thread       0 I [kworker/2:0]
+root             22      2       0      0 worker_thread       0 I [kworker/2:0H]
+root             23      2       0      0 smpboot_thread_fn   0 S [cpuhp/3]
+root             24      2       0      0 smpboot_thread_fn   0 S [migration/3]
+root             25      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/3]
+root             26      2       0      0 worker_thread       0 I [kworker/3:0]
+root             27      2       0      0 worker_thread       0 I [kworker/3:0H]
+root             28      2       0      0 smpboot_thread_fn   0 S [cpuhp/4]
+root             29      2       0      0 smpboot_thread_fn   0 S [migration/4]
+root             30      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/4]
+root             31      2       0      0 worker_thread       0 I [kworker/4:0]
+root             32      2       0      0 worker_thread       0 I [kworker/4:0H]
+root             33      2       0      0 smpboot_thread_fn   0 S [cpuhp/5]
+root             34      2       0      0 smpboot_thread_fn   0 S [migration/5]
+root             35      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/5]
+root             36      2       0      0 worker_thread       0 I [kworker/5:0]
+root             37      2       0      0 worker_thread       0 I [kworker/5:0H]
+root             38      2       0      0 smpboot_thread_fn   0 S [cpuhp/6]
+root             39      2       0      0 smpboot_thread_fn   0 S [migration/6]
+root             40      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/6]
+root             41      2       0      0 worker_thread       0 I [kworker/6:0]
+root             42      2       0      0 worker_thread       0 I [kworker/6:0H]
+root             43      2       0      0 smpboot_thread_fn   0 S [cpuhp/7]
+root             44      2       0      0 smpboot_thread_fn   0 S [migration/7]
+root             45      2       0      0 smpboot_thread_fn   0 S [ksoftirqd/7]
+root             46      2       0      0 worker_thread       0 I [kworker/7:0]
+root             47      2       0      0 worker_thread       0 I [kworker/7:0H]
+root             48      2       0      0 rescuer_thread      0 I [netns]
+root             49      2       0      0 rescuer_thread      0 I [suspend_sys_syn]
+root             50      2       0      0 worker_thread       0 I [kworker/6:1]
+root             51      2       0      0 oom_reaper          0 S [oom_reaper]
+root             52      2       0      0 rescuer_thread      0 I [writeback]
+root             53      2       0      0 kcompactd           0 S [kcompactd0]
+root             54      2       0      0 rescuer_thread      0 I [crypto]
+root             55      2       0      0 rescuer_thread      0 I [kblockd]
+root             56      2       0      0 worker_thread       0 I [kworker/u17:0]
+root             57      2       0      0 rescuer_thread      0 I [blk_crypto_wq]
+root             58      2       0      0 rescuer_thread      0 I [edac-poller]
+root             59      2       0      0 ion_heap_deferred_free 0 S [carveout_fb]
+root             60      2       0      0 ion_heap_deferred_free 0 S [carveout_vdsp]
+root             61      2       0      0 ion_heap_deferred_free 0 S [carveout_fd]
+root             62      2       0      0 ion_heap_deferred_free 0 S [carveout_mm]
+root             63      2       0      0 mbox_send_thread    0 D [mbox-send-threa]
+root             64      2       0      0 rescuer_thread      0 I [devfreq_wq]
+root             65      2       0      0 rescuer_thread      0 I [cfg80211]
+root             66      2       0      0 rescuer_thread      0 I [watchdogd]
+root             67      2       0      0 worker_thread       0 I [kworker/u16:1]
+root             68      2       0      0 worker_thread       0 I [kworker/0:1]
+root            105      2       0      0 kauditd_thread      0 S [kauditd]
+root            106      2       0      0 kswapd              0 S [kswapd0]
+root            145      2       0      0 smsg_recv           0 S [sbuf-6-4]
+root            146      2       0      0 smsg_recv           0 S [sbuf-6-5]
+root            147      2       0      0 smsg_recv           0 S [sbuf-6-6]
+root            148      2       0      0 smsg_recv           0 S [sbuf-5-4]
+root            149      2       0      0 smsg_recv           0 S [sbuf-5-21]
+root            150      2       0      0 smsg_recv           0 S [sbuf-5-6]
+root            151      2       0      0 smsg_recv           0 S [sbuf-6-7]
+root            152      2       0      0 smsg_recv           0 S [sblock-5-5]
+root            153      2       0      0 smsg_recv           0 S [sbuf-5-41]
+root            154      2       0      0 kthread_worker_fn   0 S [gsp-core[0]]
+root            155      2       0      0 irq_thread          0 S [irq/44-VSP]
+root            156      2       0      0 smsg_recv           0 S [agdsp_access]
+root            157      2       0      0 kthread_worker_fn   0 S [spi0]
+root            158      2       0      0 kthread_worker_fn   0 S [spi4]
+root            159      2       0      0 irq_thread          0 S [irq/66-spi4.0]
+root            160      2       0      0 rescuer_thread      0 I [cst3xx_wq]
+root            161      2       0      0 irq_thread          0 S [irq/30-70300000]
+root            162      2       0      0 irq_thread          0 S [irq/31-70400000]
+root            163      2       0      0 irq_thread          0 S [irq/32-70500000]
+root            164      2       0      0 irq_thread          0 S [irq/33-70600000]
+root            165      2       0      0 irq_thread          0 S [irq/34-70700000]
+root            166      2       0      0 rescuer_thread      0 I [dm_bufio_cache]
+root            167      2       0      0 kthread_worker_fn   0 S [sugov:0]
+root            168      2       0      0 sugov_performance_fn 0 S [sugov_perf:0]
+root            169      2       0      0 kthread_worker_fn   0 S [sugov:6]
+root            170      2       0      0 sugov_performance_fn 0 S [sugov_perf:6]
+root            171      2       0      0 sprd_corechange_task 0 S [sprdhotplug]
+root            172      2       0      0 irq_thread          0 S [irq/71-71100000]
+root            173      2       0      0 worker_thread       0 I [kworker/6:2]
+root            174      2       0      0 worker_thread       0 I [kworker/6:3]
+root            175      2       0      0 ion_heap_deferred_free 0 S [system]
+root            176      2       0      0 smsg_recv           0 S [dfs-6-22]
+root            177      2       0      0 irq_thread          0 S [irq/72-extcon-g]
+root            178      2       0      0 rescuer_thread      0 I [sensorhub_daemo]
+root            179      2       0      0 shub_read_thread    0 S [shub_rd]
+root            180      2       0      0 shub_read_thread_nwu 0 S [shub_rd_nwu]
+root            181      2       0      0 worker_thread       0 I [kworker/1:1]
+root            182      2       0      0 worker_thread       0 I [kworker/2:1]
+root            183      2       0      0 worker_thread       0 I [kworker/3:1]
+root            184      2       0      0 worker_thread       0 I [kworker/4:1]
+root            185      2       0      0 worker_thread       0 I [kworker/5:1]
+root            186      2       0      0 worker_thread       0 I [kworker/7:1]
+root            187      2       0      0 rescuer_thread      0 I [ipv6_addrconf]
+root            188      2       0      0 smsg_recv           0 S [sblock-5-2]
+root            189      2       0      0 imsbr_kthread       0 S [imsbr-data[5-2]]
+root            190      2       0      0 smsg_recv           0 S [sblock-5-3]
+root            191      2       0      0 imsbr_kthread       0 S [imsbr-ctrl[5-3]]
+root            194      2       0      0 smsg_recv           0 S [sipx-5-7]
+root            195      2       0      0 worker_thread       0 I [kworker/6:4]
+root            196      2       0      0 smsg_recv           0 S [sipx-5-8]
+root            197      2       0      0 smsg_recv           0 S [sipx-5-9]
+root            198      2       0      0 smsg_recv           0 S [sipx-5-18]
+root            199      2       0      0 smsg_recv           0 S [sipx-5-19]
+root            200      2       0      0 smsg_recv           0 S [sipx-5-20]
+root            201      2       0      0 smsg_recv           0 S [sipx-5-24]
+root            202      2       0      0 smsg_recv           0 S [sipx-5-25]
+root            203      2       0      0 smsg_recv           0 S [sipx-5-26]
+root            204      2       0      0 smsg_recv           0 S [sipx-5-27]
+root            205      2       0      0 smsg_recv           0 S [sipx-5-28]
+root            206      2       0      0 smsg_recv           0 S [sipx-5-29]
+root            207      2       0      0 smsg_recv           0 S [sipx-5-30]
+root            208      2       0      0 smsg_recv           0 S [sipx-5-31]
+root            209      2       0      0 mmc_cmd_queue_thread 0 S [mmc_cq/0]
+root            210      2       0      0 mmc_queue_thread    0 S [mmcqd/0]
+root            211      2       0      0 mmc_queue_thread    0 S [mmcqd/0boot0]
+root            212      2       0      0 mmc_queue_thread    0 S [mmcqd/0boot1]
+root            215      2       0      0 mmc_queue_thread    0 S [mmcqd/1]
+root            216      2       0      0 sdiohal_tx_down     0 D [sdiohal_tx_thre]
+root            217      2       0      0 sdiohal_rx_down     0 D [sdiohal_rx_thre]
+root            218      2       0      0 pub_int_handle_thread 0 D [pub_int_handle_]
+root            219      2       0      0 rescuer_thread      0 I [WCN_LOOPCHECK_Q]
+root            220      2       0      0 rescuer_thread      0 I [hdmi_eint]
+root            221      2       0      0 rescuer_thread      0 I [speaker_control]
+root            222      2       0      0 rescuer_thread      0 I [charger_manager]
+root            223      2       0      0 worker_thread       0 I [kworker/u16:2]
+root            224      2       0      0 worker_thread       0 I [kworker/u16:3]
+root            225      2       0      0 rescuer_thread      0 I [compr drain]
+root            226      2       0      0 rescuer_thread      0 I [headset_mic]
+root            227      2       0      0 rescuer_thread      0 I [headset_button]
+root            228      2       0      0 rescuer_thread      0 I [headset_detect_]
+root            229      2       0      0 rescuer_thread      0 I [headset_ldetl]
+root            230      2       0      0 rescuer_thread      0 I [headset_reg_dum]
+root            232      1 8678216   6120 do_sys_poll         0 S init
+root            233      1 8678772   7272 do_sys_poll         0 S ueventd
+root            243      2       0      0 rescuer_thread      0 I [f_mtp]
+root            244      2       0      0 rescuer_thread      0 I [VserTestWq]
+root            245      1 8674876   2836 SyS_epoll_wait      0 S charger
+root            272      2       0      0 worker_thread       0 I [kworker/7:1H]
+root            273      2       0      0 worker_thread       0 I [kworker/6:1H]
+root            295      2       0      0 worker_thread       0 I [kworker/7:2]
+root            301      2       0      0 worker_thread       0 I [kworker/7:3]
+root            304      2       0      0 worker_thread       0 I [kworker/2:1H]
+root            782      2       0      0 worker_thread       0 I [kworker/0:1H]
+root            783      2       0      0 worker_thread       0 I [kworker/1:1H]
+root           1334      2       0      0 worker_thread       0 I [kworker/3:1H]
+root           2089      2       0      0 worker_thread       0 I [kworker/1:2]
+root           3548      1 8671976   2216 SyS_rt_sigsuspend   0 S sh
+root           3609   3548 8675320   2784 0                   0 R ps
+root           3610   3548 8675320   2648 pipe_read           0 S tee
+[22:06:19] 
+[22:06:19] --- Process Tree ---
+[22:06:19] pstree not available
+[22:06:20] 
+[22:06:20] --- Detailed Process List (PID, PPID, CMD) ---
+   PID   PPID USER         ARGS                       
+     1      0 root         init second_stage
+     2      0 root         [kthreadd]
+     3      2 root         [kworker/0:0]
+     4      2 root         [kworker/0:0H]
+     5      2 root         [kworker/u16:0]
+     6      2 root         [mm_percpu_wq]
+     7      2 root         [ksoftirqd/0]
+     8      2 root         [rcu_preempt]
+     9      2 root         [rcu_sched]
+    10      2 root         [rcu_bh]
+    11      2 root         [migration/0]
+    12      2 root         [cpuhp/0]
+    13      2 root         [cpuhp/1]
+    14      2 root         [migration/1]
+    15      2 root         [ksoftirqd/1]
+    16      2 root         [kworker/1:0]
+    17      2 root         [kworker/1:0H]
+    18      2 root         [cpuhp/2]
+    19      2 root         [migration/2]
+    20      2 root         [ksoftirqd/2]
+    21      2 root         [kworker/2:0]
+    22      2 root         [kworker/2:0H]
+    23      2 root         [cpuhp/3]
+    24      2 root         [migration/3]
+    25      2 root         [ksoftirqd/3]
+    26      2 root         [kworker/3:0]
+    27      2 root         [kworker/3:0H]
+    28      2 root         [cpuhp/4]
+    29      2 root         [migration/4]
+    30      2 root         [ksoftirqd/4]
+    31      2 root         [kworker/4:0]
+    32      2 root         [kworker/4:0H]
+    33      2 root         [cpuhp/5]
+    34      2 root         [migration/5]
+    35      2 root         [ksoftirqd/5]
+    36      2 root         [kworker/5:0]
+    37      2 root         [kworker/5:0H]
+    38      2 root         [cpuhp/6]
+    39      2 root         [migration/6]
+    40      2 root         [ksoftirqd/6]
+    41      2 root         [kworker/6:0]
+    42      2 root         [kworker/6:0H]
+    43      2 root         [cpuhp/7]
+    44      2 root         [migration/7]
+    45      2 root         [ksoftirqd/7]
+    46      2 root         [kworker/7:0]
+    47      2 root         [kworker/7:0H]
+    48      2 root         [netns]
+    49      2 root         [suspend_sys_syn]
+    50      2 root         [kworker/6:1]
+    51      2 root         [oom_reaper]
+    52      2 root         [writeback]
+    53      2 root         [kcompactd0]
+    54      2 root         [crypto]
+    55      2 root         [kblockd]
+    56      2 root         [kworker/u17:0]
+    57      2 root         [blk_crypto_wq]
+    58      2 root         [edac-poller]
+    59      2 root         [carveout_fb]
+    60      2 root         [carveout_vdsp]
+    61      2 root         [carveout_fd]
+    62      2 root         [carveout_mm]
+    63      2 root         [mbox-send-threa]
+    64      2 root         [devfreq_wq]
+    65      2 root         [cfg80211]
+    66      2 root         [watchdogd]
+    67      2 root         [kworker/u16:1]
+    68      2 root         [kworker/0:1]
+   105      2 root         [kauditd]
+   106      2 root         [kswapd0]
+   145      2 root         [sbuf-6-4]
+   146      2 root         [sbuf-6-5]
+   147      2 root         [sbuf-6-6]
+   148      2 root         [sbuf-5-4]
+   149      2 root         [sbuf-5-21]
+   150      2 root         [sbuf-5-6]
+   151      2 root         [sbuf-6-7]
+   152      2 root         [sblock-5-5]
+   153      2 root         [sbuf-5-41]
+   154      2 root         [gsp-core[0]]
+   155      2 root         [irq/44-VSP]
+   156      2 root         [agdsp_access]
+   157      2 root         [spi0]
+   158      2 root         [spi4]
+   159      2 root         [irq/66-spi4.0]
+   160      2 root         [cst3xx_wq]
+   161      2 root         [irq/30-70300000]
+   162      2 root         [irq/31-70400000]
+   163      2 root         [irq/32-70500000]
+   164      2 root         [irq/33-70600000]
+   165      2 root         [irq/34-70700000]
+   166      2 root         [dm_bufio_cache]
+   167      2 root         [sugov:0]
+   168      2 root         [sugov_perf:0]
+   169      2 root         [sugov:6]
+   170      2 root         [sugov_perf:6]
+   171      2 root         [sprdhotplug]
+   172      2 root         [irq/71-71100000]
+   173      2 root         [kworker/6:2]
+   174      2 root         [kworker/6:3]
+   175      2 root         [system]
+   176      2 root         [dfs-6-22]
+   177      2 root         [irq/72-extcon-g]
+   178      2 root         [sensorhub_daemo]
+   179      2 root         [shub_rd]
+   180      2 root         [shub_rd_nwu]
+   181      2 root         [kworker/1:1]
+   182      2 root         [kworker/2:1]
+   183      2 root         [kworker/3:1]
+   184      2 root         [kworker/4:1]
+   185      2 root         [kworker/5:1]
+   186      2 root         [kworker/7:1]
+   187      2 root         [ipv6_addrconf]
+   188      2 root         [sblock-5-2]
+   189      2 root         [imsbr-data[5-2]]
+   190      2 root         [sblock-5-3]
+   191      2 root         [imsbr-ctrl[5-3]]
+   194      2 root         [sipx-5-7]
+   195      2 root         [kworker/6:4]
+   196      2 root         [sipx-5-8]
+   197      2 root         [sipx-5-9]
+   198      2 root         [sipx-5-18]
+   199      2 root         [sipx-5-19]
+   200      2 root         [sipx-5-20]
+   201      2 root         [sipx-5-24]
+   202      2 root         [sipx-5-25]
+   203      2 root         [sipx-5-26]
+   204      2 root         [sipx-5-27]
+   205      2 root         [sipx-5-28]
+   206      2 root         [sipx-5-29]
+   207      2 root         [sipx-5-30]
+   208      2 root         [sipx-5-31]
+   209      2 root         [mmc_cq/0]
+   210      2 root         [mmcqd/0]
+   211      2 root         [mmcqd/0boot0]
+   212      2 root         [mmcqd/0boot1]
+   215      2 root         [mmcqd/1]
+   216      2 root         [sdiohal_tx_thre]
+   217      2 root         [sdiohal_rx_thre]
+   218      2 root         [pub_int_handle_]
+   219      2 root         [WCN_LOOPCHECK_Q]
+   220      2 root         [hdmi_eint]
+   221      2 root         [speaker_control]
+   222      2 root         [charger_manager]
+   223      2 root         [kworker/u16:2]
+   224      2 root         [kworker/u16:3]
+   225      2 root         [compr drain]
+   226      2 root         [headset_mic]
+   227      2 root         [headset_button]
+   228      2 root         [headset_detect_]
+   229      2 root         [headset_ldetl]
+   230      2 root         [headset_reg_dum]
+   232      1 root         init subcontext u:r:vendor_init:s0 15
+   233      1 root         ueventd
+   243      2 root         [f_mtp]
+   244      2 root         [VserTestWq]
+   245      1 root         charger
+   272      2 root         [kworker/7:1H]
+   273      2 root         [kworker/6:1H]
+   295      2 root         [kworker/7:2]
+   301      2 root         [kworker/7:3]
+   304      2 root         [kworker/2:1H]
+   782      2 root         [kworker/0:1H]
+   783      2 root         [kworker/1:1H]
+  1334      2 root         [kworker/3:1H]
+  2089      2 root         [kworker/1:2]
+  3548      1 root         sh /system/bin/recovery
+  3631   3548 root         ps -eo pid,ppid,user,args
+  3632   3548 root         tee -a /boot/recovery_diagnostics.log
+[22:06:20] 
+[22:06:20] === INIT SYSTEM ANALYSIS ===
+[22:06:20] 
+[22:06:20] --- Init Process (PID 1) ---
+   PID   PPID USER         ARGS                       
+     1      0 root         init second_stage
+[22:06:20] Init executable: /system/bin/init
+[22:06:20] Init cmdline: /system/bin/init second_stage
+[22:06:20] 
+[22:06:20] --- Init Children ---
+[22:06:20] 
+[22:06:20] === ANDROID SERVICES ===
+[22:06:20] 
+[22:06:20] --- Service List (getprop init.svc.*) ---
+[init.svc.charger]: [running]
+[init.svc.recovery]: [running]
+[init.svc.ueventd]: [running]
+[init.svc_debug_pid.charger]: [245]
+[init.svc_debug_pid.recovery]: [3548]
+[init.svc_debug_pid.ueventd]: [233]
+[22:06:21] 
+[22:06:21] --- Running Android Services ---
+[22:06:21] service command not available
+[22:06:21] 
+[22:06:21] === RECOVERY SPECIFIC PROCESSES ===
+[22:06:21] 
+[22:06:21] --- Recovery Binary ---
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+-rwxr-xr-x 1 root root 7085 1970-01-01 00:00 /system/bin/recovery
+[22:06:21] Recovery binary exists
+[22:06:21] --- Recovery Processes ---
+[22:06:21] 
+[22:06:21] --- TWRP/Custom Recovery Check ---
+[22:06:21] ✓ Custom recovery binary detected
+[22:06:21] 
+[22:06:21] === MOUNT INFORMATION ===
+[22:06:21] 
+[22:06:21] --- All Mounts ---
+rootfs on / type rootfs (rw,seclabel)
+tmpfs on /dev type tmpfs (rw,seclabel,nosuid,relatime,mode=755)
+devpts on /dev/pts type devpts (rw,seclabel,relatime,mode=600,ptmxmode=000)
+proc on /proc type proc (rw,relatime,gid=3009,hidepid=2)
+sysfs on /sys type sysfs (rw,seclabel,relatime)
+selinuxfs on /sys/fs/selinux type selinuxfs (rw,relatime)
+tmpfs on /mnt type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+tmpfs on /apex type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755)
+tmpfs on /linkerconfig type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755)
+tmpfs on /mnt/installer type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+tmpfs on /mnt/androidwritable type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+none on /acct type cgroup (rw,relatime,cpuacct)
+tmpfs on /tmp type tmpfs (rw,seclabel,relatime)
+none on /config type configfs (rw,relatime)
+adb on /dev/usb-ffs/adb type functionfs (rw,relatime)
+fastboot on /dev/usb-ffs/fastboot type functionfs (rw,relatime)
+/dev/block/mmcblk1p1 on /boot type exfat (rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro)
+[22:06:22] 
+[22:06:22] --- /proc/mounts ---
+rootfs / rootfs rw,seclabel 0 0
+tmpfs /dev tmpfs rw,seclabel,nosuid,relatime,mode=755 0 0
+devpts /dev/pts devpts rw,seclabel,relatime,mode=600,ptmxmode=000 0 0
+proc /proc proc rw,relatime,gid=3009,hidepid=2 0 0
+sysfs /sys sysfs rw,seclabel,relatime 0 0
+selinuxfs /sys/fs/selinux selinuxfs rw,relatime 0 0
+tmpfs /mnt tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+tmpfs /apex tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755 0 0
+tmpfs /linkerconfig tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755 0 0
+tmpfs /mnt/installer tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+tmpfs /mnt/androidwritable tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+none /acct cgroup rw,relatime,cpuacct 0 0
+tmpfs /tmp tmpfs rw,seclabel,relatime 0 0
+none /config configfs rw,relatime 0 0
+adb /dev/usb-ffs/adb functionfs rw,relatime 0 0
+fastboot /dev/usb-ffs/fastboot functionfs rw,relatime 0 0
+/dev/block/mmcblk1p1 /boot exfat rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro 0 0
+[22:06:22] 
+[22:06:22] --- Block Devices ---
+total 0
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwxr-xr-x  4 root   root       2380 2025-10-04 22:05 .
+drwxr-xr-x 12 root   root       3260 2025-10-04 22:05 ..
+drwxr-xr-x  2 root   root       1620 2025-10-04 22:05 by-name
+brw-------  1 root   root     7,   0 2025-10-04 22:05 loop0
+brw-------  1 root   root     7,   1 2025-10-04 22:05 loop1
+brw-------  1 root   root     7,  10 2025-10-04 22:05 loop10
+brw-------  1 root   root     7,  11 2025-10-04 22:05 loop11
+brw-------  1 root   root     7,  12 2025-10-04 22:05 loop12
+brw-------  1 root   root     7,  13 2025-10-04 22:05 loop13
+brw-------  1 root   root     7,  14 2025-10-04 22:05 loop14
+brw-------  1 root   root     7,  15 2025-10-04 22:05 loop15
+brw-------  1 root   root     7,   2 2025-10-04 22:05 loop2
+brw-------  1 root   root     7,   3 2025-10-04 22:05 loop3
+brw-------  1 root   root     7,   4 2025-10-04 22:05 loop4
+brw-------  1 root   root     7,   5 2025-10-04 22:05 loop5
+brw-------  1 root   root     7,   6 2025-10-04 22:05 loop6
+brw-------  1 root   root     7,   7 2025-10-04 22:05 loop7
+brw-------  1 root   root     7,   8 2025-10-04 22:05 loop8
+brw-------  1 root   root     7,   9 2025-10-04 22:05 loop9
+brw-------  1 root   root   179,   0 2025-10-04 22:05 mmcblk0
+brw-------  1 root   root   179,   8 2025-10-04 22:05 mmcblk0boot0
+brw-------  1 root   root   179,  16 2025-10-04 22:05 mmcblk0boot1
+brw-------  1 root   root   179,   1 2025-10-04 22:05 mmcblk0p1
+brw-------  1 root   root   259,   3 2025-10-04 22:05 mmcblk0p10
+brw-------  1 root   root   259,   4 2025-10-04 22:05 mmcblk0p11
+brw-------  1 root   root   259,   5 2025-10-04 22:05 mmcblk0p12
+brw-------  1 root   root   259,   6 2025-10-04 22:05 mmcblk0p13
+brw-------  1 root   root   259,   7 2025-10-04 22:05 mmcblk0p14
+brw-------  1 root   root   259,   8 2025-10-04 22:05 mmcblk0p15
+brw-------  1 root   root   259,   9 2025-10-04 22:05 mmcblk0p16
+brw-------  1 root   root   259,  10 2025-10-04 22:05 mmcblk0p17
+brw-------  1 root   root   259,  11 2025-10-04 22:05 mmcblk0p18
+brw-------  1 root   root   259,  12 2025-10-04 22:05 mmcblk0p19
+brw-rw----  1 system system 179,   2 2025-10-04 22:05 mmcblk0p2
+brw-------  1 root   root   259,  13 2025-10-04 22:05 mmcblk0p20
+brw-------  1 root   root   259,  14 2025-10-04 22:05 mmcblk0p21
+brw-------  1 root   root   259,  15 2025-10-04 22:05 mmcblk0p22
+brw-rw----  1 system system 259,  16 2025-10-04 22:05 mmcblk0p23
+brw-------  1 root   root   259,  17 2025-10-04 22:05 mmcblk0p24
+brw-------  1 root   root   259,  18 2025-10-04 22:05 mmcblk0p25
+brw-------  1 root   root   259,  19 2025-10-04 22:05 mmcblk0p26
+brw-------  1 root   root   259,  20 2025-10-04 22:05 mmcblk0p27
+brw-------  1 root   root   259,  21 2025-10-04 22:05 mmcblk0p28
+brw-------  1 root   root   259,  22 2025-10-04 22:05 mmcblk0p29
+brw-------  1 root   root   179,   3 2025-10-04 22:05 mmcblk0p3
+brw-------  1 root   root   259,  23 2025-10-04 22:05 mmcblk0p30
+brw-------  1 root   root   259,  24 2025-10-04 22:05 mmcblk0p31
+brw-------  1 root   root   259,  25 2025-10-04 22:05 mmcblk0p32
+brw-------  1 root   root   259,  26 2025-10-04 22:05 mmcblk0p33
+brw-------  1 root   root   259,  27 2025-10-04 22:05 mmcblk0p34
+brw-------  1 root   root   259,  28 2025-10-04 22:05 mmcblk0p35
+brw-------  1 root   root   259,  29 2025-10-04 22:05 mmcblk0p36
+brw-------  1 root   root   259,  30 2025-10-04 22:05 mmcblk0p37
+brw-------  1 root   root   259,  31 2025-10-04 22:05 mmcblk0p38
+brw-------  1 root   root   259,  32 2025-10-04 22:05 mmcblk0p39
+brw-------  1 root   root   179,   4 2025-10-04 22:05 mmcblk0p4
+brw-------  1 root   root   259,  33 2025-10-04 22:05 mmcblk0p40
+brw-------  1 root   root   259,  34 2025-10-04 22:05 mmcblk0p41
+brw-------  1 root   root   259,  35 2025-10-04 22:05 mmcblk0p42
+brw-------  1 root   root   259,  36 2025-10-04 22:05 mmcblk0p43
+brw-------  1 root   root   259,  37 2025-10-04 22:05 mmcblk0p44
+brw-------  1 root   root   259,  38 2025-10-04 22:05 mmcblk0p45
+brw-------  1 root   root   259,  39 2025-10-04 22:05 mmcblk0p46
+brw-------  1 root   root   259,  40 2025-10-04 22:05 mmcblk0p47
+brw-------  1 root   root   259,  41 2025-10-04 22:05 mmcblk0p48
+brw-------  1 root   root   259,  42 2025-10-04 22:05 mmcblk0p49
+brw-------  1 root   root   179,   5 2025-10-04 22:05 mmcblk0p5
+brw-------  1 root   root   259,  43 2025-10-04 22:05 mmcblk0p50
+brw-------  1 root   root   259,  44 2025-10-04 22:05 mmcblk0p51
+brw-------  1 root   root   259,  45 2025-10-04 22:05 mmcblk0p52
+brw-------  1 root   root   259,  46 2025-10-04 22:05 mmcblk0p53
+brw-------  1 root   root   259,  47 2025-10-04 22:05 mmcblk0p54
+brw-------  1 root   root   259,  48 2025-10-04 22:05 mmcblk0p55
+brw-------  1 root   root   259,  49 2025-10-04 22:05 mmcblk0p56
+brw-------  1 root   root   259,  50 2025-10-04 22:05 mmcblk0p57
+brw-------  1 root   root   259,  51 2025-10-04 22:05 mmcblk0p58
+brw-rw----  1 system system 259,  52 2025-10-04 22:05 mmcblk0p59
+brw-------  1 root   root   179,   6 2025-10-04 22:05 mmcblk0p6
+brw-------  1 root   root   259,  53 2025-10-04 22:05 mmcblk0p60
+brw-------  1 root   root   259,  54 2025-10-04 22:05 mmcblk0p61
+brw-------  1 root   root   259,  55 2025-10-04 22:05 mmcblk0p62
+brw-------  1 root   root   259,  56 2025-10-04 22:05 mmcblk0p63
+brw-------  1 root   root   259,  57 2025-10-04 22:05 mmcblk0p64
+brw-------  1 root   root   259,  58 2025-10-04 22:05 mmcblk0p65
+brw-------  1 root   root   259,  59 2025-10-04 22:05 mmcblk0p66
+brw-------  1 root   root   259,  60 2025-10-04 22:05 mmcblk0p67
+brw-------  1 root   root   259,  61 2025-10-04 22:05 mmcblk0p68
+brw-------  1 root   root   259,  62 2025-10-04 22:05 mmcblk0p69
+brw-------  1 root   root   179,   7 2025-10-04 22:05 mmcblk0p7
+brw-------  1 root   root   259,  63 2025-10-04 22:05 mmcblk0p70
+brw-------  1 root   root   259,  64 2025-10-04 22:05 mmcblk0p71
+brw-------  1 root   root   259,  65 2025-10-04 22:05 mmcblk0p72
+brw-------  1 root   root   259,  66 2025-10-04 22:05 mmcblk0p73
+brw-------  1 root   root   259,  67 2025-10-04 22:05 mmcblk0p74
+brw-------  1 root   root   259,  68 2025-10-04 22:05 mmcblk0p75
+brw-------  1 root   root   259,  69 2025-10-04 22:05 mmcblk0p76
+brw-------  1 root   root   259,   1 2025-10-04 22:05 mmcblk0p8
+brw-------  1 root   root   259,   2 2025-10-04 22:05 mmcblk0p9
+brw-------  1 root   root   179,  24 2025-10-04 22:05 mmcblk1
+brw-------  1 root   root   179,  25 2025-10-04 22:05 mmcblk1p1
+drwxr-xr-x  4 root   root         80 2025-10-04 22:05 platform
+brw-------  1 root   root   259,   0 2025-10-04 22:05 pmem0
+brw-------  1 root   root     1,   0 2025-10-04 22:05 ram0
+brw-------  1 root   root     1,   1 2025-10-04 22:05 ram1
+brw-------  1 root   root     1,  10 2025-10-04 22:05 ram10
+brw-------  1 root   root     1,  11 2025-10-04 22:05 ram11
+brw-------  1 root   root     1,  12 2025-10-04 22:05 ram12
+brw-------  1 root   root     1,  13 2025-10-04 22:05 ram13
+brw-------  1 root   root     1,  14 2025-10-04 22:05 ram14
+brw-------  1 root   root     1,  15 2025-10-04 22:05 ram15
+brw-------  1 root   root     1,   2 2025-10-04 22:05 ram2
+brw-------  1 root   root     1,   3 2025-10-04 22:05 ram3
+brw-------  1 root   root     1,   4 2025-10-04 22:05 ram4
+brw-------  1 root   root     1,   5 2025-10-04 22:05 ram5
+brw-------  1 root   root     1,   6 2025-10-04 22:05 ram6
+brw-------  1 root   root     1,   7 2025-10-04 22:05 ram7
+brw-------  1 root   root     1,   8 2025-10-04 22:05 ram8
+brw-------  1 root   root     1,   9 2025-10-04 22:05 ram9
+brw-------  1 root   root   254,   0 2025-10-04 22:05 zram0
+[22:06:22] 
+[22:06:22] === ENVIRONMENT VARIABLES ===
+[22:06:22] 
+[22:06:22] --- Environment ---
+_=/system/bin/env
+ANDROID_DATA=/data
+SECONDARY_STORAGE=/storage/sdcard0
+ANDROID_ROOT=/system
+EXTERNAL_STORAGE=/sdcard
+PATH=/sbin:/system/bin:/vendor/bin
+ANDROID_SOCKET_recovery=16
+[22:06:22] 
+[22:06:22] --- PATH ---
+PATH: /sbin:/system/bin:/vendor/bin
+[22:06:22] 
+[22:06:22] === RUNNING DAEMONS/SERVICES ===
+[22:06:22] 
+[22:06:22] --- ueventd (RUNNING) ---
+root            233      1 8678772   7272 do_sys_poll         0 S ueventd
+[22:06:23] 
+[22:06:23] === SYSTEM PROPERTIES ===
+[22:06:23] 
+[22:06:23] --- Key System Properties ---
+[init.svc.charger]: [running]
+[init.svc.recovery]: [running]
+[init.svc.ueventd]: [running]
+[init.svc_debug_pid.charger]: [245]
+[init.svc_debug_pid.recovery]: [3548]
+[init.svc_debug_pid.ueventd]: [233]
+[persist.sys.usb.config]: [none]
+[ro.build.ab_update]: [true]
+[ro.build.characteristics]: [default]
+[ro.build.date]: [Tue Jul  4 17:05:04 HKT 2023]
+[ro.build.date.utc]: [1688461504]
+[ro.build.description]: [ums512_1h10_Natv-user 11 RP1A.201005.001 27217 release-keys]
+[ro.build.display.id]: [RP3Plus_V1.0.1.6_20230704_170701_user]
+[ro.build.fingerprint]: [UNISOC/ums512_1h10_Natv/ums512_1h10:11/RP1A.201005.001/27217:user/release-keys]
+[ro.build.flavor]: [ums512_1h10_Natv-user]
+[ro.build.host]: [mc_server]
+[ro.build.id]: [RP1A.201005.001]
+[ro.build.loadfacelib]: [false]
+[ro.build.product]: [ums512_1h10]
+[ro.build.rp3plus.ota.version]: [1.0.1.6]
+[ro.build.system_root_image]: [false]
+[ro.build.tags]: [release-keys]
+[ro.build.type]: [user]
+[ro.build.user]: [RP3Plus]
+[ro.build.version.all_codenames]: [REL]
+[ro.build.version.base_os]: []
+[ro.build.version.codename]: [REL]
+[ro.build.version.incremental]: [27217]
+[ro.build.version.min_supported_target_sdk]: [23]
+[ro.build.version.preview_sdk]: [0]
+[ro.build.version.preview_sdk_fingerprint]: [REL]
+[ro.build.version.release]: [11]
+[ro.build.version.release_or_codename]: [11]
+[ro.build.version.sdk]: [30]
+[ro.build.version.security_patch]: [2022-07-05]
+[ro.product.board]: [ums512_1h10]
+[ro.product.brand]: [UNISOC]
+[ro.product.build.date]: [Tue Jul  4 17:05:04 HKT 2023]
+[ro.product.build.date.utc]: [1688461504]
+[ro.product.build.fingerprint]: [UNISOC/ums512_1h10_Natv/ums512_1h10:11/RP1A.201005.001/27217:user/release-keys]
+[ro.product.build.id]: [RP1A.201005.001]
+[ro.product.build.tags]: [release-keys]
+[ro.product.build.type]: [user]
+[ro.product.build.version.incremental]: [27217]
+[ro.product.build.version.release]: [11]
+[ro.product.build.version.release_or_codename]: [11]
+[ro.product.build.version.sdk]: [30]
+[ro.product.cpu.abi]: [arm64-v8a]
+[ro.product.cpu.abilist]: [arm64-v8a,armeabi-v7a,armeabi]
+[ro.product.cpu.abilist32]: [armeabi-v7a,armeabi]
+[ro.product.cpu.abilist64]: [arm64-v8a]
+[ro.product.device]: [ums512_1h10]
+[ro.product.first_api_level]: [30]
+[ro.product.hardware]: [ums512_1h10]
+[ro.product.locale]: [en-US]
+[ro.product.manufacturer]: [Moorechip]
+[ro.product.model]: [Retroid Pocket 3 Plus]
+[ro.product.name]: [ums512_1h10_Natv]
+[ro.product.odm.brand]: [UNISOC]
+[ro.product.odm.device]: [ums512_1h10]
+[ro.product.odm.manufacturer]: [Moorechip]
+[ro.product.odm.model]: [Retroid Pocket 3 Plus]
+[ro.product.odm.name]: [ums512_1h10_Natv]
+[ro.product.product.brand]: [UNISOC]
+[ro.product.product.device]: [ums512_1h10]
+[ro.product.product.manufacturer]: [Moorechip]
+[ro.product.product.model]: [Retroid Pocket 3 Plus]
+[ro.product.product.name]: [ums512_1h10_Natv]
+[ro.product.system.brand]: [UNISOC]
+[ro.product.system.device]: [ums512_1h10]
+[ro.product.system.manufacturer]: [Moorechip]
+[ro.product.system.model]: [Retroid Pocket 3 Plus]
+[ro.product.system.name]: [ums512_1h10_Natv]
+[ro.product.system_ext.brand]: [UNISOC]
+[ro.product.system_ext.device]: [ums512_1h10]
+[ro.product.system_ext.manufacturer]: [Moorechip]
+[ro.product.system_ext.model]: [Retroid Pocket 3 Plus]
+[ro.product.system_ext.name]: [ums512_1h10_Natv]
+[ro.product.vendor.brand]: [UNISOC]
+[ro.product.vendor.device]: [ums512_1h10]
+[ro.product.vendor.manufacturer]: [Moorechip]
+[ro.product.vendor.model]: [Retroid Pocket 3 Plus]
+[ro.product.vendor.name]: [ums512_1h10_Natv]
+[ro.product.vndk.version]: [30]
+[sys.usb.configfs]: [1]
+[sys.usb.controller]: [musb-hdrc.0.auto]
+[22:06:23] 
+[22:06:23] === KERNEL AND SYSTEM INFO ===
+[22:06:23] 
+[22:06:23] --- Kernel Version ---
+Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64
+[22:06:23] 
+[22:06:23] --- Uptime ---
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+ 22:06:23 up 1 min,  0 users,  load average: 3.22, 0.90, 0.31
+[22:06:23] 
+[22:06:24] --- Memory Info ---
+		total        used        free      shared     buffers
+Mem:             3.4G        121M        3.2G        908K        172K
+-/+ buffers/cache:           121M        3.2G
+Swap:               0           0           0
+[22:06:24] 
+[22:06:24] === RECOVERY INIT SCRIPTS ===
+[22:06:24] 
+[22:06:24] --- Init Scripts in /system/etc/init ---
+total 0
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+drwxr-xr-x 3 root root 0 1970-01-01 00:00 .
+drwxr-xr-x 5 root root 0 2025-10-04 22:05 ..
+drwxr-xr-x 2 root root 0 1970-01-01 00:00 hw
+[22:06:24] 
+[22:06:24] --- Init RC Files ---
+[22:06:24] Found: /ueventd.ums512_2h10.rc
+[22:06:24] Found: /ueventd.ums512_20c10.rc
+[22:06:24] Found: /ueventd.ums512_1h10_go.rc
+[22:06:24] Found: /ueventd.ums512_1h10.rc
+[22:06:24] Found: /system/etc/ueventd.rc
+[22:06:24] Found: /init.recovery.ums512_2h10.rc
+[22:06:24] Found: /init.recovery.ums512_20c10.rc
+[22:06:24] Found: /init.recovery.ums512_1h10_go.rc
+[22:06:24] Found: /init.recovery.ums512_1h10.rc
+[22:06:25] Found: /init.recovery.common.rc
+[22:06:25] 
+[22:06:25] === OPEN FILE DESCRIPTORS (TOP PROCESSES) ===
+[22:06:25] 
+[22:06:25] --- Process 1 ---
+total 0
+lrwx------ 1 root root 64 2025-10-04 22:05 0 -> /dev/null
+lrwx------ 1 root root 64 2025-10-04 22:05 1 -> /dev/null
+lrwx------ 1 root root 64 2025-10-04 22:05 10 -> socket:[7673]
+lr-x------ 1 root root 64 2025-10-04 22:05 11 -> /proc/1/mounts
+lrwx------ 1 root root 64 2025-10-04 22:05 12 -> anon_inode:[eventpoll]
+lr-x------ 1 root root 64 2025-10-04 22:05 13 -> mnt:[4026531840]
+lr-x------ 1 root root 64 2025-10-04 22:05 14 -> mnt:[4026531840]
+lrwx------ 1 root root 64 2025-10-04 22:05 15 -> socket:[7690]
+lrwx------ 1 root root 64 2025-10-04 22:05 2 -> /dev/null
+l-wx------ 1 root root 64 2025-10-04 22:05 3 -> /dev/kmsg
+lrwx------ 1 root root 64 2025-10-04 22:05 4 -> socket:[7668]
+lrwx------ 1 root root 64 2025-10-04 22:05 5 -> anon_inode:[eventpoll]
+lrwx------ 1 root root 64 2025-10-04 22:05 6 -> anon_inode:[signalfd]
+lrwx------ 1 root root 64 2025-10-04 22:05 7 -> anon_inode:[eventfd]
+lrwx------ 1 root root 64 2025-10-04 22:05 8 -> socket:[7671]
+lrwx------ 1 root root 64 2025-10-04 22:05 9 -> socket:[7672]
+[22:06:25] --- Process 3548 ---
+total 0
+lrwx------ 1 root root 64 2025-10-04 22:06 1 -> /dev/null
+lr-x------ 1 root root 64 2025-10-04 22:06 10 -> /system/bin/recovery
+lrwx------ 1 root root 64 2025-10-04 22:06 11 -> /dev/null
+lrwx------ 1 root root 64 2025-10-04 22:06 16 -> socket:[52317]
+lrwx------ 1 root root 64 2025-10-04 22:06 2 -> /dev/null
+[22:06:25] 
+[22:06:25] === SELINUX STATUS ===
+[22:06:25] 
+[22:06:25] --- SELinux Enforce ---
+[22:06:25] SELinux enforce: 0
+Permissive
+[22:06:25] 
+[22:06:25] === NETWORK STATUS ===
+[22:06:25] 
+[22:06:25] --- Network Interfaces ---
+/system/bin/recovery[254]: ip: can't execute: Permission denied
+[22:06:26] 
+[22:06:26] --- Routing Table ---
+/system/bin/recovery[258]: ip: can't execute: Permission denied
+[22:06:26] 
+[22:06:26] === SUMMARY ===
+[22:06:26] 
+[22:06:26] Total processes: 170
+[22:06:26] Init process:                            
+init second_stage
+[22:06:26] Total mounts: 17
+[22:06:26] 
+[22:06:26] === Diagnostics Complete ===
+[22:06:26] Log saved to: /boot/recovery_diagnostics.log

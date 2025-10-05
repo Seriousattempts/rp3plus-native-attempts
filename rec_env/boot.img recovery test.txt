@@ -1,0 +1,293 @@
+#!/system/bin/sh
+# ---- Logging setup ----
+BOOT_LOG="/boot/recovery_diagnostics.log"
+FALLBACK_LOG="/recovery_diagnostics.log"
+
+# Start with fallback first
+LOGFILE="$FALLBACK_LOG"
+> "$LOGFILE"
+
+log() {
+    TIMESTAMP="$(date '+%H:%M:%S' 2>/dev/null || echo 'TIME')"
+    echo "[$TIMESTAMP] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Recovery Environment Diagnostics Started ==="
+log ""
+
+# ---- Try to mount boot for logging ----
+BOOT_PARTITION=/dev/block/mmcblk1p1
+log "Checking boot partition: $BOOT_PARTITION"
+
+if [ -b $BOOT_PARTITION ]; then
+    log "✓ Boot partition block device exists"
+    
+    # Check current mount status
+    if mount | grep -q "$BOOT_PARTITION"; then
+        log "Boot partition is already mounted:"
+        mount | grep "$BOOT_PARTITION" | tee -a "$LOGFILE"
+        
+        # Find where it's mounted
+        MOUNT_POINT=$(mount | grep "$BOOT_PARTITION" | head -1 | awk '{print $3}')
+        log "Primary mount point: $MOUNT_POINT"
+        
+        # If not mounted at /boot, try to use existing mount
+        if [ "$MOUNT_POINT" != "/boot" ]; then
+            log "Mounted at $MOUNT_POINT instead of /boot"
+            # Create symlink or use that location
+            if [ -d "$MOUNT_POINT" ]; then
+                BOOT_LOG="${MOUNT_POINT}/recovery_diagnostics.log"
+                log "Will use $BOOT_LOG for logging"
+            fi
+        fi
+    else
+        log "Boot partition not mounted, attempting mount..."
+        mkdir -p /boot 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION /boot 2>&1 | tee -a "$LOGFILE"; then
+            log "✓ Boot partition mounted at /boot"
+            mount -o remount,rw /boot 2>/dev/null
+        else
+            log "✗ Failed to mount boot partition"
+        fi
+    fi
+    
+    # Try to switch to boot logging if possible
+    if [ -d /boot ] && touch /boot/test.tmp 2>/dev/null; then
+        rm -f /boot/test.tmp
+        BOOT_LOG="/boot/recovery_diagnostics.log"
+        cat "$FALLBACK_LOG" > "$BOOT_LOG" 2>/dev/null
+        LOGFILE="$BOOT_LOG"
+        log "✓ Switched to boot partition logging"
+    fi
+else
+    log "✗ Boot partition block device not found"
+fi
+
+log ""
+log "=== PROCESS DIAGNOSTICS ==="
+log ""
+
+# ---- List ALL processes ----
+log "--- All Running Processes ---"
+ps -A 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Process Tree ---"
+if command -v pstree >/dev/null 2>&1; then
+    pstree -a 2>&1 | tee -a "$LOGFILE"
+else
+    log "pstree not available"
+fi
+
+log ""
+log "--- Detailed Process List (PID, PPID, CMD) ---"
+ps -eo pid,ppid,user,args 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== INIT SYSTEM ANALYSIS ==="
+log ""
+
+# ---- Check init process ----
+log "--- Init Process (PID 1) ---"
+ps -p 1 -o pid,ppid,user,args 2>&1 | tee -a "$LOGFILE"
+
+if [ -L /proc/1/exe ]; then
+    log "Init executable: $(readlink /proc/1/exe)"
+fi
+
+if [ -f /proc/1/cmdline ]; then
+    log "Init cmdline: $(cat /proc/1/cmdline | tr '\0' ' ')"
+fi
+
+log ""
+log "--- Init Children ---"
+ps -o pid,ppid,args | awk '$2 == 1' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== ANDROID SERVICES ==="
+log ""
+
+# ---- Check for Android init services ----
+log "--- Service List (getprop init.svc.*) ---"
+getprop | grep "init.svc" 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Running Android Services ---"
+if command -v service >/dev/null 2>&1; then
+    service list 2>&1 | tee -a "$LOGFILE"
+else
+    log "service command not available"
+fi
+
+log ""
+log "=== RECOVERY SPECIFIC PROCESSES ==="
+log ""
+
+# ---- Recovery-specific checks ----
+log "--- Recovery Binary ---"
+if [ -f /system/bin/recovery ]; then
+    ls -la /system/bin/recovery 2>&1 | tee -a "$LOGFILE"
+    log "Recovery binary exists"
+fi
+
+if pgrep -f recovery >/dev/null 2>&1; then
+    log "--- Recovery Processes ---"
+    ps -A | grep recovery 2>&1 | tee -a "$LOGFILE"
+fi
+
+log ""
+log "--- TWRP/Custom Recovery Check ---"
+if [ -f /twres/twrp ]; then
+    log "✓ TWRP detected"
+elif [ -f /system/bin/realrecovery ]; then
+    log "✓ Custom recovery binary detected"
+fi
+
+log ""
+log "=== MOUNT INFORMATION ==="
+log ""
+
+log "--- All Mounts ---"
+mount 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- /proc/mounts ---"
+cat /proc/mounts 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Block Devices ---"
+ls -la /dev/block/ 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== ENVIRONMENT VARIABLES ==="
+log ""
+
+log "--- Environment ---"
+env 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- PATH ---"
+echo "PATH: $PATH" | tee -a "$LOGFILE"
+
+log ""
+log "=== RUNNING DAEMONS/SERVICES ==="
+log ""
+
+# ---- Check for common daemons ----
+DAEMONS="adbd ueventd healthd vold netd surfaceflinger servicemanager zygote logd"
+
+for daemon in $DAEMONS; do
+    if pgrep -x "$daemon" >/dev/null 2>&1; then
+        log "--- $daemon (RUNNING) ---"
+        ps -A | grep -w "$daemon" 2>&1 | tee -a "$LOGFILE"
+    fi
+done
+
+log ""
+log "=== SYSTEM PROPERTIES ==="
+log ""
+
+log "--- Key System Properties ---"
+getprop | grep -E "(ro.build|ro.product|init.svc|sys.usb)" 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== KERNEL AND SYSTEM INFO ==="
+log ""
+
+log "--- Kernel Version ---"
+uname -a 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Uptime ---"
+uptime 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Memory Info ---"
+free -h 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== RECOVERY INIT SCRIPTS ==="
+log ""
+
+# ---- Check for init scripts ----
+log "--- Init Scripts in /system/etc/init ---"
+if [ -d /system/etc/init ]; then
+    ls -la /system/etc/init/ 2>&1 | tee -a "$LOGFILE"
+fi
+
+log ""
+log "--- Init RC Files ---"
+find / -maxdepth 3 -name "*.rc" -type f 2>/dev/null | while read rc; do
+    log "Found: $rc"
+done
+
+log ""
+log "=== OPEN FILE DESCRIPTORS (TOP PROCESSES) ==="
+log ""
+
+# ---- Check open files for key processes ----
+for pid in 1 $(pgrep adbd) $(pgrep recovery); do
+    if [ -d "/proc/$pid" ]; then
+        log "--- Process $pid ---"
+        ls -l /proc/$pid/fd/ 2>/dev/null | head -20 | tee -a "$LOGFILE"
+    fi
+done
+
+log ""
+log "=== SELINUX STATUS ==="
+log ""
+
+log "--- SELinux Enforce ---"
+if [ -f /sys/fs/selinux/enforce ]; then
+    log "SELinux enforce: $(cat /sys/fs/selinux/enforce)"
+else
+    log "SELinux not available"
+fi
+
+getenforce 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== NETWORK STATUS ==="
+log ""
+
+log "--- Network Interfaces ---"
+ip addr 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "--- Routing Table ---"
+ip route 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== SUMMARY ==="
+log ""
+
+TOTAL_PROCS=$(ps -A | wc -l)
+log "Total processes: $TOTAL_PROCS"
+
+log "Init process: $(ps -p 1 -o args= 2>/dev/null)"
+
+MOUNT_COUNT=$(mount | wc -l)
+log "Total mounts: $MOUNT_COUNT"
+
+log ""
+log "=== Diagnostics Complete ==="
+log "Log saved to: $LOGFILE"
+
+# Try to ensure log is synced to disk
+sync
+
+# Show where the log is
+if [ -f /boot/recovery_diagnostics.log ]; then
+    log "✓ Log saved to SD card: /boot/recovery_diagnostics.log"
+else
+    log "⚠ Log only in memory: $LOGFILE"
+    log "Attempting final copy to boot..."
+    if [ -d /boot ]; then
+        cp "$LOGFILE" /boot/recovery_diagnostics.log 2>&1 | tee -a "$LOGFILE"
+        sync
+    fi
+fi
+
+# Don't exec to realrecovery - let it continue to show results
+log ""
+log "Script complete. Check $LOGFILE for results."
