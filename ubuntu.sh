@@ -2,80 +2,71 @@
 
 time1="$( date +"%r" )"
 
-# Function to detect and mount ext4 SD card
-detect_and_mount_ext4_sd() {
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Checking for ext4 SD card...\n" >&2
-    
-    # Check if running as root or can use su
-    if [ "$(id -u)" -ne 0 ]; then
-        if ! command -v su &> /dev/null; then
-            printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m Root access required but 'su' command not found\n" >&2
-            return 1
-        fi
-    fi
+# Function to detect and mount F2FS SD card
+detect_and_mount_sdcard() {
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Detecting F2FS SD card...\n"
     
     # Check if mmcblk1p1 exists
     if [ ! -b "/dev/block/mmcblk1p1" ]; then
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m SD card block device /dev/block/mmcblk1p1 not found\n" >&2
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[INFO]:\e[0m \x1b[38;5;87m Available block devices:\n" >&2
-        ls -la /dev/block/mmcblk* 2>/dev/null >&2
+        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m SD card block device /dev/block/mmcblk1p1 not found\n"
         return 1
     fi
     
-    # Check filesystem type
-    FS_TYPE=$(su -c "blkid /dev/block/mmcblk1p1 | grep -oP 'TYPE=\"\K[^\"]+'" 2>/dev/null)
-    if [ "$FS_TYPE" != "ext4" ]; then
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m SD card is not ext4 format (detected: $FS_TYPE)\n" >&2
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[INFO]:\e[0m \x1b[38;5;87m Please format SD card as ext4 in TWRP\n" >&2
+    # Verify it's F2FS formatted
+    FSTYPE=$(su -c "blkid /dev/block/mmcblk1p1 | grep -o 'TYPE=\"[^\"]*\"' | cut -d'\"' -f2")
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Detected filesystem: $FSTYPE\n"
+    
+    if [ "$FSTYPE" != "f2fs" ]; then
+        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m SD card is not F2FS formatted (found: $FSTYPE)\n"
+        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[INFO]:\e[0m \x1b[38;5;87m Please format SD card as F2FS in TWRP first\n"
         return 1
     fi
-    
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Found ext4 SD card at /dev/block/mmcblk1p1\n" >&2
     
     # Create mount point
-    MOUNT_POINT="/data/local/3PLUSLINUX"
-    su -c "mkdir -p $MOUNT_POINT" 2>/dev/null
+    MOUNT_POINT="/data/local/3PLUSLINUX_SD"
+    su -c "mkdir -p $MOUNT_POINT"
     
     # Check if already mounted
-    if mount | grep -q "$MOUNT_POINT"; then
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m SD card already mounted at $MOUNT_POINT\n" >&2
-    else
-        # Mount the SD card
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Mounting ext4 SD card to $MOUNT_POINT...\n" >&2
-        su -c "mount -t ext4 /dev/block/mmcblk1p1 $MOUNT_POINT" 2>/dev/null
-        
-        if [ $? -ne 0 ]; then
-            printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m Failed to mount SD card\n" >&2
-            return 1
-        fi
+    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m SD card already mounted at $MOUNT_POINT\n"
+        return 0
+    fi
+    
+    # Mount the SD card
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Mounting F2FS SD card to $MOUNT_POINT...\n"
+    su -c "mount -t f2fs /dev/block/mmcblk1p1 $MOUNT_POINT"
+    
+    if [ $? -ne 0 ]; then
+        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m Failed to mount SD card\n"
+        return 1
     fi
     
     # Set permissions
-    su -c "chmod 755 $MOUNT_POINT" 2>/dev/null
-    su -c "chown $(id -u):$(id -g) $MOUNT_POINT" 2>/dev/null
+    su -c "chmod 777 $MOUNT_POINT"
+    su -c "chown $(whoami):$(whoami) $MOUNT_POINT"
     
-    # Test write access
-    if ! touch "$MOUNT_POINT/.test" 2>/dev/null; then
-        printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m Cannot write to mounted SD card\n" >&2
-        return 1
-    fi
-    rm -f "$MOUNT_POINT/.test"
-    
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m SD card successfully mounted and writable\n" >&2
-    echo "$MOUNT_POINT"
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m SD card successfully mounted at $MOUNT_POINT\n"
     return 0
 }
 
 install1 () {
 
-# Detect and mount ext4 SD card
-INSTALL_BASE=$(detect_and_mount_ext4_sd)
-if [ $? -ne 0 ] || [ -z "$INSTALL_BASE" ]; then
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m ext4 SD card detection/mounting failed\n"
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[INFO]:\e[0m \x1b[38;5;87m Please ensure:\n"
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[INFO]:\e[0m \x1b[38;5;87m 1. SD card is formatted as ext4\n"
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[INFO]:\e[0m \x1b[38;5;87m 2. Device has root access\n"
-    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[INFO]:\e[0m \x1b[38;5;87m 3. Magisk is installed and working\n"
+# Detect and mount F2FS SD card
+detect_and_mount_sdcard
+if [ $? -ne 0 ]; then
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m SD card detection/mount failed\n"
+    printf "\e[0m"
+    exit 1
+fi
+
+# Set installation base to SD card
+INSTALL_BASE="/data/local/3PLUSLINUX_SD/3PLUSLINUX"
+SD_MOUNT="/data/local/3PLUSLINUX_SD"
+
+# Create installation directory on SD card
+mkdir -p "$INSTALL_BASE"
+if [ $? -ne 0 ]; then
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m Failed to create directory on SD card\n"
     printf "\e[0m"
     exit 1
 fi
@@ -197,54 +188,44 @@ printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m
 rm ubuntu.tar.gz -rf
 printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Successfully cleaned up!\n"
 
+# Copy setup scripts
 cp setupubuntu.sh ubuntu-fs/root/ 2>/dev/null || printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m Could not copy setupubuntu.sh\n"
 cp change_lsb.py ubuntu-fs/root/ 2>/dev/null || printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m Could not copy change_lsb.py\n"
 
-# Create TWRP launcher script
-printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Creating TWRP launcher script...\n"
-cat > start-twrp.sh <<- 'TWRPEOF'
+# Create TWRP start script
+cat > start.sh <<- 'TWRPEOF'
 #!/system/bin/sh
-# Ubuntu in TWRP - ext4 SD Card Launcher
+# Ubuntu in TWRP Launcher for F2FS SD Card
+# Run this from TWRP: sh start.sh
 
-MOUNT_POINT="/data/local/3PLUSLINUX"
-SD_DEVICE="/dev/block/mmcblk1p1"
+MOUNT_POINT="/data/local/3PLUSLINUX_SD"
+INSTALL_PATH="${MOUNT_POINT}/3PLUSLINUX"
 
-# Check if SD device exists
-if [ ! -b "$SD_DEVICE" ]; then
-    echo "ERROR: SD card device $SD_DEVICE not found"
-    exit 1
-fi
-
-# Create mount point if doesn't exist
+echo "Mounting F2FS SD card..."
 mkdir -p "$MOUNT_POINT"
+mount -t f2fs /dev/block/mmcblk1p1 "$MOUNT_POINT"
 
-# Check if already mounted
-if ! mount | grep -q "$MOUNT_POINT"; then
-    echo "Mounting ext4 SD card..."
-    mount -t ext4 "$SD_DEVICE" "$MOUNT_POINT"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to mount SD card"
-        exit 1
-    fi
-fi
-
-# Check if Ubuntu installation exists
-if [ ! -d "$MOUNT_POINT/ubuntu-fs" ]; then
-    echo "ERROR: Ubuntu installation not found at $MOUNT_POINT/ubuntu-fs"
+if [ ! -d "$INSTALL_PATH/ubuntu-fs" ]; then
+    echo "Error: Ubuntu installation not found at $INSTALL_PATH"
     exit 1
 fi
+
+cd "$INSTALL_PATH" || exit 1
+
+# Mount necessary filesystems
+mount -t proc proc "$INSTALL_PATH/ubuntu-fs/proc" 2>/dev/null
+mount -t sysfs sys "$INSTALL_PATH/ubuntu-fs/sys" 2>/dev/null
+mount --bind /dev "$INSTALL_PATH/ubuntu-fs/dev" 2>/dev/null
 
 echo "Entering Ubuntu environment..."
-cd "$MOUNT_POINT" || exit 1
-
-# Use chroot to enter Ubuntu
-chroot "$MOUNT_POINT/ubuntu-fs" /bin/bash --login || chroot "$MOUNT_POINT/ubuntu-fs" /bin/sh
+chroot "$INSTALL_PATH/ubuntu-fs" /bin/bash --login || chroot "$INSTALL_PATH/ubuntu-fs" /bin/sh
 TWRPEOF
 
-chmod +x start-twrp.sh
+chmod +x start.sh
 
 printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Installation location: ${INSTALL_BASE}\n"
-printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m TWRP launcher: ${INSTALL_BASE}/start-twrp.sh\n"
+printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m SD card mount point: ${SD_MOUNT}\n"
+printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m TWRP launcher: ${INSTALL_BASE}/start.sh\n"
 printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m The installation has been completed! You can now launch Ubuntu with ./startubuntu.sh\n"
 printf "\e[0m"
 
