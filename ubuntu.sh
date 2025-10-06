@@ -51,6 +51,10 @@ detect_and_mount_sdcard() {
 
 install1 () {
 
+# Save the original script directory BEFORE changing directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Script directory: $SCRIPT_DIR\n"
+
 # Detect and mount F2FS SD card
 detect_and_mount_sdcard
 if [ $? -ne 0 ]; then
@@ -188,9 +192,24 @@ printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m
 rm ubuntu.tar.gz -rf
 printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Successfully cleaned up!\n"
 
-# Copy setup scripts
-cp setupubuntu.sh ubuntu-fs/root/ 2>/dev/null || printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m Could not copy setupubuntu.sh\n"
-cp change_lsb.py ubuntu-fs/root/ 2>/dev/null || printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;227m[WARNING]:\e[0m \x1b[38;5;87m Could not copy change_lsb.py\n"
+# Copy setup scripts from original script directory
+printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Copying setup scripts...\n"
+
+if [ -f "${SCRIPT_DIR}/setupubuntu.sh" ]; then
+    cp "${SCRIPT_DIR}/setupubuntu.sh" "$directory/root/"
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Copied setupubuntu.sh\n"
+else
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m setupubuntu.sh not found in ${SCRIPT_DIR}\n"
+    exit 1
+fi
+
+if [ -f "${SCRIPT_DIR}/change_lsb.py" ]; then
+    cp "${SCRIPT_DIR}/change_lsb.py" "$directory/root/"
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;83m[Installer thread/INFO]:\e[0m \x1b[38;5;87m Copied change_lsb.py\n"
+else
+    printf "\x1b[38;5;214m[${time1}]\e[0m \x1b[38;5;203m[ERROR]:\e[0m \x1b[38;5;87m change_lsb.py not found in ${SCRIPT_DIR}\n"
+    exit 1
+fi
 
 # Create TWRP start script
 cat > start.sh <<- 'TWRPEOF'
