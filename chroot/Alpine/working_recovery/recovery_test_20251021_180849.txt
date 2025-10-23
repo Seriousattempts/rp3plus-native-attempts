@@ -1,0 +1,1150 @@
+#!/system/bin/sh
+# Alpine Linux Complete Hardware Testing Script
+# Clean install with manual /dev/ttyBT0 and /dev/i2c-* devices
+
+# === PARTITION CONFIGURATION ===
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT=""
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT=""
+TEMP_DIR=""
+LOGFILE="/tmp/alpine_hardware_test.log"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Alpine Linux Complete Hardware Testing Script ==="
+log "Device: Retroid Pocket 3 Plus (UMS512 / Mali-G52)"
+log "Kernel: $(uname -a)"
+
+# === BOOT PARTITION MOUNT ===
+log ""
+log "=== BOOT PARTITION ==="
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/boot; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted: $SD_MOUNT"
+            break
+        fi
+    done
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot"
+        mkdir -p "$SD_MOUNT"
+        log "⚠ Using fallback: $SD_MOUNT"
+    fi
+fi
+
+mkdir -p "$SD_MOUNT/logs" 2>/dev/null
+
+if [ "$SD_MOUNT" != "/tmp/boot" ] && [ -w "$SD_MOUNT/logs" ]; then
+    NEW_LOG="${SD_MOUNT}/logs/alpine_complete_test_$(date +%Y%m%d_%H%M%S).log"
+    cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null && LOGFILE="$NEW_LOG"
+    log "✓ Log relocated: $LOGFILE"
+fi
+
+# === WAIT FOR BLOCK DEVICES ===
+log ""
+log "=== WAITING FOR BLOCK DEVICES ==="
+WAIT=0
+while [ ! -b $SUPER_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $SUPER_PARTITION ]; then
+    log "ERROR: Super partition not found"
+    exec /system/bin/realrecovery "$@"
+fi
+log "✓ Super partition found"
+
+WAIT=0
+while [ ! -b $DISTRO_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $DISTRO_PARTITION ]; then
+    log "ERROR: Distro partition not found"
+    exec /system/bin/realrecovery "$@"
+fi
+log "✓ Distro partition found"
+
+# === MOUNT DISTRO PARTITION ===
+log ""
+log "=== DISTRO PARTITION MOUNT ==="
+mkdir -p $DISTRO_MOUNT
+
+if mount $DISTRO_PARTITION $DISTRO_MOUNT 2>&1 | tee -a "$LOGFILE"; then
+    log "✓ Mounted: $DISTRO_MOUNT"
+else
+    log "ERROR: Mount failed"
+    exec /system/bin/realrecovery "$@"
+fi
+
+TEMP_DIR="$DISTRO_MOUNT/super_temp"
+mkdir -p "$TEMP_DIR" 2>/dev/null
+
+# === FIND ALPINE ROOTFS ===
+log ""
+log "=== ROOTFS DISCOVERY ==="
+DISTRO_ROOT=$(find "$DISTRO_MOUNT" -type d -name "alpine" -path "*/chroot-distro/alpine" 2>/dev/null | head -1)
+
+if [ -z "$DISTRO_ROOT" ]; then
+    log "ERROR: Alpine rootfs not found"
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Rootfs: $DISTRO_ROOT"
+
+# === MOUNT FUNCTION ===
+mount_partition() {
+    local name=$1
+    local start_sector=$2
+    local num_sectors=$3
+    local mount_point="$DISTRO_MOUNT/$name"
+    local img_file="${TEMP_DIR}/${name}.img"
+    
+    dd if=$SUPER_PARTITION of=$img_file bs=4096 skip=$((start_sector / 8)) count=$((num_sectors / 8)) 2>&1 | tee -a "$LOGFILE"
+    
+    if [ -f "$img_file" ]; then
+        local loop_dev=$(losetup -f 2>/dev/null)
+        if [ -n "$loop_dev" ]; then
+            losetup $loop_dev $img_file 2>&1 | tee -a "$LOGFILE"
+            mount -t ext4 -o rw $loop_dev $mount_point 2>&1 | tee -a "$LOGFILE"
+            return $?
+        fi
+    fi
+    return 1
+}
+
+# === MOUNT PARTITIONS ===
+log ""
+log "=== MOUNTING PARTITIONS ==="
+mkdir -p $DISTRO_MOUNT/{system,vendor,system_ext,product} 2>/dev/null
+
+mount_partition "system" 2048 2692280
+mount_partition "system_ext" 2695168 741136
+mount_partition "vendor" 3436544 3700976
+mount_partition "product" 7139328 1190008
+
+# === CHROOT SETUP ===
+log ""
+log "=== CHROOT SETUP ==="
+
+mkdir -p "$DISTRO_ROOT/etc"
+cat > "$DISTRO_ROOT/etc/ld.so.conf" << 'EOF'
+/lib
+/usr/lib
+/system_ext/lib
+/system_ext/lib64
+/system/lib
+/system/lib64
+/system/lib/hw
+/system/lib/drm
+/system/lib/bootstrap
+/system/lib64/hw
+/system/lib64/drm
+/system/lib64/bootstrap
+/system/lib64/extractors
+/vendor/lib
+/vendor/lib/egl
+/vendor/lib/hw
+/vendor/lib/mediacas
+/vendor/lib/mediadrm
+/vendor/lib/modules
+/vendor/lib/mnpidevice
+/vendor/lib/soundfx
+/vendor/lib64
+/vendor/lib64/egl
+/vendor/lib64/hw
+/vendor/lib64/mediacas
+/vendor/lib64/mediadrm
+/vendor/lib64/mnpidevice
+/vendor/lib64/soundfx
+EOF
+
+mkdir -p "$DISTRO_ROOT/dev" 2>/dev/null
+mount --bind /dev "$DISTRO_ROOT/dev" 2>/dev/null
+
+mkdir -p "$DISTRO_ROOT/dev/pts" 2>/dev/null
+mount -t devpts devpts "$DISTRO_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null
+
+mount -t proc proc "$DISTRO_ROOT/proc" 2>/dev/null
+mount -t sysfs sysfs "$DISTRO_ROOT/sys" 2>/dev/null
+
+# === BIND MOUNT PARTITIONS ===
+for partition in system system_ext vendor product; do
+    if mount | grep -q "$DISTRO_MOUNT/$partition"; then
+        mkdir -p "$DISTRO_ROOT/$partition" 2>/dev/null
+        mount --bind "$DISTRO_MOUNT/$partition" "$DISTRO_ROOT/$partition" 2>/dev/null
+    fi
+done
+
+# === MOUNT SOCKO ===
+SOCKO_MOUNT="$DISTRO_ROOT/mnt/vendor/socko"
+mkdir -p "$SOCKO_MOUNT" 2>/dev/null
+
+if [ -b "$SOCKO_PARTITION" ]; then
+    mount -t ext4 -o ro,noatime,nosuid,nodev "$SOCKO_PARTITION" "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE"
+fi
+
+mkdir -p "$DISTRO_ROOT/sdcard" 2>/dev/null
+mount --bind "$SD_MOUNT" "$DISTRO_ROOT/sdcard" 2>/dev/null
+
+cat > "$DISTRO_ROOT/etc/resolv.conf" << 'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+
+# === USER SETUP ===
+log ""
+log "=== USER SETUP ==="
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    chown -R p3plus:p3plus /home/p3plus
+" 2>&1 | tee -a "$LOGFILE"
+
+log "✓ User configured"
+
+# === CREATE DROID LIBRARY DIRECTORY ===
+log ""
+log "=== CREATING DROID LIBRARY DIRECTORY ==="
+
+mkdir -p "$DISTRO_ROOT/droid/lib64" 2>/dev/null
+
+# Copy Android graphics libraries to test directory
+if [ -f "$DISTRO_MOUNT/vendor/lib64/hw/android.hardware.graphics.mapper@4.0-impl-arm.so" ]; then
+    cp "$DISTRO_MOUNT/vendor/lib64/hw/android.hardware.graphics.mapper@4.0-impl-arm.so" "$DISTRO_ROOT/droid/lib64/" 2>/dev/null
+fi
+
+if [ -f "$DISTRO_MOUNT/vendor/lib64/hw/android.hardware.renderscript@1.0-impl.so" ]; then
+    cp "$DISTRO_MOUNT/vendor/lib64/hw/android.hardware.renderscript@1.0-impl.so" "$DISTRO_ROOT/droid/lib64/" 2>/dev/null
+fi
+
+if [ -f "$DISTRO_MOUNT/vendor/lib64/hw/gralloc.default.so" ]; then
+    cp "$DISTRO_MOUNT/vendor/lib64/hw/gralloc.default.so" "$DISTRO_ROOT/droid/lib64/" 2>/dev/null
+fi
+
+if [ -f "$DISTRO_MOUNT/vendor/lib64/egl/libGLES_mali.so" ]; then
+    cp "$DISTRO_MOUNT/vendor/lib64/egl/libGLES_mali.so" "$DISTRO_ROOT/droid/lib64/" 2>/dev/null
+fi
+
+if [ -f "$DISTRO_MOUNT/vendor/lib64/libOpenCL.so" ]; then
+    cp "$DISTRO_MOUNT/vendor/lib64/libOpenCL.so" "$DISTRO_ROOT/droid/lib64/" 2>/dev/null
+fi
+
+log "✓ Droid libraries copied"
+
+# === RUN COMPREHENSIVE HARDWARE TEST ===
+log ""
+log "=== RUNNING COMPREHENSIVE HARDWARE TEST ==="
+
+TEST_OUTPUT="/sdcard/logs/complete_test_$(date +%Y%m%d_%H%M%S).log"
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin:/vendor/bin'
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/lib64:/vendor/lib:/vendor/lib64/egl:/vendor/lib64/hw'
+    export HOME='/home/p3plus'
+    export USER='root'
+    export TERM='linux'
+    export XDG_RUNTIME_DIR=/tmp/runtime-0
+    
+    mkdir -p \$XDG_RUNTIME_DIR
+    chmod 700 \$XDG_RUNTIME_DIR
+    
+    exec > '$TEST_OUTPUT' 2>&1
+    
+    echo '======================================================================='
+    echo 'ALPINE LINUX COMPLETE HARDWARE TEST'
+    echo 'Device: Retroid Pocket 3 Plus (UMS512 / Mali-G52)'
+    echo 'Date: '\$(date)
+    echo 'Kernel: '\$(uname -a)
+    echo '======================================================================='
+    echo ''
+
+    # === LOAD MODULES ===
+    echo '=== LOADING KERNEL MODULES ==='
+    SOCKO='/mnt/vendor/socko'
+    for mod in mali_gondul.ko sprd_vdsp.ko mmdvfs.ko sprd_cpp.ko sprd_sensor.ko sprd_flash_drv.ko sprdbt_tty.ko sprd_fm.ko sprdwl_ng.ko; do
+        [ -f \"\$SOCKO/\$mod\" ] && insmod \"\$SOCKO/\$mod\" 2>&1 && echo \"✓ \$mod\" && sleep 1
+    done
+    echo ''
+    
+    pkill mdevd 2>/dev/null; sleep 1; mdevd & sleep 3; mdev -s
+    echo ''
+
+    # === WIFI TEST ===
+    echo '======================================================================='
+    echo 'TEST: WIFI'
+    echo '======================================================================='
+    echo ''
+    
+    sleep 5
+    WIFI_IF=\$(ip link show 2>/dev/null | grep -o 'wlan[0-9]*' | head -1)
+    
+    if [ -n \"\$WIFI_IF\" ]; then
+        echo \"✓ WiFi interface: \$WIFI_IF\"
+        ip link set \"\$WIFI_IF\" up
+        sleep 3
+        ip addr show \"\$WIFI_IF\"
+        echo ''
+        
+        if command -v iw >/dev/null 2>&1; then
+            echo 'Scanning networks (abbreviated)...'
+            iw dev \"\$WIFI_IF\" scan 2>&1 | grep -E 'BSS|SSID|signal' | head -40
+            echo ''
+            NETWORKS=\$(iw dev \"\$WIFI_IF\" scan 2>/dev/null | grep -c 'SSID:')
+            echo \"Networks found: \$NETWORKS\"
+        fi
+        echo ''
+        echo '✓ WIFI TEST PASSED'
+    else
+        echo '✗ No WiFi interface'
+        echo '✗ WIFI TEST FAILED'
+    fi
+    echo ''
+
+    # === ENHANCED MODEM TEST ===
+    echo '======================================================================='
+    echo 'TEST: MODEM & DIGITAL SIGNAL PROCESSOR'
+    echo '======================================================================='
+    echo ''
+    
+    echo '--- Starting D-Bus (Required for ModemManager) ---'
+    if ! pgrep -x dbus-daemon >/dev/null; then
+        mkdir -p /run/dbus
+        dbus-daemon --system --fork 2>&1
+        sleep 2
+        echo '✓ D-Bus started'
+    else
+        echo '✓ D-Bus already running'
+    fi
+    echo ''
+    
+    echo '--- Modem Kernel Devices ---'
+    ls -la /dev/tty* | grep -E 'ACM|USB|LTE|modem' || echo 'No modem TTY devices'
+    ls -la /dev/smd* 2>/dev/null || echo 'No SMD devices'
+    ls -la /dev/esoc* 2>/dev/null || echo 'No ESOC devices'
+    echo ''
+    
+    echo '--- QMI Devices (Qualcomm MSM Interface) ---'
+    ls -la /dev/cdc-wdm* /dev/qmi* 2>/dev/null || echo 'No QMI devices'
+    echo ''
+    
+    echo '--- MBIM Devices (Mobile Broadband Interface) ---'
+    ls -la /dev/cdc-wdm* /dev/mbim* 2>/dev/null || echo 'No MBIM devices'
+    echo ''
+    
+    echo '--- USB Modem Detection ---'
+    if command -v lsusb >/dev/null 2>&1; then
+        lsusb 2>&1 | grep -i -E 'modem|qualcomm|sierra|huawei|zte|mediatek'
+    else
+        ls /sys/bus/usb/devices/*/product 2>/dev/null | xargs cat | grep -i modem
+    fi
+    echo ''
+    
+    echo '--- PCI/PCIe Modem Detection ---'
+    if command -v lspci >/dev/null 2>&1; then
+        lspci 2>&1 | grep -i -E 'modem|wwan|lte|baseband'
+    else
+        ls /sys/bus/pci/devices/*/class 2>/dev/null | xargs grep -l 0x0280 | xargs dirname | xargs -I {} cat {}/uevent
+    fi
+    echo ''
+    
+    echo '--- SPRD Modem Devices (Platform-specific) ---'
+    ls -la /dev/stty* /dev/slog* /dev/spipe* 2>/dev/null || echo 'No SPRD modem devices'
+    ls -la /sys/class/sprd_* 2>/dev/null || echo 'No SPRD classes'
+    echo ''
+    
+    echo '--- Digital Signal Processor (DSP) Devices ---'
+    ls -la /dev/sprd_vdsp* /dev/dsp* /dev/adsp* 2>/dev/null || echo 'No DSP devices'
+    echo ''
+    
+    echo '--- DSP Kernel Module ---'
+    lsmod | grep -i vdsp
+    echo ''
+    
+    echo '--- DSP Sysfs Information ---'
+    if [ -d /sys/devices/platform/soc/soc:mm ]; then
+        find /sys/devices/platform/soc/soc:mm -name '*vdsp*' -o -name '*dsp*' 2>/dev/null
+        for dsp_dev in \$(find /sys/devices/platform/soc/soc:mm -name '*vdsp*' 2>/dev/null); do
+            echo \"DSP Device: \$dsp_dev\"
+            ls -la \"\$dsp_dev\"/ 2>/dev/null | head -10
+            echo ''
+        done
+    fi
+    
+    echo '--- ModemManager Status ---'
+    if command -v mmcli >/dev/null 2>&1; then
+        echo 'Starting ModemManager (background)...'
+        ModemManager --debug &
+        MM_PID=\$!
+        echo \"ModemManager PID: \$MM_PID\"
+        sleep 5
+        
+        echo ''
+        echo 'Listing modems:'
+        mmcli -L 2>&1
+        echo ''
+        
+        MODEM=\$(mmcli -L 2>/dev/null | grep -o '/Modem/[0-9]*' | head -1)
+        if [ -n \"\$MODEM\" ]; then
+            echo \"✓ Found modem: \$MODEM\"
+            echo ''
+            mmcli -m \$MODEM 2>&1
+            echo ''
+            echo 'Modem capabilities:'
+            mmcli -m \$MODEM --list-bearers 2>&1
+        else
+            echo '✗ No modems detected by ModemManager'
+        fi
+        
+        kill \$MM_PID 2>/dev/null
+        sleep 1
+    else
+        echo 'ModemManager not installed'
+    fi
+    echo ''
+    
+    echo '--- QMI Device Info (if available) ---'
+    if command -v qmicli >/dev/null 2>&1; then
+        for wdm in /dev/cdc-wdm*; do
+            if [ -c \"\$wdm\" ]; then
+                echo \"Testing \$wdm:\"
+                timeout 5 qmicli -d \"\$wdm\" --dms-get-manufacturer 2>&1
+                timeout 5 qmicli -d \"\$wdm\" --dms-get-model 2>&1
+                timeout 5 qmicli -d \"\$wdm\" --dms-get-revision 2>&1
+                echo ''
+            fi
+        done
+    else
+        echo 'qmicli not installed'
+    fi
+    echo ''
+    
+    echo '--- MBIM Device Info (if available) ---'
+    if command -v mbimcli >/dev/null 2>&1; then
+        for wdm in /dev/cdc-wdm*; do
+            if [ -c \"\$wdm\" ]; then
+                echo \"Testing \$wdm:\"
+                timeout 5 mbimcli -d \"\$wdm\" --query-device-caps 2>&1
+                echo ''
+            fi
+        done
+    else
+        echo 'mbimcli not installed'
+    fi
+    echo ''
+    
+    echo '--- NetworkManager WWAN Status ---'
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli device status 2>&1
+        echo ''
+        nmcli connection show 2>&1 | grep -i 'gsm\|wwan\|mobile'
+    else
+        echo 'NetworkManager not installed'
+    fi
+    echo ''
+    
+    echo '--- Modem Kernel Messages ---'
+    dmesg | grep -i -E 'modem|qmi|mbim|wwan|lte|gsm|umts|rild|ril' | tail -40
+    echo ''
+    
+    echo '--- Modem Test Summary ---'
+    echo \"QMI devices: \$(ls /dev/cdc-wdm* 2>/dev/null | wc -l)\"
+    echo \"SPRD modem devices: \$(ls /dev/stty* /dev/slog* 2>/dev/null | wc -l)\"
+    echo \"DSP devices: \$(ls /dev/*dsp* 2>/dev/null | wc -l)\"
+    echo \"DSP module loaded: \$(lsmod | grep -c vdsp)\"
+    echo ''
+    
+    echo '✓ MODEM TEST COMPLETED'
+    echo ''
+
+    # === CAMERA TEST (SYSFS ONLY - NO I2C BUS SCANNING) ===
+    echo '======================================================================='
+    echo 'TEST: CAMERA SUBSYSTEM (SYSFS DETECTION)'
+    echo '======================================================================='
+    echo ''
+    
+    echo '--- Camera Kernel Modules ---'
+    lsmod | grep -E 'sprd.*sensor|sprd.*cpp|sprd.*flash'
+    echo ''
+    
+    echo '--- Camera Device Nodes ---'
+    ls -la /dev/sprd* 2>/dev/null || echo 'No SPRD devices'
+    echo ''
+    
+    echo '--- I2C Device Nodes (0-5) ---'
+    for i in 0 1 2 3 4 5; do
+        if [ -c /dev/i2c-\$i ]; then
+            echo \"✓ /dev/i2c-\$i exists\"
+            ls -la /dev/i2c-\$i
+        else
+            echo \"✗ Missing: /dev/i2c-\$i\"
+        fi
+    done
+    echo ''
+    
+    echo '--- Camera I2C Devices (Sysfs Detection) ---'
+    echo 'Detected camera devices on I2C buses:'
+    for cam_dev in 0-0020 0-0021 1-002a 1-006c; do
+        if [ -d /sys/bus/i2c/devices/\$cam_dev ]; then
+            echo ''
+            echo \"✓ Device: \$cam_dev\"
+            echo \"  Name:      \$(cat /sys/bus/i2c/devices/\$cam_dev/name 2>/dev/null || echo 'N/A')\"
+            echo \"  Modalias:  \$(cat /sys/bus/i2c/devices/\$cam_dev/modalias 2>/dev/null || echo 'N/A')\"
+            
+            # Check if driver is bound
+            if [ -e /sys/bus/i2c/devices/\$cam_dev/driver ]; then
+                DRIVER=\$(ls -l /sys/bus/i2c/devices/\$cam_dev/driver 2>/dev/null | awk '{print \$NF}' | xargs basename)
+                echo \"  Driver:    \$DRIVER\"
+            else
+                echo \"  Driver:    NOT BOUND\"
+            fi
+            
+            # List device attributes
+            echo \"  Attributes:\"
+            ls /sys/bus/i2c/devices/\$cam_dev/ 2>/dev/null | grep -v 'power\|subsystem\|of_node\|driver\|uevent' | head -10 | sed 's/^/    /'
+        else
+            echo \"✗ Device \$cam_dev not detected\"
+        fi
+    done
+    echo ''
+    
+    echo '--- Camera Sensor Identification ---'
+    echo 'Main Camera @0x20 (i2c-0):'
+    if [ -d /sys/bus/i2c/devices/0-0020 ]; then
+        cat /sys/bus/i2c/devices/0-0020/name 2>/dev/null || echo '  Name not available'
+        cat /sys/bus/i2c/devices/0-0020/modalias 2>/dev/null || echo '  Modalias not available'
+    else
+        echo '  NOT DETECTED'
+    fi
+    echo ''
+    
+    echo 'Deputy Camera @0x21 (i2c-0):'
+    if [ -d /sys/bus/i2c/devices/0-0021 ]; then
+        cat /sys/bus/i2c/devices/0-0021/name 2>/dev/null || echo '  Name not available'
+        cat /sys/bus/i2c/devices/0-0021/modalias 2>/dev/null || echo '  Modalias not available'
+    else
+        echo '  NOT DETECTED'
+    fi
+    echo ''
+    
+    echo 'Main2 Camera @0x2A (i2c-1):'
+    if [ -d /sys/bus/i2c/devices/1-002a ]; then
+        cat /sys/bus/i2c/devices/1-002a/name 2>/dev/null || echo '  Name not available'
+        cat /sys/bus/i2c/devices/1-002a/modalias 2>/dev/null || echo '  Modalias not available'
+    else
+        echo '  NOT DETECTED'
+    fi
+    echo ''
+    
+    echo 'Sub Camera @0x6C (i2c-1):'
+    if [ -d /sys/bus/i2c/devices/1-006c ]; then
+        cat /sys/bus/i2c/devices/1-006c/name 2>/dev/null || echo '  Name not available'
+        cat /sys/bus/i2c/devices/1-006c/modalias 2>/dev/null || echo '  Modalias not available'
+    else
+        echo '  NOT DETECTED'
+    fi
+    echo ''
+    
+    echo '--- Voltage Regulators (Camera Power) ---'
+    echo 'Camera-related regulators:'
+    for reg in 4 7 8 11 12; do
+        if [ -d /sys/class/regulator/regulator.\$reg ]; then
+            NAME=\$(cat /sys/class/regulator/regulator.\$reg/name 2>/dev/null)
+            STATE=\$(cat /sys/class/regulator/regulator.\$reg/state 2>/dev/null)
+            USERS=\$(cat /sys/class/regulator/regulator.\$reg/num_users 2>/dev/null)
+            VOLT=\$(cat /sys/class/regulator/regulator.\$reg/microvolts 2>/dev/null)
+            echo \"  regulator.\$reg (\$NAME):\"
+            echo \"    State: \$STATE\"
+            echo \"    Users: \$USERS\"
+            [ -n \"\$VOLT\" ] && echo \"    Voltage: \$((VOLT / 1000)) mV\"
+        fi
+    done
+    echo ''
+    
+    echo '--- V4L2 Video Devices ---'
+    if [ -d /sys/class/video4linux ]; then
+        echo 'V4L2 devices found:'
+        for v4l_dev in /sys/class/video4linux/video*; do
+            if [ -d \"\$v4l_dev\" ]; then
+                DEV_NAME=\$(basename \"\$v4l_dev\")
+                V4L_NAME=\$(cat \"\$v4l_dev/name\" 2>/dev/null || echo 'N/A')
+                echo \"  \$DEV_NAME: \$V4L_NAME\"
+            fi
+        done
+    else
+        echo 'No V4L2 devices detected'
+    fi
+    echo ''
+    
+    if command -v v4l2-ctl >/dev/null 2>&1; then
+        echo 'V4L2 device enumeration:'
+        v4l2-ctl --list-devices 2>&1 || echo 'No V4L2 devices'
+        echo ''
+        
+        # List formats for each video device
+        for vid in /dev/video*; do
+            if [ -c \"\$vid\" ]; then
+                echo \"Formats for \$vid:\"
+                v4l2-ctl -d \"\$vid\" --list-formats-ext 2>&1 | head -20
+                echo ''
+            fi
+        done
+    fi
+    
+    echo '--- Media Controller Devices ---'
+    if [ -d /sys/class/media ]; then
+        for media_dev in /sys/class/media/media*; do
+            if [ -d \"\$media_dev\" ]; then
+                echo \"Device: \$(basename \$media_dev)\"
+                cat \"\$media_dev/model\" 2>/dev/null || echo '  Model: N/A'
+            fi
+        done
+    else
+        echo 'No media controller devices'
+    fi
+    echo ''
+    
+    echo '--- Camera Kernel Messages ---'
+    dmesg | grep -i -E 'sprd.*sensor|camera|dcam|isp|0-0020|1-006c|sensor.*sub|sensor.*main' | tail -40
+    echo ''
+    
+    echo '--- Camera Test Summary ---'
+    echo \"Kernel modules loaded: \$(lsmod | grep -c sprd_sensor)\"
+    echo \"I2C camera devices (sysfs): \$(ls -d /sys/bus/i2c/devices/{0-0020,0-0021,1-002a,1-006c} 2>/dev/null | wc -l)/4\"
+    echo \"Camera regulators enabled: \$(cat /sys/class/regulator/regulator.{4,7,8,11,12}/state 2>/dev/null | grep -c enabled)/5\"
+    echo \"V4L2 devices: \$(ls /dev/video* 2>/dev/null | wc -l)\"
+    echo \"Media devices: \$(ls /dev/media* 2>/dev/null | wc -l)\"
+    
+    echo ''
+    echo '✓ CAMERA TEST COMPLETED (Sysfs detection only - no I2C bus probing)'
+    echo ''
+
+    # === COMPREHENSIVE GRAPHICS TEST ===
+    echo '======================================================================='
+    echo 'TEST: GRAPHICS SUBSYSTEM (COMPLETE)'
+    echo '======================================================================='
+    echo ''
+    
+    echo '--- Video Group Members ---'
+    getent group video
+    echo ''
+    
+    echo '--- All Graphics Device Nodes ---'
+    echo 'DRM devices:'
+    ls -la /dev/dri/* 2>/dev/null
+    echo ''
+    echo 'Mali devices:'
+    ls -la /dev/mali* 2>/dev/null
+    echo ''
+    echo 'FB devices:'
+    ls -la /dev/fb* /dev/graphics/* 2>/dev/null
+    echo ''
+    
+    echo '--- Mesa Libraries (Installed) ---'
+    ls -la /usr/lib/dri/ 2>/dev/null
+    ls -la /usr/lib/libEGL* /usr/lib/libGL* /usr/lib/libgbm* 2>/dev/null
+    echo ''
+    
+    echo '--- Mesa Package Versions ---'
+    apk info mesa | head -5
+    apk info mesa-dri-gallium | head -5
+    apk info mesa-vulkan-panfrost | head -5
+    echo ''
+    
+    echo '--- EGL/GLES Libraries (System) ---'
+    find /usr/lib -name '*EGL*.so*' -o -name '*GLES*.so*' 2>/dev/null | sort
+    echo ''
+    
+    echo '--- Vulkan Libraries (System) ---'
+    find /usr/lib /usr/share/vulkan -name '*vulkan*' 2>/dev/null | sort
+    echo ''
+    
+    echo '--- Android Graphics Libraries (droid/) ---'
+    ls -la /droid/lib64/*.so 2>/dev/null
+    echo ''
+    
+    echo '--- Testing All .so Files in ld.so.conf Paths ---'
+    echo 'Alpine libraries (/usr/lib):'
+    for lib in /usr/lib/libEGL.so /usr/lib/libGLESv2.so /usr/lib/libGL.so /usr/lib/libgbm.so; do
+        if [ -f \"\$lib\" ]; then
+            echo \"  Testing: \$lib\"
+            file \"\$lib\" | head -1
+            ldd \"\$lib\" 2>&1 | head -5
+            echo ''
+        fi
+    done
+    
+    echo 'Android libraries (/droid/lib64):'
+    for lib in /droid/lib64/*.so; do
+        if [ -f \"\$lib\" ]; then
+            echo \"  Testing: \$(basename \$lib)\"
+            file \"\$lib\" | head -1
+            ldd \"\$lib\" 2>&1 | head -5
+            echo ''
+        fi
+    done
+    
+    echo '--- EGL Test (No Environment Variables) ---'
+    if command -v eglinfo >/dev/null 2>&1; then
+        echo 'Running eglinfo with default settings...'
+        eglinfo 2>&1 | head -100
+    fi
+    echo ''
+    
+    echo '--- EGL Test (Environment 1: Panfrost/DRM) ---'
+    export MESA_LOADER_DRIVER_OVERRIDE=panfrost
+    export GALLIUM_DRIVER=panfrost
+    export EGL_PLATFORM=drm
+    export GBM_BACKEND=mali
+    export LIBGL_ALWAYS_SOFTWARE=0
+    
+    echo \"MESA_LOADER_DRIVER_OVERRIDE=\$MESA_LOADER_DRIVER_OVERRIDE\"
+    echo \"GALLIUM_DRIVER=\$GALLIUM_DRIVER\"
+    echo \"EGL_PLATFORM=\$EGL_PLATFORM\"
+    echo ''
+    
+    if command -v eglinfo >/dev/null 2>&1; then
+        EGL_PLATFORM=drm eglinfo 2>&1 | head -100
+    fi
+    echo ''
+    
+    echo '--- EGL Test (Environment 2: Surfaceless) ---'
+    if command -v eglinfo >/dev/null 2>&1; then
+        EGL_PLATFORM=surfaceless eglinfo 2>&1 | head -80
+    fi
+    echo ''
+    
+    echo '--- EGL Test (Environment 3: GBM) ---'
+    if command -v eglinfo >/dev/null 2>&1; then
+        EGL_PLATFORM=gbm eglinfo 2>&1 | head -80
+    fi
+    echo ''
+    
+    echo '--- Mesa GL Info ---'
+    if command -v glxinfo >/dev/null 2>&1; then
+        glxinfo 2>&1 | head -50
+    fi
+    echo ''
+    
+    echo '--- Vulkan ICD Files ---'
+    ls -la /usr/share/vulkan/icd.d/ 2>/dev/null
+    cat /usr/share/vulkan/icd.d/*.json 2>/dev/null
+    echo ''
+    
+    echo '--- Vulkan Test (Panfrost) ---'
+    if command -v vulkaninfo >/dev/null 2>&1; then
+        export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
+        echo \"Using: \$VK_ICD_FILENAMES\"
+        vulkaninfo --summary 2>&1 | head -100
+    fi
+    echo ''
+    
+    echo '--- Vulkan Test (Android Mali) ---'
+    if [ -f /droid/lib64/libGLES_mali.so ]; then
+        export LD_LIBRARY_PATH=/droid/lib64:\$LD_LIBRARY_PATH
+        export VK_ICD_FILENAMES=/tmp/mali_icd.json
+        
+        cat > /tmp/mali_icd.json << EOFVK
+{
+    \"file_format_version\": \"1.0.0\",
+    \"ICD\": {
+        \"library_path\": \"/droid/lib64/libGLES_mali.so\",
+        \"api_version\": \"1.1.182\"
+    }
+}
+EOFVK
+        
+        if command -v vulkaninfo >/dev/null 2>&1; then
+            echo \"Using: \$VK_ICD_FILENAMES\"
+            vulkaninfo --summary 2>&1 | head -100
+        fi
+    fi
+    echo ''
+    
+    echo '--- SDL2 Test ---'
+    if command -v sdl2-config >/dev/null 2>&1; then
+        sdl2-config --version
+        sdl2-config --libs
+    fi
+    echo ''
+    
+    echo '--- X11/Xorg Configuration ---'
+    ls -la /etc/X11/xorg.conf.d/ 2>/dev/null
+    ls -la /usr/lib/xorg/modules/drivers/ 2>/dev/null
+    echo ''
+    
+    echo '--- Xorg Server Test ---'
+    if command -v Xorg >/dev/null 2>&1; then
+        Xorg -version 2>&1
+        timeout 3 Xorg -configure 2>&1 | head -30
+    fi
+    echo ''
+    
+    echo '✓ GRAPHICS TEST COMPLETED'
+    echo ''
+
+    # === SENSOR TEST (NO I2C BUS SCANNING) ===
+    echo '======================================================================='
+    echo 'TEST: SENSORS (IIO + LM-SENSORS - SYSFS ONLY)'
+    echo '======================================================================='
+    echo ''
+    
+    echo '--- IIO Devices ---'
+    ls -la /dev/iio:device* 2>/dev/null
+    echo ''
+    
+    for dev in /sys/bus/iio/devices/iio:device*; do
+        if [ -d \"\$dev\" ]; then
+            NAME=\$(cat \"\$dev/name\" 2>/dev/null || echo 'unknown')
+            echo \"Device: \$NAME\"
+            echo \"  Path: \$dev\"
+            
+            # List available channels
+            echo \"  Channels:\"
+            ls \"\$dev\" | grep 'in_' | head -10 | sed 's/^/    /'
+            
+            # Try to read some basic values
+            for attr in in_accel_x_raw in_accel_y_raw in_accel_z_raw in_voltage_raw; do
+                if [ -f \"\$dev/\$attr\" ]; then
+                    VAL=\$(cat \"\$dev/\$attr\" 2>/dev/null || echo 'N/A')
+                    echo \"    \$attr: \$VAL\"
+                fi
+            done
+            echo ''
+        fi
+    done
+    
+    echo '--- IIO Sensor Proxy ---'
+    if command -v iio-sensor-proxy >/dev/null 2>&1; then
+        iio-sensor-proxy --version 2>&1
+    else
+        echo 'iio-sensor-proxy not installed'
+    fi
+    echo ''
+    
+    echo '--- LM-Sensors Detection (SKIPPED - Causes hangs on I2C buses) ---'
+    echo 'sensors-detect would scan I2C buses which causes system hangs'
+    echo 'Skipping automatic detection...'
+    echo ''
+    
+    echo '--- Sensor Readings (lm-sensors) ---'
+    if command -v sensors >/dev/null 2>&1; then
+        sensors 2>&1
+    else
+        echo 'lm-sensors not installed or no sensors configured'
+    fi
+    echo ''
+    
+    echo '--- I2C Sensor Devices (SYSFS DETECTION ONLY) ---'
+    echo 'Detecting I2C sensors via sysfs (NO bus scanning):'
+    echo ''
+    
+    for i in 0 1 2 3 4 5; do
+        echo \"I2C bus \$i devices (sysfs):\"
+        if [ -d /sys/bus/i2c/devices ]; then
+            # List devices on this bus from sysfs
+            DEVICES=\$(ls -d /sys/bus/i2c/devices/\$i-* 2>/dev/null)
+            if [ -n \"\$DEVICES\" ]; then
+                for dev in \$DEVICES; do
+                    ADDR=\$(basename \"\$dev\" | cut -d'-' -f2)
+                    NAME=\$(cat \"\$dev/name\" 2>/dev/null || echo 'Unknown')
+                    MODALIAS=\$(cat \"\$dev/modalias\" 2>/dev/null || echo 'N/A')
+                    echo \"  Address 0x\$ADDR: \$NAME (modalias: \$MODALIAS)\"
+                done
+            else
+                echo \"  No devices detected on this bus\"
+            fi
+        fi
+        echo ''
+    done
+    
+    echo '--- Hardware Monitoring Devices (hwmon) ---'
+    if [ -d /sys/class/hwmon ]; then
+        for hwmon in /sys/class/hwmon/hwmon*; do
+            if [ -d \"\$hwmon\" ]; then
+                NAME=\$(cat \"\$hwmon/name\" 2>/dev/null || echo 'Unknown')
+                echo \"Device: \$(basename \$hwmon) - \$NAME\"
+                
+                # List temperature sensors
+                for temp in \"\$hwmon\"/temp*_input; do
+                    if [ -f \"\$temp\" ]; then
+                        LABEL=\$(cat \"\${temp%_input}_label\" 2>/dev/null || echo \"Sensor \$(basename \$temp | grep -o '[0-9]*')\")
+                        TEMP_VAL=\$(cat \"\$temp\" 2>/dev/null)
+                        if [ -n \"\$TEMP_VAL\" ]; then
+                            echo \"  \$LABEL: \$((TEMP_VAL / 1000))°C\"
+                        fi
+                    fi
+                done
+                
+                # List voltage sensors
+                for volt in \"\$hwmon\"/in*_input; do
+                    if [ -f \"\$volt\" ]; then
+                        LABEL=\$(cat \"\${volt%_input}_label\" 2>/dev/null || echo \"Voltage \$(basename \$volt | grep -o '[0-9]*')\")
+                        VOLT_VAL=\$(cat \"\$volt\" 2>/dev/null)
+                        if [ -n \"\$VOLT_VAL\" ]; then
+                            echo \"  \$LABEL: \$((VOLT_VAL))mV\"
+                        fi
+                    fi
+                done
+                
+                # List fan sensors
+                for fan in \"\$hwmon\"/fan*_input; do
+                    if [ -f \"\$fan\" ]; then
+                        LABEL=\$(cat \"\${fan%_input}_label\" 2>/dev/null || echo \"Fan \$(basename \$fan | grep -o '[0-9]*')\")
+                        FAN_VAL=\$(cat \"\$fan\" 2>/dev/null)
+                        if [ -n \"\$FAN_VAL\" ]; then
+                            echo \"  \$LABEL: \${FAN_VAL}RPM\"
+                        fi
+                    fi
+                done
+                echo ''
+            fi
+        done
+    else
+        echo 'No hwmon devices found'
+    fi
+    echo ''
+    
+    echo '--- Thermal Zones (Detailed) ---'
+    for zone in /sys/class/thermal/thermal_zone*; do
+        if [ -d \"\$zone\" ]; then
+            TYPE=\$(cat \"\$zone/type\" 2>/dev/null || echo 'unknown')
+            TEMP=\$(cat \"\$zone/temp\" 2>/dev/null)
+            MODE=\$(cat \"\$zone/mode\" 2>/dev/null || echo 'N/A')
+            
+            if [ -n \"\$TEMP\" ] && [ \"\$TEMP\" != \"0\" ]; then
+                echo \"\$(basename \$zone): \$TYPE - \$((TEMP / 1000))°C (mode: \$MODE)\"
+            fi
+        fi
+    done
+    echo ''
+    
+    echo '--- Input Devices (Sensors/Accelerometer) ---'
+    if [ -d /sys/class/input ]; then
+        for input in /sys/class/input/input*; do
+            if [ -d \"\$input\" ]; then
+                NAME=\$(cat \"\$input/name\" 2>/dev/null || echo 'Unknown')
+                # Only show sensor-related inputs
+                if echo \"\$NAME\" | grep -iq 'accel\|gyro\|mag\|sensor\|compass'; then
+                    echo \"Device: \$(basename \$input) - \$NAME\"
+                    [ -f \"\$input/phys\" ] && echo \"  Physical: \$(cat \$input/phys)\"
+                fi
+            fi
+        done
+    fi
+    echo ''
+    
+    echo '--- Sensor Test Summary ---'
+    echo \"IIO devices: \$(ls /dev/iio:device* 2>/dev/null | wc -l)\"
+    echo \"I2C sensor devices (sysfs): \$(ls -d /sys/bus/i2c/devices/*-* 2>/dev/null | wc -l)\"
+    echo \"hwmon devices: \$(ls -d /sys/class/hwmon/hwmon* 2>/dev/null | wc -l)\"
+    echo \"Thermal zones: \$(ls -d /sys/class/thermal/thermal_zone* 2>/dev/null | wc -l)\"
+    echo ''
+    echo '⚠ I2C bus scanning skipped to prevent system hangs'
+    echo '✓ All sensor detection done via sysfs only'
+    echo ''
+    
+    echo '✓ SENSOR TEST COMPLETED'
+    echo ''
+
+    # === SYSTEM RESOURCES (MANUAL + CONKY) ===
+    echo '======================================================================='
+    echo 'TEST: SYSTEM RESOURCES (COMPREHENSIVE)'
+    echo '======================================================================='
+    echo ''
+    
+    echo '--- STORAGE (Chroot Only) ---'
+    df -h | grep -v '/sdcard'
+    echo ''
+    echo 'Breakdown:'
+    echo \"Alpine root: \$(df -h / | tail -1 | awk '{print \"Used:\"\$3 \" Total:\"\$2 \" Free:\"\$4 \" Usage:\"\$5}')\"
+    echo \"Vendor:      \$(df -h /vendor 2>/dev/null | tail -1 | awk '{print \"Used:\"\$3 \" Total:\"\$2 \" Free:\"\$4 \" Usage:\"\$5}')\"
+    echo \"System:      \$(df -h /system 2>/dev/null | tail -1 | awk '{print \"Used:\"\$3 \" Total:\"\$2 \" Free:\"\$4 \" Usage:\"\$5}')\"
+    echo ''
+    
+    echo '--- CPU INFO ---'
+    lscpu 2>/dev/null || cat /proc/cpuinfo | grep -E 'processor|model name|BogoMIPS' | head -20
+    echo ''
+    echo 'CPU Frequencies:'
+    for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq; do
+        if [ -f \"\$cpu\" ]; then
+            NUM=\$(echo \"\$cpu\" | grep -o 'cpu[0-9]*' | grep -o '[0-9]*')
+            FREQ=\$(cat \"\$cpu\")
+            echo \"  CPU\$NUM: \$((FREQ / 1000)) MHz\"
+        fi
+    done
+    echo ''
+    
+    echo '--- GPU INFO ---'
+    echo \"Mali GPU: \$(cat /sys/devices/platform/soc/soc:mm/60000000.gpu/gpuinfo 2>/dev/null)\"
+    echo \"Clock: \$(cat /sys/devices/platform/soc/soc:mm/60000000.gpu/clock 2>/dev/null) Hz\"
+    echo \"Utilization: \$(cat /sys/devices/platform/soc/soc:mm/60000000.gpu/utilization 2>/dev/null)%\"
+    cat /sys/devices/platform/soc/soc:mm/60000000.gpu/core_mask 2>/dev/null
+    echo ''
+    
+    echo '--- THERMAL SENSORS ---'
+    for zone in /sys/class/thermal/thermal_zone*; do
+        if [ -f \"\$zone/temp\" ]; then
+            TEMP=\$(cat \"\$zone/temp\" 2>/dev/null)
+            TYPE=\$(cat \"\$zone/type\" 2>/dev/null || echo 'unknown')
+            if [ -n \"\$TEMP\" ] && [ \"\$TEMP\" != \"0\" ]; then
+                echo \"\$TYPE: \$((TEMP / 1000))°C\"
+            fi
+        fi
+    done
+    echo ''
+    
+    echo '--- IIO SENSORS ---'
+    for dev in /sys/bus/iio/devices/iio:device*; do
+        if [ -d \"\$dev\" ]; then
+            NAME=\$(cat \"\$dev/name\" 2>/dev/null || echo 'unknown')
+            echo \"IIO Device: \$NAME\"
+        fi
+    done
+    echo ''
+    
+    echo '--- RAM USAGE ---'
+    free -h
+    echo ''
+    echo 'Breakdown:'
+    TOTAL=\$(free -h | grep Mem: | awk '{print \$2}')
+    USED=\$(free -h | grep Mem: | awk '{print \$3}')
+    FREE=\$(free -h | grep Mem: | awk '{print \$4}')
+    echo \"Total: \$TOTAL | Used: \$USED | Free: \$FREE\"
+    echo ''
+    
+    echo '--- UPTIME & LOAD ---'
+    uptime
+    echo ''
+    
+    echo '--- OS INFO ---'
+    cat /etc/os-release 2>/dev/null
+    uname -a
+    echo ''
+    
+    echo '--- CONKY TEST ---'
+    if command -v conky >/dev/null 2>&1; then
+        conky -v
+        echo ''
+        
+        cat > /tmp/conkyrc << EOFCONKY
+conky.config = {
+    out_to_console = true,
+    out_to_x = false,
+    update_interval = 1,
+    total_run_times = 3
+}
+
+conky.text = [[
+\\\${time %Y-%m-%d %H:%M:%S}
+CPU: \\\${cpu}% @ \\\${freq_g}GHz
+RAM: \\\${mem}/\\\${memmax} (\\\${memperc}%)
+Uptime: \\\${uptime}
+Load: \\\${loadavg}
+]]
+EOFCONKY
+        
+        echo 'Running conky (3 iterations)...'
+        conky -c /tmp/conkyrc 2>&1
+    else
+        echo 'Conky not installed'
+    fi
+    echo ''
+    
+    echo '✓ SYSTEM RESOURCES TEST COMPLETED'
+    echo ''
+
+    # === FINAL SUMMARY ===
+    echo '======================================================================='
+    echo 'COMPLETE HARDWARE TEST SUMMARY'
+    echo '======================================================================='
+    echo ''
+    echo 'WiFi:              '\$(ip link show | grep -q wlan0 && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'Modem:             '\$(command -v mmcli >/dev/null && echo 'TESTED ✓' || echo 'SKIP ⚠')
+    echo 'Camera Regulators: '\$([ -f /sys/class/regulator/regulator.11/state ] && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'Camera I2C:        '\$([ -d /sys/bus/i2c/devices/1-006c ] && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'Mali GPU:          '\$([ -c /dev/mali0 ] && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'DRM:               '\$([ -c /dev/dri/card0 ] && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'Mesa:              '\$(command -v eglinfo >/dev/null && echo 'INSTALLED ✓' || echo 'MISSING ✗')
+    echo 'Vulkan:            '\$(command -v vulkaninfo >/dev/null && echo 'INSTALLED ✓' || echo 'MISSING ✗')
+    echo 'X11:               '\$(command -v Xorg >/dev/null && echo 'INSTALLED ✓' || echo 'MISSING ✗')
+    echo 'IIO Sensors:       '\$(ls /dev/iio:device* >/dev/null 2>&1 && echo 'PASS ✓' || echo 'FAIL ✗')
+    echo 'Conky:             '\$(command -v conky >/dev/null && echo 'INSTALLED ✓' || echo 'MISSING ✗')
+    echo ''
+    echo '======================================================================='
+    echo 'TEST COMPLETE - Log: $TEST_OUTPUT'
+    echo '======================================================================='
+" 2>&1 | tee -a "$LOGFILE"
+
+CHROOT_RC=$?
+
+# === CHECK RESULTS ===
+RESULT_FILE="$SD_MOUNT/logs/complete_test_"*".log"
+if [ $CHROOT_RC -eq 0 ] && ls $RESULT_FILE 1>/dev/null 2>&1; then
+    ACTUAL_FILE=$(ls -t $RESULT_FILE 2>/dev/null | head -1)
+    if [ -f "$ACTUAL_FILE" ] && [ -s "$ACTUAL_FILE" ]; then
+        log "✓ Complete test SUCCESS"
+        log "✓ Results: $ACTUAL_FILE"
+        TEST_SUCCESS=1
+    else
+        log "⚠ Output file empty"
+        TEST_SUCCESS=0
+    fi
+else
+    log "⚠ Test failed (exit: $CHROOT_RC)"
+    TEST_SUCCESS=0
+fi
+
+# === CLEANUP ===
+log ""
+log "=== CLEANUP ==="
+
+umount "$SOCKO_MOUNT" 2>/dev/null
+umount "$DISTRO_ROOT/sdcard" 2>/dev/null
+umount "$DISTRO_ROOT/product" 2>/dev/null
+umount "$DISTRO_ROOT/vendor" 2>/dev/null
+umount "$DISTRO_ROOT/system_ext" 2>/dev/null
+umount "$DISTRO_ROOT/system" 2>/dev/null
+umount "$DISTRO_ROOT/sys" 2>/dev/null
+umount "$DISTRO_ROOT/proc" 2>/dev/null
+umount "$DISTRO_ROOT/dev/pts" 2>/dev/null
+umount "$DISTRO_ROOT/dev" 2>/dev/null
+
+for partition in system vendor system_ext product; do
+    umount "$DISTRO_MOUNT/$partition" 2>/dev/null
+done
+
+for i in 0 1 2 3 4 5 6 7; do
+    losetup -d /dev/loop$i 2>/dev/null
+done
+
+if [ -d "$TEMP_DIR" ]; then
+    rm -rf "$TEMP_DIR" 2>/dev/null
+fi
+
+umount $DISTRO_MOUNT 2>/dev/null
+
+log ""
+log "=== TEST SESSION COMPLETE ==="
+log "Status: $([ $TEST_SUCCESS -eq 1 ] && echo 'SUCCESS' || echo 'FAILED')"
+log "Log: $LOGFILE"
+log ""
+log "Exiting to recovery in 5 seconds..."
+sleep 5
+
+exec /system/bin/realrecovery "$@"

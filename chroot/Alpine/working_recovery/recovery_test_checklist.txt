@@ -1,0 +1,61 @@
+What the Recovery Script Tests For
+1. System Environment Discovery:
+- Boot partition mounting and accessibility
+- Logging file only to SD card
+- System uptime and initialization timing
+- Wait mechanism for partition mount completion
+
+2. Android Partition Verification:
+- Location and accessibility of /system, /vendor, /system_ext, /product
+- Dynamic partition structure validation via device-mapper
+- Library count and availability in each partition
+- Mount table verification via /proc/mounts
+
+3. Rootfs Linux Environment:
+- Rootfs discovery in distro partition
+- Version identification
+- Directory structure integrity check
+- Binary availability (We're running Alphine, so ash shell, busybox utilities)
+
+4. Binary Compatibility Analysis:
+- ELF interpreter detection for musl binaries
+- Binary execution capability outside chroot
+- Path resolution troubleshooting
+- Dynamic linker functionality verification
+
+5. Virtual Filesystem Mounting Confirmation:
+- Detect for mounted /dev, /dev/pts, /proc, /sys.
+- Bind those virtual mounts
+- Shared memory (/dev/shm) setup
+- SD card accessibility within chroot
+- DNS configuration
+
+6. Android Library Integration:
+- Bind mounting of system/vendor/system_ext/product libraries
+- File count verification and mount success validation
+- Library path accessibility from Alpine environment
+- Test for musl/bionic compatibility, android linkerconfig detection
+
+7. Hardware and System State:
+- Memory usage and availability
+- Storage capacity and partition usage
+- CPU core count, architecture, and frequencies
+- GPU lowest and highest available frequencies
+- Thermal sensor readings
+- Running process enumeration
+- Active mount points
+- System date/time/timezone
+- Network interface detection
+
+8. Alpine Chroot Execution:
+- Chroot environment preparation
+- Test script creation and execution
+- Ash shell functionality within chroot
+- Alpine tool operation (free, df, ls commands)
+- Package manager (apk) availability
+- Library accessibility verification from within chroot
+- Hardware and System State test within chroot
+
+9. Summary and fallback
+- Creates a summary of every action taken, results based on logs else statements
+- executes system/bin/realrecovery

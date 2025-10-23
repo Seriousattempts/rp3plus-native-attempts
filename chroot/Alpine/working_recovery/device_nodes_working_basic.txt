@@ -1,0 +1,411 @@
+#!/system/bin/sh
+# ---- WORKING Alpine Linux Recovery Chroot Script ----
+ALPINE_PARTITION="/dev/block/mmcblk0p77"
+ALPINE_MOUNT="/data/linuxdata"
+ALPINE_ROOT="/data/linuxdata/chroot-distro/alpine"
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+BOOT_LOG="/sdcard/alpine_boot.log"
+FALLBACK_LOG="/alpine_boot.log"
+
+# ---- Logging setup ----
+if touch "$BOOT_LOG".test 2>/dev/null; then
+    LOGFILE="$BOOT_LOG"
+    rm -f "$BOOT_LOG".test
+else
+    LOGFILE="$FALLBACK_LOG"
+fi
+> "$LOGFILE"
+log() {
+    TS="$(/system/bin/uptime 2>/dev/null | cut -d' ' -f1 2>/dev/null)"
+    [ -z "$TS" ] && TS="T"
+    echo "[$TS] $*" | tee -a "$LOGFILE" >/dev/null
+}
+log "=== Alpine Linux Recovery Boot Script (Fixed) ==="
+
+# ---- Mount partitions ----
+log "BOOT: Waiting for boot partition $BOOT_PARTITION"
+BOOT_PARTITION_WAIT_COUNTER=0
+while [ ! -b $BOOT_PARTITION ]; do
+    sleep 0.1
+    BOOT_PARTITION_WAIT_COUNTER=$((BOOT_PARTITION_WAIT_COUNTER + 1))
+    if [ $BOOT_PARTITION_WAIT_COUNTER -ge 50 ]; then
+        log "ERROR: Boot partition not detected after 5 seconds"
+        exec /system/bin/realrecovery "$@"
+    fi
+done
+
+mkdir -p $SD_MOUNT
+if mount -t exfat $BOOT_PARTITION $SD_MOUNT; then
+    log "BOOT: Boot partition mounted at $SD_MOUNT"
+    mount -o remount,rw $SD_MOUNT 2>/dev/null
+    if [ "$LOGFILE" = "$FALLBACK_LOG" ]; then
+        LOGFILE="$BOOT_LOG"
+        cat "$FALLBACK_LOG" > "$LOGFILE" 2>/dev/null
+        log "LOG: Switched to SD card logging"
+    fi
+else
+    log "ERROR: Failed to mount boot partition"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "ALPINE: Waiting for Alpine partition $ALPINE_PARTITION"
+ALPINE_PARTITION_WAIT_COUNTER=0
+while [ ! -b $ALPINE_PARTITION ]; do
+    sleep 0.1
+    ALPINE_PARTITION_WAIT_COUNTER=$((ALPINE_PARTITION_WAIT_COUNTER + 1))
+    if [ $ALPINE_PARTITION_WAIT_COUNTER -ge 50 ]; then
+        log "ERROR: Alpine partition not detected after 5 seconds"
+        umount $SD_MOUNT
+        exec /system/bin/realrecovery "$@"
+    fi
+done
+
+mkdir -p $ALPINE_MOUNT
+if mount $ALPINE_PARTITION $ALPINE_MOUNT; then
+    log "ALPINE: Alpine partition mounted at $ALPINE_MOUNT"
+else
+    log "ERROR: Failed to mount Alpine partition"
+    umount $SD_MOUNT
+    exec /system/bin/realrecovery "$@"
+fi
+
+if [ ! -d "$ALPINE_ROOT" ]; then
+    log "ERROR: Alpine Linux rootfs not found: $ALPINE_ROOT"
+    umount $ALPINE_MOUNT
+    umount $SD_MOUNT
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "ALPINE: Found Alpine Linux rootfs: $ALPINE_ROOT"
+
+# ---- System setup ----
+if [ -f /sys/fs/selinux/enforce ]; then
+    echo 0 > /sys/fs/selinux/enforce 2>/dev/null
+    log "SELINUX: Set to permissive mode"
+fi
+
+# ---- Enable adbd for debugging ----
+log "ADB: Enabling adbd for debugging"
+start adbd 2>/dev/null || true
+setprop sys.usb.config adb 2>/dev/null || true
+setprop sys.usb.state adb 2>/dev/null || true
+setprop sys.usb.ffs.ready 1 2>/dev/null || true
+log "ADB: adbd enabled"
+
+# ---- CRITICAL FIX: Create library compatibility layer ----
+log "RECOVERY: Setting up library compatibility for Alpine musl"
+
+# Create a compatibility ld.so.conf for Alpine
+mkdir -p "$ALPINE_ROOT/etc"
+cat > "$ALPINE_ROOT/etc/ld.so.conf" << EOF
+/lib
+/usr/lib
+/system/lib64
+/system/lib
+/system_ext/lib64
+/system_ext/lib
+/vendor/firmware
+/vendor/lib64
+/vendor/lib
+EOF
+
+# ---- Mount filesystems with library path fix ----
+log "MOUNT: Setting up recovery-compatible filesystem mounts"
+mount --bind /dev "$ALPINE_ROOT/dev" 2>/dev/null && log "MOUNT: /dev bind mounted"
+mkdir -p "$ALPINE_ROOT/dev/pts"
+mount -t devpts devpts "$ALPINE_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null && log "MOUNT: devpts mounted"
+mount -t proc proc "$ALPINE_ROOT/proc" 2>/dev/null && log "MOUNT: proc mounted"
+mount -t sysfs sysfs "$ALPINE_ROOT/sys" 2>/dev/null && log "MOUNT: sysfs mounted"
+
+# ---- Setup /dev/shm with ashmem support ----
+log "MOUNT: Setting up shared memory (/dev/shm)"
+mkdir -p "$ALPINE_ROOT/dev/shm"
+if [ -c /dev/ashmem ]; then
+    # Android uses ashmem instead of traditional /dev/shm
+    mount --bind /dev/ashmem "$ALPINE_ROOT/dev/shm" 2>/dev/null && log "MOUNT: /dev/shm bound to /dev/ashmem (Android shared memory)"
+else
+    # Fallback to tmpfs if ashmem is not available
+    mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs "$ALPINE_ROOT/dev/shm" 2>/dev/null && log "MOUNT: /dev/shm mounted as tmpfs (fallback)"
+fi
+
+# CRITICAL: Bind mount recovery libraries to Alpine for musl compatibility
+mkdir -p "$ALPINE_ROOT/system/lib64"
+mkdir -p "$ALPINE_ROOT/system_ext/lib64"
+mkdir -p "$ALPINE_ROOT/vendor/lib64"
+mount --bind /system/lib64 "$ALPINE_ROOT/system/lib64" 2>/dev/null && log "MOUNT: System libraries bound to Alpine"
+mount --bind /system/lib64 "$ALPINE_ROOT/system_ext/lib64" 2>/dev/null && log "MOUNT: System_ext libraries bound to Alpine"
+mount --bind /system/lib64 "$ALPINE_ROOT/vendor/lib64" 2>/dev/null && log "MOUNT: Vendor libraries bound to Alpine"
+
+# ---- Mount SD card for chroot write access ----
+log "MOUNT: Setting up SD card access for chroot"
+mkdir -p "$ALPINE_ROOT/mnt/sdcard"
+mount --bind $SD_MOUNT "$ALPINE_ROOT/mnt/sdcard" 2>/dev/null && log "MOUNT: SD card bound to /mnt/sdcard in chroot"
+
+# ---- Network setup ----
+cat > "$ALPINE_ROOT/etc/resolv.conf" << EOF
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+log "NETWORK: DNS configuration created"
+
+# ---- SOLUTION: Use foreground chroot with process management ----
+log "CHROOT: Starting Alpine with foreground compatibility mode"
+
+# Create a script that works in foreground but keeps Alpine alive
+cat > "$ALPINE_ROOT/tmp/alpine_foreground.sh" << 'EOF'
+#!/bin/ash
+
+# Alpine foreground compatibility script
+echo "=== Alpine Linux Recovery Mode Active ==="
+echo "Architecture: $(uname -m 2>/dev/null || echo 'aarch64')"
+
+# Set up proper environment for Alpine in recovery
+export PATH="/bin:/usr/bin:/sbin:/usr/sbin:/system/bin"
+export HOME="/home/p3plus"
+export USER="p3plus"
+export SHELL="/bin/ash"
+export TERM="linux"
+export LD_LIBRARY_PATH="/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/firmware:/vendor/lib64:/vendor/lib"
+
+# Change to user home
+cd /home/p3plus 2>/dev/null || cd /root 2>/dev/null || cd /
+
+if [ -f /etc/alpine-release ]; then
+    echo "Alpine version: $(cat /etc/alpine-release)"
+fi
+
+echo "--- Alpine Environment Ready ---"
+echo "Package manager:"
+if command -v apk >/dev/null 2>&1; then
+    echo "  ✓ APK available"
+    echo "  Installed packages: $(apk info 2>/dev/null | wc -l 2>/dev/null || echo 'counting failed')"
+else
+    echo "  ✗ APK not available"
+fi
+
+echo ""
+echo "Available commands:"
+echo "  apk update && apk upgrade  - Update system"
+echo "  apk add <package>         - Install packages"
+echo "  apk search <term>         - Search packages"
+echo ""
+
+# Create a process that stays alive without being backgrounded
+# This replaces the problematic background process approach
+exec /bin/ash -c '
+    echo "Alpine shell ready. To exit, type: exit"
+    echo "Note: This is a limited recovery environment"
+    echo ""
+    
+    # Instead of running in background, create a simple monitoring loop
+    # that executes in foreground but allows interaction
+    while true; do
+        # This creates a persistent environment without backgrounding
+        sleep 1
+        
+        # Check if Alpine environment is still intact
+        if [ ! -d /etc ] || [ ! -f /bin/ash ]; then
+            echo "Alpine environment corrupted, exiting"
+            exit 1
+        fi
+        
+        # Allow for graceful exit
+        if [ -f /tmp/alpine_exit ]; then
+            echo "Alpine shutdown requested"
+            rm -f /tmp/alpine_exit
+            exit 0
+        fi
+    done &
+    
+    # This keeps an interactive shell available
+    /bin/ash -l
+'
+EOF
+
+chmod +x "$ALPINE_ROOT/tmp/alpine_foreground.sh"
+
+# ---- WORKING SOLUTION: Use foreground execution with terminal redirection ----
+log "CHROOT: Starting Alpine in foreground mode"
+
+if [ -f /system/bin/busybox ]; then
+    log "CHROOT: Testing Alpine environment first"
+    
+    # Test that our library fix works
+    if /system/bin/busybox chroot "$ALPINE_ROOT" /bin/ash -c "
+        export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/firmware:/vendor/lib64:/vendor/lib'
+        echo 'Library test successful'
+        /bin/busybox --help >/dev/null 2>&1 && echo 'Busybox functional'
+        
+        # Test SD card access and file creation
+        if [ -d /mnt/sdcard ]; then
+            echo 'SD card access confirmed'
+            # Test file creation that should be visible from host
+            echo 'Testing file creation from chroot' > /mnt/sdcard/chroot_test.tmp
+            if [ -f /mnt/sdcard/chroot_test.tmp ]; then
+                echo 'File creation test successful'
+                /bin/busybox rm -f /mnt/sdcard/chroot_test.tmp
+            fi
+        fi
+    " 2>&1 | tee -a "$LOGFILE"; then
+        log "CHROOT: Alpine library and mount compatibility confirmed"
+        
+        # Now start Alpine in a way that works in recovery
+        log "CHROOT: Starting Alpine persistent environment"
+        
+        # Create a wrapper that manages the process correctly
+        (
+            while true; do
+                log "ALPINE: Starting foreground Alpine session"
+                
+                # Run Alpine in foreground with proper library paths
+                /system/bin/busybox chroot "$ALPINE_ROOT" /bin/ash -c "
+                    export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin'
+                    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/firmware:/vendor/lib64:/vendor/lib'
+                    export HOME='/home/p3plus'
+                    export USER='p3plus'
+                    export SHELL='/bin/ash'
+                    
+                    # Create user directory if needed
+                    mkdir -p /home/p3plus
+                    cd /home/p3plus 2>/dev/null || cd /root 2>/dev/null || cd /
+                    
+                    echo 'Alpine Linux Recovery Mode Started'
+                    echo 'User: '\$(whoami 2>/dev/null || echo p3plus)
+                    echo 'Working Directory: '\$(pwd)
+                    
+                    if [ -f /etc/alpine-release ]; then
+                        echo 'Alpine Version: '\$(cat /etc/alpine-release)
+                    fi
+                    
+                    # Package manager test
+                    if command -v apk >/dev/null 2>&1; then
+                        echo 'Package Manager: APK available'
+                        echo 'Installed packages: '\$(apk info 2>/dev/null | wc -l 2>/dev/null || echo unknown)
+                    fi
+                    
+                    echo ''
+                    echo 'Alpine ready for use. Recovery environment active.'
+                    echo 'SD card accessible at: /mnt/sdcard'
+                    echo 'To access via ADB: Use the helper script below'
+                    echo ''
+                    
+                    # Keep Alpine running with a simple loop that doesn't background
+                    while true; do
+                        sleep 60
+                        # Simple health check
+                        if [ ! -d /etc ]; then
+                            echo 'Alpine environment corrupted'
+                            exit 1
+                        fi
+                    done
+                " 2>&1 | while read line; do
+                    log "ALPINE: $line"
+                done
+                
+                RC=$?
+                log "ALPINE: Session ended with code $RC"
+                
+                if [ $RC -eq 0 ]; then
+                    log "ALPINE: Clean exit, stopping"
+                    break
+                else
+                    log "ALPINE: Error exit, restarting in 5 seconds"
+                    sleep 5
+                fi
+            done
+        ) &
+        
+        ALPINE_PID=$!
+        log "CHROOT: Alpine wrapper started with PID $ALPINE_PID"
+        
+        # Create an ADB access script that works
+        cat > "/tmp/enter_alpine_recovery.sh" << EOF
+#!/system/bin/sh
+echo "Entering Alpine Linux Recovery Environment..."
+export LD_LIBRARY_PATH="/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/firmware:/vendor/lib64:/vendor/lib"
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/ash -c "
+    export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin'
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/firmware:/vendor/lib64:/vendor/lib'
+    export HOME='/home/p3plus'
+    export USER='p3plus'
+    export SHELL='/bin/ash'
+    cd /home/p3plus 2>/dev/null || cd /root 2>/dev/null || cd /
+    echo 'Welcome to Alpine Linux (Recovery Mode)'
+    echo 'Limited functionality due to recovery environment'
+    echo 'Package manager: apk (if available)'
+    echo 'SD card accessible at: /mnt/sdcard'
+    echo ''
+    exec /bin/ash -l
+"
+EOF
+        chmod +x "/tmp/enter_alpine_recovery.sh"
+        log "SYSTEM: Created ADB access script at /tmp/enter_alpine_recovery.sh"
+        
+        # Monitor the wrapper process
+        sleep 10  # Give it time to start
+        
+        if kill -0 $ALPINE_PID 2>/dev/null; then
+            log "SUCCESS: Alpine Linux is running in recovery mode!"
+            log "SYSTEM: Use 'sh /tmp/enter_alpine_recovery.sh' from ADB to access"
+            
+            # Monitor the process
+            while kill -0 $ALPINE_PID 2>/dev/null; do
+                sleep 120
+                log "SYSTEM: Alpine recovery environment active (PID: $ALPINE_PID)"
+            done
+            
+            wait $ALPINE_PID 2>/dev/null
+            RC=$?
+            log "ALPINE: Wrapper process exited with code $RC"
+        else
+            log "ERROR: Alpine wrapper failed to start"
+            RC=1
+        fi
+        
+    else
+        log "ERROR: Alpine library compatibility test failed"
+        RC=1
+    fi
+else
+    log "ERROR: Recovery busybox not available"
+    RC=1
+fi
+
+# Cleanup on failure
+if [ "${RC:-1}" -ne 0 ]; then
+    log "ERROR: Alpine failed to start in recovery mode"
+    
+    # Kill any remaining processes
+    pkill -f "alpine" 2>/dev/null
+    sleep 2
+    
+    # Unmount filesystems
+    umount "$ALPINE_ROOT/mnt/sdcard" 2>/dev/null
+    umount "$ALPINE_ROOT/dev/shm" 2>/dev/null
+    umount "$ALPINE_ROOT/vendor/lib64" 2>/dev/null
+    umount "$ALPINE_ROOT/system_ext/lib64" 2>/dev/null
+    umount "$ALPINE_ROOT/system/lib64" 2>/dev/null
+    umount "$ALPINE_ROOT/sys" 2>/dev/null
+    umount "$ALPINE_ROOT/proc" 2>/dev/null
+    umount "$ALPINE_ROOT/dev/pts" 2>/dev/null
+    umount "$ALPINE_ROOT/dev" 2>/dev/null
+    umount $ALPINE_MOUNT 2>/dev/null
+    umount $SD_MOUNT 2>/dev/null
+    
+    log "FALLBACK: Starting recovery mode"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# Keep monitoring Alpine
+log "=== Alpine Linux recovery monitoring active ==="
+while true; do
+    sleep 300
+    if ! pgrep -f "chroot.*alpine" >/dev/null 2>&1; then
+        log "WARNING: Alpine processes stopped"
+        break
+    fi
+done
+
+log "=== Alpine recovery script completed ==="
+exec /system/bin/realrecovery "$@"

@@ -1,0 +1,381 @@
+#!/system/bin/sh
+# Alpine Linux Hardware Testing Script
+
+# === PARTITION CONFIGURATION ===
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT=""
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT=""
+LOGFILE="/tmp/alpine_hardware_test.log"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Alpine Linux Hardware Testing Script ==="
+log "Device: Retroid Pocket 3 Plus (ums512_1h10)"
+log "Kernel: $(uname -a)"
+
+# === BOOT PARTITION MOUNT ===
+log ""
+log "=== BOOT PARTITION ==="
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/boot; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted: $SD_MOUNT"
+            break
+        fi
+    done
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot"
+        mkdir -p "$SD_MOUNT"
+        log "⚠ Using fallback: $SD_MOUNT"
+    fi
+fi
+
+# Switch log to SD card if available
+if [ "$SD_MOUNT" != "/tmp/boot" ] && [ -w "$SD_MOUNT" ]; then
+    NEW_LOG="${SD_MOUNT}/alpine_hardware_test_$(date +%Y%m%d_%H%M%S).log"
+    cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null && LOGFILE="$NEW_LOG"
+    log "✓ Log relocated: $LOGFILE"
+fi
+
+# === DISTRO PARTITION MOUNT ===
+log ""
+log "=== DISTRO PARTITION ==="
+WAIT=0
+while [ ! -b $DISTRO_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $DISTRO_PARTITION ]; then
+    log "ERROR: Partition not found: $DISTRO_PARTITION"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Block device found: $DISTRO_PARTITION"
+mkdir -p $DISTRO_MOUNT
+
+if mount $DISTRO_PARTITION $DISTRO_MOUNT 2>&1 | tee -a "$LOGFILE"; then
+    log "✓ Mounted: $DISTRO_MOUNT"
+else
+    log "ERROR: Mount failed"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# === FIND ROOTFS ===
+log ""
+log "=== ROOTFS DISCOVERY ==="
+DISTRO_ROOT=$(find "$DISTRO_MOUNT" -type d -name "alpine" -path "*/chroot-distro/alpine" 2>/dev/null | head -1)
+
+if [ -z "$DISTRO_ROOT" ]; then
+    log "ERROR: Alpine rootfs not found in $DISTRO_MOUNT"
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Rootfs: $DISTRO_ROOT"
+if [ -f "$DISTRO_ROOT/etc/alpine-release" ]; then
+    log "  Version: $(cat $DISTRO_ROOT/etc/alpine-release)"
+fi
+
+# === CHROOT SETUP ===
+log ""
+log "=== CHROOT SETUP ==="
+
+# Create ld.so.conf for library compatibility
+mkdir -p "$DISTRO_ROOT/etc"
+cat > "$DISTRO_ROOT/etc/ld.so.conf" << EOF
+/lib
+/usr/lib
+/system/lib64
+/system/lib
+EOF
+log "✓ Library paths configured"
+
+# Mount virtual filesystems
+mount --bind /dev "$DISTRO_ROOT/dev" 2>/dev/null && log "✓ /dev bind mounted"
+mkdir -p "$DISTRO_ROOT/dev/pts"
+mount -t devpts devpts "$DISTRO_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null && log "✓ devpts mounted"
+mount -t proc proc "$DISTRO_ROOT/proc" 2>/dev/null && log "✓ proc mounted"
+mount -t sysfs sysfs "$DISTRO_ROOT/sys" 2>/dev/null && log "✓ sysfs mounted"
+
+# CRITICAL: Bind mount recovery libraries for musl compatibility
+mkdir -p "$DISTRO_ROOT/system/lib64"
+mount --bind /system/lib64 "$DISTRO_ROOT/system/lib64" 2>/dev/null && log "✓ Recovery libs bound"
+
+# Mount SD card into chroot
+mkdir -p "$DISTRO_ROOT/sdcard" 2>/dev/null
+if mount --bind "$SD_MOUNT" "$DISTRO_ROOT/sdcard" 2>/dev/null; then
+    log "✓ SD card mounted in chroot"
+else
+    log "⚠ SD card mount failed"
+fi
+
+# DNS configuration
+cat > "$DISTRO_ROOT/etc/resolv.conf" << EOF
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+log "✓ DNS configured"
+
+# === TEST LIBRARY COMPATIBILITY ===
+log ""
+log "=== TESTING ALPINE ENVIRONMENT ==="
+
+if ! /system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib'
+    echo 'Library test successful'
+    /bin/busybox --help >/dev/null 2>&1 && echo 'Busybox functional'
+" 2>&1 | tee -a "$LOGFILE"; then
+    log "ERROR: Alpine library compatibility test failed"
+    # Cleanup and exit
+    umount "$DISTRO_ROOT/sdcard" 2>/dev/null
+    umount "$DISTRO_ROOT/system/lib64" 2>/dev/null
+    umount "$DISTRO_ROOT/sys" 2>/dev/null
+    umount "$DISTRO_ROOT/proc" 2>/dev/null
+    umount "$DISTRO_ROOT/dev/pts" 2>/dev/null
+    umount "$DISTRO_ROOT/dev" 2>/dev/null
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Alpine library compatibility confirmed"
+
+# === RUN HARDWARE TEST ===
+log ""
+log "=== RUNNING HARDWARE TEST ==="
+
+# CRITICAL: Use the WORKING method from your previous script
+# Double-quoted heredoc with proper escaping for variables that need to expand
+TEST_OUTPUT="/sdcard/hardware_test_results_$(date +%Y%m%d_%H%M%S).log"
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin'
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib'
+    export HOME='/root'
+    export TERM='linux'
+    
+    # Redirect all output to log file
+    exec > '$TEST_OUTPUT' 2>&1
+    
+    echo '=== ALPINE LINUX HARDWARE TEST ==='
+    echo 'Date: '\$(date)
+    echo 'Kernel: '\$(uname -a)
+    echo 'Alpine: '\$(cat /etc/alpine-release 2>/dev/null || echo 'unknown')
+    echo ''
+
+    # === TEST 1: /dev NODE ENUMERATION ===
+    echo '=== TEST 1: DEVICE NODES AVAILABLE ==='
+    echo ''
+
+    echo '--- Block Devices ---'
+    ls -la /dev/block/ 2>/dev/null | head -20 || echo 'No /dev/block'
+    ls -la /dev/mmcblk* 2>/dev/null || echo 'No mmcblk devices'
+    echo ''
+
+    echo '--- DRM/Graphics Devices ---'
+    ls -la /dev/dri/ 2>/dev/null || echo 'No /dev/dri'
+    ls -la /dev/fb* 2>/dev/null || echo 'No framebuffer devices'
+    ls -la /dev/mali* 2>/dev/null || echo 'No Mali devices'
+    echo ''
+
+    echo '--- Video/Camera Devices ---'
+    ls -la /dev/video* 2>/dev/null || echo 'No V4L2 video devices'
+    echo ''
+
+    echo '--- Network Devices ---'
+    ls -la /sys/class/net/ 2>/dev/null || echo 'No network interfaces'
+    echo ''
+
+    echo '--- USB/Serial Devices ---'
+    ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB devices'
+    ls -la /dev/cdc-wdm* 2>/dev/null || echo 'No cdc-wdm devices'
+    echo ''
+
+    echo '--- Input Devices ---'
+    ls -la /dev/input/ 2>/dev/null | head -10 || echo 'No input devices'
+    echo ''
+
+    # === TEST 2: WIFI HARDWARE ===
+    echo '=== TEST 2: WIFI HARDWARE DETECTION ==='
+    echo ''
+
+    echo '--- Network Interfaces ---'
+    ip link show 2>/dev/null || ifconfig -a 2>/dev/null || echo 'No network tools'
+    echo ''
+
+    echo '--- Wireless Interfaces ---'
+    if command -v iw >/dev/null 2>&1; then
+        iw dev 2>/dev/null || echo 'iw: no wireless devices'
+        echo ''
+        iw list 2>/dev/null | head -50 || echo 'iw list failed'
+    else
+        echo 'iw command not available'
+        ls -la /sys/class/net/ 2>/dev/null | grep -i wlan && echo 'Found wlan interface' || echo 'No wlan'
+    fi
+    echo ''
+
+    echo '--- WiFi Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'wlan|wifi|80211|brcm|bcm' | tail -20
+    echo ''
+
+    # === TEST 3: LTE/MODEM ===
+    echo '=== TEST 3: LTE/MODEM HARDWARE DETECTION ==='
+    echo ''
+
+    echo '--- Modem Device Nodes ---'
+    ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB'
+    ls -la /dev/cdc-wdm* 2>/dev/null || echo 'No cdc-wdm'
+    ls -la /dev/ttyACM* 2>/dev/null || echo 'No ttyACM'
+    echo ''
+
+    echo '--- Modem Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'modem|qmi|mbim|cdc' | tail -20
+    echo ''
+
+    # === TEST 4: STORAGE ===
+    echo '=== TEST 4: STORAGE HARDWARE ==='
+    echo ''
+
+    echo '--- Block Device Tree ---'
+    lsblk 2>/dev/null || echo 'lsblk not available'
+    echo ''
+
+    echo '--- Partition List ---'
+    cat /proc/partitions
+    echo ''
+
+    echo '--- eMMC Info ---'
+    if [ -f /sys/block/mmcblk0/device/name ]; then
+        echo 'Device: '\$(cat /sys/block/mmcblk0/device/name)
+        echo 'Size: '\$(cat /sys/block/mmcblk0/size)' sectors'
+    fi
+    echo ''
+
+    # === TEST 5: USB ===
+    echo '=== TEST 5: USB HARDWARE ==='
+    echo ''
+
+    if command -v lsusb >/dev/null 2>&1; then
+        lsusb -t 2>/dev/null || echo 'lsusb -t failed'
+        echo ''
+        lsusb 2>/dev/null | head -20
+    else
+        echo 'lsusb not available'
+        ls -la /sys/bus/usb/devices/ 2>/dev/null | head -20
+    fi
+    echo ''
+
+    # === TEST 6: DISPLAY/GPU ===
+    echo '=== TEST 6: DISPLAY/GPU HARDWARE ==='
+    echo ''
+
+    echo '--- DRM Devices ---'
+    ls -la /dev/dri/* 2>/dev/null || echo 'No DRM devices'
+    echo ''
+
+    echo '--- Framebuffer ---'
+    ls -la /dev/fb* 2>/dev/null || echo 'No framebuffer'
+    if [ -c /dev/fb0 ]; then
+        cat /sys/class/graphics/fb0/modes 2>/dev/null || echo 'No modes info'
+    fi
+    echo ''
+
+    echo '--- Mali GPU ---'
+    dmesg 2>/dev/null | grep -i mali | tail -20
+    echo ''
+
+    # === TEST 7: CAMERA ===
+    echo '=== TEST 7: CAMERA HARDWARE ==='
+    echo ''
+
+    ls -la /dev/video* 2>/dev/null || echo 'No video devices'
+    echo ''
+
+    if command -v v4l2-ctl >/dev/null 2>&1; then
+        for dev in /dev/video*; do
+            [ -c \"\$dev\" ] && v4l2-ctl --device=\$dev --list-formats-ext 2>/dev/null
+        done
+    else
+        echo 'v4l2-ctl not available'
+    fi
+    echo ''
+
+    # === TEST 8: KERNEL MODULES ===
+    echo '=== TEST 8: KERNEL MODULES ==='
+    echo ''
+    lsmod 2>/dev/null | grep -E 'mali|sprd|wifi|wlan|modem|video|drm' || echo 'No relevant modules'
+    echo ''
+
+    # === TEST 9: FIRMWARE ===
+    echo '=== TEST 9: FIRMWARE FILES ==='
+    echo ''
+    ls -la /lib/firmware/ 2>/dev/null | head -30 || echo 'No /lib/firmware'
+    echo ''
+
+    # === SUMMARY ===
+    echo '=== HARDWARE TEST SUMMARY ==='
+    echo ''
+    echo 'WiFi interfaces: '\$(ls /sys/class/net/ 2>/dev/null | grep -c wlan || echo 0)
+    echo 'Video devices: '\$(ls /dev/video* 2>/dev/null | wc -l)
+    echo 'DRM devices: '\$(ls /dev/dri/ 2>/dev/null | wc -l)
+    echo 'Framebuffers: '\$(ls /dev/fb* 2>/dev/null | wc -l)
+    echo 'USB serial: '\$(ls /dev/ttyUSB* 2>/dev/null | wc -l)
+    echo ''
+    echo '=== HARDWARE TEST COMPLETED ==='
+" 2>&1 | tee -a "$LOGFILE"
+
+CHROOT_RC=$?
+
+# Check results
+RESULT_FILE="$SD_MOUNT/hardware_test_results_"*".log"
+if [ $CHROOT_RC -eq 0 ] && ls $RESULT_FILE 1>/dev/null 2>&1; then
+    ACTUAL_FILE=$(ls -t $RESULT_FILE 2>/dev/null | head -1)
+    if [ -f "$ACTUAL_FILE" ] && [ -s "$ACTUAL_FILE" ]; then
+        log "✓ Hardware test SUCCESS"
+        log "✓ Results: $ACTUAL_FILE"
+        log "✓ Size: $(du -h "$ACTUAL_FILE" | cut -f1)"
+        TEST_SUCCESS=1
+    else
+        log "⚠ Output file empty"
+        TEST_SUCCESS=0
+    fi
+else
+    log "⚠ Test failed (exit: $CHROOT_RC)"
+    TEST_SUCCESS=0
+fi
+
+# === CLEANUP ===
+log ""
+log "=== CLEANUP ==="
+
+umount "$DISTRO_ROOT/sdcard" 2>/dev/null && log "✓ Unmounted: SD card"
+umount "$DISTRO_ROOT/system/lib64" 2>/dev/null && log "✓ Unmounted: recovery libs"
+umount "$DISTRO_ROOT/sys" 2>/dev/null && log "✓ Unmounted: sysfs"
+umount "$DISTRO_ROOT/proc" 2>/dev/null && log "✓ Unmounted: proc"
+umount "$DISTRO_ROOT/dev/pts" 2>/dev/null && log "✓ Unmounted: devpts"
+umount "$DISTRO_ROOT/dev" 2>/dev/null && log "✓ Unmounted: dev"
+umount $DISTRO_MOUNT 2>/dev/null && log "✓ Unmounted: $DISTRO_MOUNT"
+
+log "✓ SD card retained for logs"
+
+# === FINAL STATUS ===
+log ""
+log "=== HARDWARE TEST SESSION COMPLETE ==="
+log "Status: $([ $TEST_SUCCESS -eq 1 ] && echo 'SUCCESS' || echo 'FAILED')"
+log "Log: $LOGFILE"
+log ""
+log "Exiting to recovery in 3 seconds..."
+sleep 3
+
+exec /system/bin/realrecovery "$@"

@@ -1,0 +1,680 @@
+# Import hardware-specific recovery configuration
+import /init.recovery.${ro.hardware}.rc
+
+# Import environment and system configurations
+import /init.environ.rc
+import /system/etc/init/hw/init.usb.rc
+import /system/etc/init/hw/init.usb.configfs.rc
+import /system/etc/init/hw/init.${ro.zygote}.rc
+import /init.${ro.hardware}.rc
+import /vendor/etc/init/hw/init.${ro.hardware}.rc
+import /system/etc/init/retropocket.rc
+
+# Import ALL service .rc files from /system/etc/init/
+import /system/etc/init/android.hidl.allocator@1.0-service.rc
+import /system/etc/init/android.system.suspend@1.0-service.rc
+import /system/etc/init/apexd.rc
+import /system/etc/init/aprd.rc
+import /system/etc/init/atrace.rc
+import /system/etc/init/audioserver.rc
+import /system/etc/init/blank_screen.rc
+import /system/etc/init/bootstat.rc
+import /system/etc/init/bpfloader.rc
+import /system/etc/init/cameraserver.rc
+import /system/etc/init/cmd_services.rc
+import /system/etc/init/coredump.rc
+import /system/etc/init/credstore.rc
+import /system/etc/init/drmserver.rc
+import /system/etc/init/dumpstate.rc
+import /system/etc/init/flags_health_check.rc
+import /system/etc/init/gatekeeperd.rc
+import /system/etc/init/gpuservice.rc
+import /system/etc/init/gsid.rc
+import /system/etc/init/heapprofd.rc
+import /system/etc/init/hwservicemanager.rc
+import /system/etc/init/idmap2d.rc
+import /system/etc/init/incidentd.rc
+import /system/etc/init/installd.rc
+import /system/etc/init/iorapd.rc
+import /system/etc/init/keystore.rc
+import /system/etc/init/lmkd.rc
+import /system/etc/init/logd.rc
+import /system/etc/init/lpdumpd.rc
+import /system/etc/init/mediaextractor.rc
+import /system/etc/init/mediametrics.rc
+import /system/etc/init/mediaserver.rc
+import /system/etc/init/modemlog_connmgr_service.rc
+import /system/etc/init/mtpd.rc
+import /system/etc/init/netd.rc
+import /system/etc/init/otapreopt.rc
+import /system/etc/init/perfetto.rc
+import /system/etc/init/performancemanager.rc
+import /system/etc/init/racoon.rc
+import /system/etc/init/recovery-persist.rc
+import /system/etc/init/retropocket.rc
+import /system/etc/init/rss_hwm_reset.rc
+import /system/etc/init/servicemanager.rc
+import /system/etc/init/slogmodem.rc
+import /system/etc/init/storaged.rc
+import /system/etc/init/surfaceflinger.rc
+import /system/etc/init/tombstoned.rc
+import /system/etc/init/traced_perf.rc
+import /system/etc/init/uncrypt.rc
+import /system/etc/init/update_engine.rc
+import /system/etc/init/update_verifier.rc
+import /system/etc/init/usbd.rc
+import /system/etc/init/vdc.rc
+import /system/etc/init/vold.rc
+import /system/etc/init/wait_for_keymaster.rc
+import /system/etc/init/wifi.rc
+import /system/etc/init/wificond.rc
+import /system/etc/init/ylog.rc
+
+on early-init
+    # Set SELinux to permissive mode for full recovery access
+    setenforce 0
+    
+    # Disable sysrq from keyboard
+    write /proc/sys/kernel/sysrq 0
+    
+    # Disable kernel module autoloading
+    write /proc/sys/kernel/modprobe \n
+    
+    # Set security contexts
+    restorecon /postinstall
+    restorecon /adb_keys
+    
+    mkdir /acct/uid
+    
+    # Memory cgroups with pressure monitoring
+    chown root system /dev/memcg/memory.pressure_level
+    chmod 0040 /dev/memcg/memory.pressure_level
+    mkdir /dev/memcg/apps/ 0755 system system
+    mkdir /dev/memcg/system 0550 system system
+    
+    # TUN device support for VPN
+    mkdir /dev/net 0755 root root
+    symlink ../tun /dev/net/tun
+    
+    # Set resource limits
+    setrlimit nice 40 40
+    setrlimit nofile 32768 32768
+    
+    # Linker configuration
+    mkdir /linkerconfig/bootstrap 0755
+    mkdir /linkerconfig/default 0755
+    write /sys/module/dm_verity/parameters/prefetch_cluster 0
+    exec -- /system/bin/linkerconfig --target /linkerconfig/bootstrap
+    chmod 644 /linkerconfig/bootstrap/ld.config.txt
+    copy /linkerconfig/bootstrap/ld.config.txt /linkerconfig/default/ld.config.txt
+    chmod 644 /linkerconfig/default/ld.config.txt
+    mount none /linkerconfig/bootstrap /linkerconfig bind rec
+    
+    start ueventd
+    
+    # Bootstrap APEX modules for library dependencies
+    exec_start apexd-bootstrap
+    update_linker_config
+    
+    # BoringSSL directories
+    mkdir /dev/boringssl 0755 root root
+    mkdir /dev/boringssl/selftest 0755 root root
+    
+    # Mount tracefs
+    mount tracefs tracefs /sys/kernel/tracing
+    
+    setprop sys.usb.configfs 0
+
+on init
+    sysclktz 0
+    
+    # Mix entropy
+    copy /proc/cmdline /dev/urandom
+    copy /system/etc/prop.default /dev/urandom
+    
+    # Export environment
+    export ANDROID_ROOT /system
+    export ANDROID_DATA /data
+    export EXTERNAL_STORAGE /sdcard
+    
+    # Standard streams
+    symlink /proc/self/fd/0 /dev/stdin
+    symlink /proc/self/fd/1 /dev/stdout
+    symlink /proc/self/fd/2 /dev/stderr
+    symlink /system/bin /bin
+    symlink /system/etc /etc
+    
+    # Energy-aware scheduler tuning
+    mkdir /dev/stune/foreground
+    mkdir /dev/stune/background
+    mkdir /dev/stune/top-app
+    mkdir /dev/stune/rt
+    mkdir /dev/stune/nnapi-hal
+    chown system system /dev/stune
+    chown system system /dev/stune/foreground
+    chown system system /dev/stune/background
+    chown system system /dev/stune/top-app
+    chown system system /dev/stune/rt
+    chown system system /dev/stune/nnapi-hal
+    chown system system /dev/stune/tasks
+    chown system system /dev/stune/foreground/tasks
+    chown system system /dev/stune/background/tasks
+    chown system system /dev/stune/top-app/tasks
+    chown system system /dev/stune/rt/tasks
+    chown system system /dev/stune/nnapi-hal/tasks
+    chmod 0664 /dev/stune/tasks
+    chmod 0664 /dev/stune/foreground/tasks
+    chmod 0664 /dev/stune/background/tasks
+    chmod 0664 /dev/stune/top-app/tasks
+    chmod 0664 /dev/stune/rt/tasks
+    chmod 0664 /dev/stune/nnapi-hal/tasks
+    write /dev/stune/nnapi-hal/schedtune.boost 1
+    write /dev/stune/nnapi-hal/schedtune.prefer_idle 1
+    
+    # Block I/O controller
+    mkdir /dev/blkio/background
+    chown system system /dev/blkio
+    chown system system /dev/blkio/background
+    chown system system /dev/blkio/tasks
+    chown system system /dev/blkio/background/tasks
+    chmod 0664 /dev/blkio/tasks
+    chmod 0664 /dev/blkio/background/tasks
+    write /dev/blkio/blkio.weight 1000
+    write /dev/blkio/background/blkio.weight 200
+    write /dev/blkio/blkio.group_idle 0
+    write /dev/blkio/background/blkio.group_idle 0
+    
+    restorecon_recursive /mnt
+    
+    # Mount configfs and binderfs
+    mount configfs none /config nodev noexec nosuid
+    chmod 0770 /config/sdcardfs
+    chown system package_info /config/sdcardfs
+    
+    mkdir /dev/binderfs
+    mount binder binder /dev/binderfs stats=global
+    chmod 0755 /dev/binderfs
+    mount fusectl none /sys/fs/fuse/connections
+    
+    symlink /dev/binderfs/binder /dev/binder
+    symlink /dev/binderfs/hwbinder /dev/hwbinder
+    symlink /dev/binderfs/vndbinder /dev/vndbinder
+    chmod 0666 /dev/binderfs/hwbinder
+    chmod 0666 /dev/binderfs/binder
+    chmod 0666 /dev/binderfs/vndbinder
+    
+    # CPU accounting and control
+    mount cgroup none /acct cpuacct
+    mkdir /acct/uid
+    mount cgroup none /dev/cpuctl cpu
+    chown system system /dev/cpuctl
+    chown system system /dev/cpuctl/tasks
+    chmod 0666 /dev/cpuctl/tasks
+    write /dev/cpuctl/cpu.rt_period_us 1000000
+    write /dev/cpuctl/cpu.rt_runtime_us 950000
+    
+    # CPUsets for affinity management
+    mkdir /dev/cpuset/foreground
+    mkdir /dev/cpuset/background
+    mkdir /dev/cpuset/system-background
+    mkdir /dev/cpuset/restricted
+    mkdir /dev/cpuset/top-app
+    copy /dev/cpuset/cpus /dev/cpuset/foreground/cpus
+    copy /dev/cpuset/mems /dev/cpuset/foreground/mems
+    copy /dev/cpuset/cpus /dev/cpuset/background/cpus
+    copy /dev/cpuset/mems /dev/cpuset/background/mems
+    copy /dev/cpuset/cpus /dev/cpuset/system-background/cpus
+    copy /dev/cpuset/mems /dev/cpuset/system-background/mems
+    copy /dev/cpuset/cpus /dev/cpuset/restricted/cpus
+    copy /dev/cpuset/mems /dev/cpuset/restricted/mems
+    copy /dev/cpuset/cpus /dev/cpuset/top-app/cpus
+    copy /dev/cpuset/mems /dev/cpuset/top-app/mems
+    
+    chown system system /dev/cpuset
+    chown system system /dev/cpuset/foreground
+    chown system system /dev/cpuset/background
+    chown system system /dev/cpuset/system-background
+    chown system system /dev/cpuset/top-app
+    chown system system /dev/cpuset/restricted
+    chown system system /dev/cpuset/tasks
+    chown system system /dev/cpuset/foreground/tasks
+    chown system system /dev/cpuset/background/tasks
+    chown system system /dev/cpuset/system-background/tasks
+    chown system system /dev/cpuset/top-app/tasks
+    chown system system /dev/cpuset/restricted/tasks
+    
+    chmod 0775 /dev/cpuset/system-background
+    chmod 0664 /dev/cpuset/foreground/tasks
+    chmod 0664 /dev/cpuset/background/tasks
+    chmod 0664 /dev/cpuset/system-background/tasks
+    chmod 0664 /dev/cpuset/top-app/tasks
+    chmod 0664 /dev/cpuset/restricted/tasks
+    chmod 0664 /dev/cpuset/tasks
+    
+    # Freezer cgroup
+    mkdir /dev/freezer/frozen
+    write /dev/freezer/frozen/freezer.state FROZEN
+    chown system system /dev/freezer/cgroup.procs
+    chown system system /dev/freezer/frozen
+    chown system system /dev/freezer/frozen/freezer.state
+    chown system system /dev/freezer/frozen/cgroup.procs
+    chmod 0664 /dev/freezer/frozen/freezer.state
+    
+    # PSI monitor
+    chown system system /proc/pressure/memory
+    chmod 0664 /proc/pressure/memory
+    
+    # qtaguid permissions
+    chown root net_bw_acct /proc/net/xt_qtaguid/ctrl
+    chown root net_bw_stats /proc/net/xt_qtaguid/stats
+    chmod 0644 /dev/xt_qtaguid
+    
+    # BPF filesystem
+    chown root root /dev/cg2_bpf
+    chmod 0600 /dev/cg2_bpf
+    mount bpf bpf /sys/fs/bpf nodev noexec nosuid
+    
+    # fs_mgr checker logs
+    mkdir /dev/fscklogs 0770 root system
+    
+    # Mount directories
+    mkdir /mnt/secure 0700 root root
+    mkdir /mnt/secure/asec 0700 root root
+    mkdir /mnt/asec 0755 root system
+    mkdir /mnt/obb 0755 root system
+    mkdir /mnt/media_rw 0750 root external_storage
+    mkdir /mnt/user 0755 root root
+    mkdir /mnt/user/0 0755 root root
+    mkdir /mnt/expand 0771 system system
+    mkdir /mnt/appfuse 0711 root root
+    
+    # Runtime mount namespaces for scoped storage
+    mkdir /mnt/runtime 0700 root root
+    mkdir /mnt/runtime/default 0755 root root
+    mkdir /mnt/runtime/default/self 0755 root root
+    mkdir /mnt/runtime/read 0755 root root
+    mkdir /mnt/runtime/read/self 0755 root root
+    mkdir /mnt/runtime/write 0755 root root
+    mkdir /mnt/runtime/write/self 0755 root root
+    mkdir /mnt/runtime/full 0755 root root
+    mkdir /mnt/runtime/full/self 0755 root root
+    
+    # Recovery directories
+    mkdir /sdcard
+    mkdir /system
+    mkdir /data
+    mkdir /cache
+    mkdir /sideload
+    mkdir /mnt/system
+    mkdir /dev/socket
+    mount tmpfs tmpfs /tmp
+    chown root shell /tmp
+    chmod 0775 /tmp
+    
+    # Kernel parameters
+    write /proc/sys/kernel/panic_on_oops 1
+    write /proc/sys/vm/max_map_count 1000000
+    write /proc/sys/kernel/hung_task_timeout_secs 0
+    write /proc/cpu/alignment 4
+    write /proc/sys/kernel/sched_tunable_scaling 0
+    write /proc/sys/kernel/sched_latency_ns 10000000
+    write /proc/sys/kernel/sched_wakeup_granularity_ns 2000000
+    write /proc/sys/kernel/sched_child_runs_first 0
+    write /proc/sys/kernel/randomize_va_space 2
+    write /proc/sys/vm/mmap_min_addr 32768
+    write /proc/sys/net/ipv4/ping_group_range "0 2147483647"
+    write /proc/sys/net/unix/max_dgram_qlen 600
+    write /proc/sys/kernel/sched_rt_runtime_us 950000
+    write /proc/sys/kernel/sched_rt_period_us 1000000
+    write /proc/sys/net/core/rmem_max 262144
+    write /proc/sys/net/core/wmem_max 262144
+    write /proc/sys/net/ipv4/fwmark_reflect 1
+    write /proc/sys/net/ipv6/fwmark_reflect 1
+    write /proc/sys/net/ipv4/tcp_fwmark_accept 1
+    write /proc/sys/net/ipv4/conf/all/accept_redirects 0
+    write /proc/sys/net/ipv6/conf/all/accept_redirects 0
+    chmod 0400 /proc/net/fib_trie
+    
+    # pstore for crash logs
+    mount pstore pstore /sys/fs/pstore nodev noexec nosuid
+    chown system log /sys/fs/pstore
+    chmod 0550 /sys/fs/pstore
+    chown system log /sys/fs/pstore/console-ramoops
+    chmod 0440 /sys/fs/pstore/console-ramoops
+    chown system log /sys/fs/pstore/console-ramoops-0
+    chmod 0440 /sys/fs/pstore/console-ramoops-0
+    chown system log /sys/fs/pstore/pmsg-ramoops-0
+    chmod 0440 /sys/fs/pstore/pmsg-ramoops-0
+    
+    # ARM deprecated instruction support
+    write /proc/sys/abi/swp 1
+    
+    # /dev/fd symlink
+    symlink /proc/self/fd /dev/fd
+    
+    export DOWNLOAD_CACHE /data/cache
+    
+    # LED trigger for vibrator
+    write /sys/class/leds/vibrator/trigger "transient"
+    
+    # CPU variant for bionic optimizations
+    write /dev/cpu_variant:${ro.bionic.arch} ${ro.bionic.cpu_variant}
+    chmod 0444 /dev/cpu_variant:${ro.bionic.arch}
+    write /dev/cpu_variant:${ro.bionic.2nd_arch} ${ro.bionic.2nd_cpu_variant}
+    chmod 0444 /dev/cpu_variant:${ro.bionic.2nd_arch}
+    
+    # Power state permissions
+    chown system system /sys/power/state
+    chown system system /sys/power/wakeup_count
+    chmod 0660 /sys/power/state
+    chown radio wakelock /sys/power/wake_lock
+    chown radio wakelock /sys/power/wake_unlock
+    chmod 0660 /sys/power/wake_lock
+    chmod 0660 /sys/power/wake_unlock
+    
+    # Start essential services early
+    start logd
+    
+    # lmkd (low memory killer daemon)
+    chown root system /sys/module/lowmemorykiller/parameters/adj
+    chmod 0664 /sys/module/lowmemorykiller/parameters/adj
+    chown root system /sys/module/lowmemorykiller/parameters/minfree
+    chmod 0664 /sys/module/lowmemorykiller/parameters/minfree
+    start lmkd
+    
+    # Service managers
+    start servicemanager
+    start hwservicemanager
+
+on boot
+    # Network initialization
+    ifup lo
+    hostname localhost
+    domainname localdomain
+    
+    # IPsec configuration
+    write /proc/sys/net/core/xfrm_acq_expires 3600
+    
+    # Memory management
+    write /proc/sys/vm/overcommit_memory 1
+    write /proc/sys/vm/min_free_order_shift 4
+    
+    # zram writeback permissions
+    chown root system /sys/block/zram0/idle
+    chmod 0664 /sys/block/zram0/idle
+    chown root system /sys/block/zram0/writeback
+    chmod 0664 /sys/block/zram0/writeback
+    
+    # Background writeout tuning
+    write /proc/sys/vm/dirty_expire_centisecs 200
+    write /proc/sys/vm/dirty_background_ratio 5
+    
+    # Start all service classes
+    class_start early_hal
+    class_start hal
+    class_start core
+
+on firmware_mounts_complete
+   rm /dev/.booting
+
+on late-init
+    trigger early-fs
+    trigger fs
+    trigger post-fs
+    trigger post-fs-data
+    trigger firmware_mounts_complete
+    trigger early-boot
+    trigger boot
+
+on early-fs
+    # Start vold for volume management
+    start vold
+
+on fs
+    # USB functionfs for ADB, fastboot, MTP
+    mkdir /dev/usb-ffs 0775 shell shell
+    mkdir /dev/usb-ffs/adb 0770 shell shell
+    mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+    mkdir /dev/usb-ffs/fastboot 0770 system system
+    mount functionfs fastboot /dev/usb-ffs/fastboot rmode=0770,fmode=0660,uid=1000,gid=1000
+    mkdir /dev/usb-ffs/mtp 0770 mtp mtp
+
+on post-fs
+    # Checkpoint management
+    exec - system system -- /system/bin/vdc checkpoint markBootAttempt
+    
+    # Remount root as read-only
+    mount rootfs rootfs / remount bind ro nodev
+    
+    # Restore security contexts
+    restorecon --recursive --cross-filesystems /sys/kernel/debug
+    
+    # Cache directory
+    chown system cache /cache
+    chmod 0770 /cache
+    restorecon_recursive /cache
+    mkdir /cache/recovery 0770 system cache
+    mkdir /cache/backup_stage 0700 system system
+    mkdir /cache/backup 0700 system system
+    
+    # Permissions for debugging
+    chown root log /proc/vmallocinfo
+    chmod 0440 /proc/vmallocinfo
+    chown root log /proc/slabinfo
+    chmod 0440 /proc/slabinfo
+    chown root system /proc/kmsg
+    chmod 0440 /proc/kmsg
+    chown root system /proc/sysrq-trigger
+    chmod 0220 /proc/sysrq-trigger
+    chown system log /proc/last_kmsg
+    chmod 0440 /proc/last_kmsg
+    
+    # SELinux policy
+    chmod 0444 /sys/fs/selinux/policy
+    
+    mkdir /cache/lost+found 0770 root root
+    
+    # Metadata directories
+    restorecon_recursive /metadata
+    mkdir /metadata/vold 0700 root root
+    mkdir /metadata/password_slots 0771 root system
+    mkdir /metadata/bootstat 0750 system log
+    mkdir /metadata/ota 0700 root system
+    mkdir /metadata/ota/snapshots 0700 root system
+    mkdir /metadata/apex 0700 root system
+    mkdir /metadata/apex/sessions 0700 root system
+    restorecon_recursive /metadata/apex
+    mkdir /metadata/staged-install 0770 root system
+
+on late-fs
+    # Tracefs permissions
+    chmod 0755 /sys/kernel/tracing
+    chmod 0755 /sys/kernel/debug/tracing
+    
+    # Start HALs before encryption unlock
+    class_start early_hal
+
+on post-fs-data
+    # Note: We're NOT mounting /data as you requested
+    # Only creating minimal structure for services
+    
+    # Prepare checkpoint
+    exec - system system -- /system/bin/vdc checkpoint prepareCheckpoint
+    
+    # Minimal /data structure (without actual mount)
+    mkdir /data/local 0751 root root
+    mkdir /data/local/tmp 0771 shell shell
+    mkdir /data/misc 01771 system misc
+    mkdir /data/misc/adb 02750 system shell
+    
+    # Start storage and network services
+    start netd
+    start storaged
+    start tombstoned
+
+on early-boot
+    # Set boot properties
+    setprop ro.boottime.init ${ro.boottime.init}
+    setprop ro.boottime.init.selinux ${ro.boottime.init.selinux}
+
+# Core recovery services
+service ueventd /system/bin/ueventd
+    class core
+    critical
+    seclabel u:r:ueventd:s0
+    shutdown critical
+
+service charger /system/bin/charger
+    class charger
+    critical
+    seclabel u:r:charger:s0
+
+service recovery /system/bin/recovery
+    class core
+    socket recovery stream 422 system system
+    seclabel u:r:recovery:s0
+
+service adbd /system/bin/adbd --root_seclabel=u:r:su:s0 --device_banner=recovery
+    class core
+    socket adbd stream 660 system system
+    seclabel u:r:adbd:s0
+
+service fastbootd /system/bin/fastbootd
+    class core
+    disabled
+    group system
+    seclabel u:r:fastbootd:s0
+
+# Restart adbd for root
+on property:service.adb.root=1
+    restart adbd
+
+# USB configuration - configfs (modern)
+on fs && property:sys.usb.configfs=1
+    mount configfs none /config
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    write /config/usb_gadget/g1/idVendor 0x18D1
+    mkdir /config/usb_gadget/g1/strings/0x409 0770
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer ${ro.product.manufacturer}
+    write /config/usb_gadget/g1/strings/0x409/product ${ro.product.model}
+    mkdir /config/usb_gadget/g1/functions/ffs.adb
+    mkdir /config/usb_gadget/g1/functions/ffs.fastboot
+    mkdir /config/usb_gadget/g1/functions/mtp.gs0
+    mkdir /config/usb_gadget/g1/functions/ptp.gs1
+    mkdir /config/usb_gadget/g1/configs/b.1 0777 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+
+# USB configuration - sysfs (legacy)
+on fs && property:sys.usb.configfs=0
+    write /sys/class/android_usb/android0/f_ffs/aliases adb,fastboot
+    write /sys/class/android_usb/android0/idVendor 18D1
+    write /sys/class/android_usb/android0/iManufacturer ${ro.product.manufacturer}
+    write /sys/class/android_usb/android0/iProduct ${ro.product.model}
+    write /sys/class/android_usb/android0/iSerial ${ro.serialno}
+
+on property:sys.usb.config=adb
+    start adbd
+
+on property:sys.usb.config=fastboot
+    start fastbootd
+
+on property:sys.usb.config=none && property:sys.usb.configfs=0
+    stop adbd
+    stop fastbootd
+    write /sys/class/android_usb/android0/enable 0
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=adb && property:sys.usb.configfs=0
+    write /sys/class/android_usb/android0/idProduct D001
+    write /sys/class/android_usb/android0/functions adb
+    write /sys/class/android_usb/android0/enable 1
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=sideload && property:sys.usb.configfs=0
+    write /sys/class/android_usb/android0/idProduct D001
+    write /sys/class/android_usb/android0/functions adb
+    write /sys/class/android_usb/android0/enable 1
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=fastboot && property:sys.usb.configfs=0
+    write /sys/class/android_usb/android0/idProduct 4EE0
+    write /sys/class/android_usb/android0/functions fastboot
+    write /sys/class/android_usb/android0/enable 1
+    setprop sys.usb.state ${sys.usb.config}
+
+# Configfs USB modes
+on property:sys.usb.config=none && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/UDC "none"
+    stop adbd
+    stop fastbootd
+    setprop sys.usb.ffs.ready 0
+    write /config/usb_gadget/g1/bDeviceClass 0
+    write /config/usb_gadget/g1/bDeviceSubClass 0
+    write /config/usb_gadget/g1/bDeviceProtocol 0
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+    rm /config/usb_gadget/g1/configs/b.1/f3
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=sideload && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xD001
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "adb"
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=adb && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xD001
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "adb"
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=fastboot && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0x4EE0
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "fastboot"
+    symlink /config/usb_gadget/g1/functions/ffs.fastboot /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=mtp && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "mtp"
+    symlink /config/usb_gadget/g1/functions/mtp.gs0 /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.config=mtp,adb && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
+    start adbd
+    write /config/usb_gadget/g1/idProduct 0x4EE2
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "mtp_adb"
+    symlink /config/usb_gadget/g1/functions/mtp.gs0 /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f2
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+# Debug console
+service console /system/bin/sh
+    class core
+    console
+    disabled
+    user shell
+    group shell log readproc
+    seclabel u:r:shell:s0
+    setenv HOSTNAME console
+
+on property:ro.debuggable=1
+    chmod 0773 /data/misc/trace
+    chmod 0775 /data/misc/wmtrace
+
+on init && property:ro.debuggable=1
+    start console
+
+# Trigger main and late_start services when ready
+on property:sys.usb.ffs.ready=1
+    class_start main
+    class_start late_start
+
+# Boot completion
+on property:sys.boot_completed=1
+    setprop dev.bootcomplete 1

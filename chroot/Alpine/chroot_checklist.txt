@@ -1,0 +1,126 @@
+
+
+1. Partition configruation:
+
+# === PARTITION CONFIGURATION ===
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT=""
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT=""
+LOGFILE="/tmp/alpine_hardware_test.log"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Alpine Linux Hardware Testing Script ==="
+log "Device: Retroid Pocket 3 Plus (ums512_1h10)"
+log "Kernel: $(uname -a)"
+
+# === BOOT PARTITION MOUNT ===
+log ""
+log "=== BOOT PARTITION ==="
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/boot; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted: $SD_MOUNT"
+            break
+        fi
+    done
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot"
+        mkdir -p "$SD_MOUNT"
+        log "⚠ Using fallback: $SD_MOUNT"
+    fi
+fi
+
+# Switch log to SD card if available
+if [ "$SD_MOUNT" != "/tmp/boot" ] && [ -w "$SD_MOUNT" ]; then
+    NEW_LOG="${SD_MOUNT}/alpine_hardware_test_$(date +%Y%m%d_%H%M%S).log"
+    cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null && LOGFILE="$NEW_LOG"
+    log "✓ Log relocated: $LOGFILE"
+fi
+
+# === DISTRO PARTITION MOUNT ===
+log ""
+log "=== DISTRO PARTITION ==="
+WAIT=0
+while [ ! -b $DISTRO_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $DISTRO_PARTITION ]; then
+    log "ERROR: Partition not found: $DISTRO_PARTITION"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Block device found: $DISTRO_PARTITION"
+mkdir -p $DISTRO_MOUNT
+
+if mount $DISTRO_PARTITION $DISTRO_MOUNT 2>&1 | tee -a "$LOGFILE"; then
+    log "✓ Mounted: $DISTRO_MOUNT"
+else
+    log "ERROR: Mount failed"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# === FIND ROOTFS ===
+log ""
+log "=== ROOTFS DISCOVERY ==="
+DISTRO_ROOT=$(find "$DISTRO_MOUNT" -type d -name "alpine" -path "*/chroot-distro/alpine" 2>/dev/null | head -1)
+
+if [ -z "$DISTRO_ROOT" ]; then
+    log "ERROR: Alpine rootfs not found in $DISTRO_MOUNT"
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Rootfs: $DISTRO_ROOT"
+if [ -f "$DISTRO_ROOT/etc/alpine-release" ]; then
+    log "  Version: $(cat $DISTRO_ROOT/etc/alpine-release)"
+fi
+
+2. 
+Mount virtual filesystems acessible to chroot
+Use the partitions within the super.img at partition 50:
+- Extract each partition to a standalone .img file using dd (rename by removing _a)
+- Sector-to-Byte Offset Calculation
+Block offset (for dd) = start_sector / 8
+  (because dd uses 4096-byte blocks, and sectors are 512 bytes)
+  (4096 / 512 = 8 sectors per block)
+
+Block count = total_sectors / 8
+- Attach image to loop device
+(example: losetup /dev/loop0 /sdcard/$DISTRO_MOUNT/system.img)
+- Mount as ext4 filesystem while overlaying root on top of each other (file system merges)
+- If the overlaying file system has empty files, it doesn't override. If they both have files, they merge
+(example of mounting system by itself: mount -t ext4 -o ro /dev/loop0 /$DISTRO_MOUNT/system)
+- After that Bind mount current ramdisk paths accessible to chroot (If there's shared paths, the files merge to one folder, the files from the partition will override if the same name)
+- system_a.img will extract to /system, vendor_a.img will extract to /vendor, system_ext_a.img to /system_ext and product_a.img to product. They will be accessible for chroot. Here's my current .rc conversion:
+
+
+3. Library Compatibility:
+Alpine's dynamic linker (musl's ld.so) library usages:
+
+Every path of
+
+/lib
+/lib64
+
+within
+
+/system_ext
+/system
+/vendor
+
+Run Android service managers OUTSIDE chroot (in recovery environment) where bionic is native, THEN bind-mount /dev/binder into Alpine
+

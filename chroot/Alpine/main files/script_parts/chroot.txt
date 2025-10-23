@@ -1,0 +1,75 @@
+log "=== CHROOT SETUP ==="
+
+mkdir -p "$DISTRO_ROOT/etc"
+cat > "$DISTRO_ROOT/etc/ld.so.conf" << 'EOF'
+/lib
+/usr/lib
+/system_ext/lib
+/system_ext/lib64
+/system/lib
+/system/lib64
+/system/lib/hw
+/system/lib/drm
+/system/lib/bootstrap
+/system/lib64
+/system/lib64/hw
+/system/lib64/drm
+/system/lib64/bootstrap
+/system/lib64/extractors
+/vendor/lib
+/vendor/lib/egl
+/vendor/lib/hw
+/vendor/lib/mediacas
+/vendor/lib/mediadrm
+/vendor/lib/modules
+/vendor/lib/mnpidevice
+/vendor/lib/soundfx
+/vendor/lib64
+/vendor/lib64/egl
+/vendor/lib64/hw
+/vendor/lib64/mediacas
+/vendor/lib64/mediadrm
+/vendor/lib64/mnpidevice
+/vendor/lib64/soundfx
+EOF
+
+mkdir -p "$DISTRO_ROOT/dev" 2>/dev/null
+mount --bind /dev "$DISTRO_ROOT/dev" 2>/dev/null
+
+mkdir -p "$DISTRO_ROOT/dev/pts" 2>/dev/null
+mount -t devpts devpts "$DISTRO_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null
+
+mount -t proc proc "$DISTRO_ROOT/proc" 2>/dev/null
+mount -t sysfs sysfs "$DISTRO_ROOT/sys" 2>/dev/null
+
+# === BIND MOUNT PARTITIONS ===
+for partition in system system_ext vendor product; do
+    if mount | grep -q "$DISTRO_MOUNT/$partition"; then
+        mkdir -p "$DISTRO_ROOT/$partition" 2>/dev/null
+        mount --bind "$DISTRO_MOUNT/$partition" "$DISTRO_ROOT/$partition" 2>/dev/null
+    fi
+done
+
+# === MOUNT SOCKO ===
+SOCKO_MOUNT="$DISTRO_ROOT/mnt/vendor/socko"
+mkdir -p "$SOCKO_MOUNT" 2>/dev/null
+
+if [ -b "$SOCKO_PARTITION" ]; then
+    mount -t ext4 -o ro,noatime,nosuid,nodev "$SOCKO_PARTITION" "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE"
+fi
+
+mkdir -p "$DISTRO_ROOT/sdcard" 2>/dev/null
+mount --bind "$SD_MOUNT" "$DISTRO_ROOT/sdcard" 2>/dev/null
+
+cat > "$DISTRO_ROOT/etc/resolv.conf" << 'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+
+# === USER SETUP ===
+log ""
+log "=== USER SETUP ==="
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    chown -R p3plus:p3plus /home/p3plus
+" 2>&1 | tee -a "$LOGFILE"

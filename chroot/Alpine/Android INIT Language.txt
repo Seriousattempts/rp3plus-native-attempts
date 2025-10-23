@@ -1,0 +1,584 @@
+
+Alpine:
+user p3plus
+
+Alpine groups:
+Group root
+Group bin
+Group daemon
+Group sys
+Group adm
+Group tty
+Group disk
+Group lp
+Group mem
+Group kmem
+Group wheel
+Group floppy
+Group mail
+Group news
+Group uucp
+Group man
+Group cron
+Group console
+Group audio
+Group cdrom
+Group dialout
+Group ftp
+Group sshd
+Group at
+Group tape
+Group video
+Group netdev
+Group readproc
+Group squid
+Group gdm
+Group xfs
+Group kvm
+Group games
+Group named
+Group mysql
+Group postgres
+Group cdrw
+Group apache
+Group nut
+Group usb
+Group avahi
+Group vpopmail
+Group users
+Group ntp
+Group nofiles
+Group qmail
+Group postfix
+Group postdrop
+Group smmsp
+Group slocate
+Group abuild
+Group utmp
+Group nogroup
+Group nobody
+Group input
+
+
+Format Types
+1. Import Statements
+- Format: import /path/to/file.rc
+-- The init process reads and parses the specified .rc file, incorporating its contents into the configuration​​. Variables like ${ro.hardware} and ${ro.zygote} are expanded at parse time
+--- Example:
+---- import /init.environ.rc
+---- import /vendor/etc/init/hw/init.${ro.hardware}.rc (with variable expansion)
+---- /init.${ro.hardware}.rc
+---- import /system/etc/init/hw/init.${ro.zygote}.rc
+
+- ${property.name} # Property expansion in commands and paths
+-- Example: write /sys/fs/f2fs/${dev.mnt.blk.data}/cp_interval 200
+-- Example: write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+-- Example: write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+
+- ${dev.mnt.blk.data} # Block device for data partition
+-- Example: write /sys/fs/f2fs/${dev.mnt.blk.data}/cp_interval 200
+
+- ${ro.bionic.arch} and ${ro.bionic.2nd_arch} # Architecture specifications
+- ${ro.bionic.cpu_variant} and ${ro.bionic.2nd_cpu_variant} # CPU variant properties
+- ${ro.vendor.ko.mount.point} # Vendor kernel module mount point​
+-- Example: insmod ${ro.vendor.ko.mount.point}/socko/sprd_sensor.ko
+- ${sys.usb.controller} # USB controller identifier​
+-- Example: write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+- ${ro.boot.super_partition} # Super partition name (for dynamic partitions)​
+-- Example: file /dev/block/by-name/${ro.boot.super_partition:-super} r
+- ${ro.boot.slot_suffix} # A/B slot suffix (_a or _b)​
+-- Example: file /dev/block/by-name/${ro.boot.super_partition:-NO_SUCH_DEVICE}${ro.boot.slot_suffix:-_NO_SUCH_SUFFIX} r
+- ${init.svc.<service_name>} # Service state variable​
+-- Example: on property:init.svc.media=* or on property:init.svc.surfaceflinger=running
+
+- ${property:-default_value} # Uses default if property not set
+-- Example: ${ro.boot.super_partition:-super}
+
+2. Action Blocks (Triggered Events)
+- Format:
+on <trigger>
+    <command>
+    <command>
+-- When the specified trigger condition is met (boot stage or property change), the init process executes all commands in the block sequentially​​
+--- Example:​
+on boot
+    write /proc/sys/net/core/rmem_max 8388608
+    write /proc/sys/net/core/rmem_default 8388608
+
+
+2.5. Trigger types (Properties can be checked for existence, not just value matches):
+- Boot stages: on early-init, on init, on boot, on post-fs-data, on late-fs
+- Property triggers: on property:sys.usb.config=adb
+- Compound triggers: on property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb && property:sys.usb.configfs=1 && on property:ro.product.cpu.abilist32=* && on property:<name>=<value> && property:<name2>=<value2>
+- Custom triggers: on cali, on factorytest, on charger
+- on nonencrypted: updateverifier
+- on userspace-reboot-fs-remount: A specialized trigger that runs during a userspace reboot sequence after filesystems have been remounted.
+- on firmware_mounts_complete: This trigger fires after all necessary firmware partitions and files are mounted and available.
+- on zygote-start: Triggers when the zygote process is starting
+- on userspace-reboot-requested: Triggers when a userspace reboot is requested
+- on userspace-reboot-resume: Triggers during userspace reboot resume
+- on load_persist_props_action: Custom trigger for loading persistent properties
+- on post-fs # Triggers after filesystems are mounted but before post-fs-data
+- on fs # Triggers during filesystem mounting stage
+- on early-boot # Triggers during early boot phase
+- on charger # Triggers when device boots into charger mode (battery charging only)
+- on shutdown # Triggers during system shutdown
+- on defaultcrypto # Triggers for default encryption handling
+- on encrypt # Triggers when encryption is enabled
+- on late-init # Triggers during late initialization phase, after early-init but as part of the boot sequence​
+- on load_bpf_programs # Custom trigger specifically for loading BPF (Berkeley Packet Filter) programs​
+- on early-fs # Triggers at the very beginning of filesystem setup, before the main fs trigger​
+- on cali-fs # Calibration mode filesystem setup (device-specific)​
+- on cali-start # Calibration mode start sequence (device-specific)​
+- on factorytest-fs # Factory test mode filesystem setup (device-specific)​
+- on factorytest-start # Factory test mode start sequence (device-specific)​
+- on ft-mount-sdcard # Factory test SD card mounting trigger (device-specific)​
+- on sprd-flash-ko # Spreadtrum-specific trigger for loading kernel modules
+- on property:<name>=* # Triggers when a property is set to any value (wildcard matching)​
+-- Example: on property:gsm.client.base=*
+- on <trigger> && property:<name>=<value> && property:<name2>=<value2> # Multiple property conditions chained
+-- Example: on early-init && property:ro.product.cpu.abilist32=*
+- on property:ro.boot.ddrsize=1024M (and 2048M, 3072M, 4096M, 6144M, 8192M) # RAM-size specific triggers
+- on property:ro.bootmode=iq # IQ mode trigger
+- on property:ro.vendor.ramconfig=4 (also =8, =12) # Vendor RAM configuration triggers
+- on property:sys.trigger_emem.oomadj=* # Extended memory OOM adjustment trigger
+- on property:init.svc.<service>=<state> # Triggers based on service state (running, stopped, restarting)​
+-- Example: on property:init.svc.mediadrm=running
+-- Example: on property:vendor.ro.bootmode=autotest && property:init.svc.surfaceflinger=running
+- on property:apexd.status=activated # Triggers when APEX modules are activated​
+-- Example: on property:ro.bootmode=factorytest && property:apexd.status=activated
+- on property:sys.boot_completed=1 # Triggers after boot completes​
+-- on property:persist.device_config.global_settings.sys_traced=<value> # Triggers for traced debugging​
+- on property:debug.atrace.user_initiated=1 # Triggers for user-initiated tracing
+
+
+3. Service Definitions
+- Format:
+service <name> <pathname> [<argument>]*
+    <option>
+    <option>
+-- The init process registers the service definition and can launch it when triggered by start <name> commands or automatically based on the class option​​
+--- Examples from files:​
+service pservice /system/bin/pservice
+    class core
+    disabled
+    user root
+    group root
+    seclabel u:r:pservice:s0
+
+service adbd /system/bin/adbd --root_seclabel=u:r:su:s0
+    class core
+    socket adbd seqpacket 660 system system
+    disabled
+    updatable
+    seclabel u:r:adbd:s0
+
+- mount with bind and rec
+-- The mount command supports more complex operations, such as bind mounts (which mirror a directory to another location) and rec (recursive) mounts.
+--- Example: mount none /linkerconfig/bootstrap /linkerconfig bind rec
+
+- interface with aidl
+-- In addition to HIDL interfaces, the interface service option is also used to declare AIDL (Android Interface Definition Language) services.
+--- Example: interface aidl apexservice is used by the apexd service definition
+
+---------------------------------------------------------------------------
+Built-in Commands
+Commands are executed directly by the init binary's built-in functions:​
+---------------------------------------------------------------------------
+
+1. File System Commands
+- mkdir <path> [mode] [owner] [group] # Creates a directory using mkdir(2) syscall​
+-- Example: mkdir /data/misc/wifi 0770 wifi wifi
+
+- encryption=<type> # parameter for mkdir # (encryption=None, encryption=Require, encryption=Attempt, encryption=DeleteIfNecessary)​
+- Example: mkdir /data/minidump 0777 system system encryption=None
+
+- chmod <octal-mode> <path> # Changes file permissions using chmod(2)​
+-- Example: chmod 0664 /dev/stune/tasks
+
+- chown <owner> <group> <path> # Changes ownership using chown(2)​
+-- Example: chown system system /dev/stune
+
+- mount <type> <device> <path> [flag]* # Mounts filesystems using mount(2)​
+-- Example: mount tracefs tracefs /sys/kernel/tracing
+
+- mode=<octal> # Mount option that sets directory mode during tmpfs mount​
+-- Example: mount tmpfs tmpfs /data mode=0777
+
+- uid=<value> and gid=<value> # Mount options for setting owner/group during mount​
+-- Example: mount tmpfs tmpfs /data_mirror nodev noexec nosuid mode=0700,uid=0,gid=1000
+
+- symlink <target> <path> # Creates symbolic links using symlink(2)​
+-- Example: symlink ../tun /dev/net/tun
+
+- copy <src> <dst> # Copies files (like cp command)​
+-- Example: copy /proc/cmdline /dev/urandom
+
+- rm <path> # Removes files using unlink(2)​
+-- Example from file: rm /config/usb_gadget/g1/configs/b.1/f1
+
+- restorecon <path> # Restores SELinux security contexts​
+-- Example: restorecon /adb_keys
+
+- restorecon_recursive <path> # Recursively restores SELinux contexts​
+-- Example: restorecon_recursive /mnt
+
+- ifup <interface> # Brings up a network interface, executes it to configure and enable the specified network interface.
+-- Example: ifup lo
+
+- hostname <name> # Sets the system's hostname, which is typically used to identify the device on a network.
+-- Example: hostname localhost
+
+- domainname <name> # Sets the system's domain name.
+-- Example: domainname localdomain
+
+- mark_post_data # A command used to signal that the post-fs-data stage has been reached, used internally by init to manage boot sequencing.
+-- Example: mark_post_data
+
+- perform_apex_config # Triggers the configuration of activated APEX modules.
+-- Example: perform_apex_config
+
+- init_user0 # A command that handles the initialization of the primary user's (user 0) directories and storage.
+-- Example: init_user0
+
+- verity_update_state # Updates dm-verity state
+
+- bind # Bind mount (mount a directory to another location)
+
+- rec # Recursive mount operation
+
+- statsglobal # Statistics tracking option for the binder filesystem
+-- Example: mount binder binder /dev/binderfs statsglobal
+
+- stats=global # Statistics tracking option for the binder filesystem
+-- Example: mount binder binder /dev/binderfs stats=global
+
+- pstore # Persistent storage filesystem (for crash logs)
+-- Example: mount pstore pstore /sys/fs/pstore nodev noexec nosuid
+
+- rootfs # Root filesystem type (for remounting root)
+-- Example: mount rootfs rootfs / remount bind ro nodev
+
+- remount_userdata # Remounts userdata partition (appears in userspace reboot scenarios)
+
+- encryption <requirement> # Inline encryption requirement modifier for mkdir
+
+- cdrom # Mark mass storage LUN as CD-ROM​
+-- Example: write /config/usb_gadget/g1/functions/mass_storage.gs6/lun.0/cdrom 1
+
+2. File I/O Commands
+- write <path> <string> # Writes data to a file (opens, writes, closes)​
+- write /dev/stune/<group>/schedtune.boost <value> # Scheduler tuning boost
+- write /dev/stune/<group>/schedtune.prefer_idle <value> # Scheduler prefer idle
+- write /dev/blkio/blkio.weight <value> # Block I/O weight
+- write /sys/block/zram0/comp_algorithm <algorithm> # ZRAM compression algorithm​
+- write /sys/block/zram0/max_comp_streams <count> # ZRAM compression streams​
+- write /proc/sys/vm/swappiness <value> # Swap aggressiveness​
+- write /proc/sys/vm/page-cluster <value> # Page clustering for swap​
+- write /proc/sys/vm/watermark_scale_factor <value> # Memory watermark scaling
+-- Example: write /proc/sys/kernel/sysrq 0
+-- Example: write /sys/block/zram0/comp_algorithm lz4
+--- The write command supports \\n for newline escaping​
+---- Example: write /proc/sys/kernel/modprobe \\n (to set an empty string)
+
+3. Process Management Commands
+Services without disabled option start automatically when their class starts
+
+- start <service> # Starts the named service​
+-- Example: start ueventd
+
+- stop <service> # Stops the named service​
+-- Example from file: stop vendor.hwcomposer-2-1
+
+- restart <service> # Restarts the named service
+
+- exec [--] <path> [args]* # Executes a program synchronously
+-- Example: exec -- /system/bin/linkerconfig --target /linkerconfig/bootstrap
+
+- exec # <user> <group> -- <command> # The exec with -- separator = synchronous execution (waits), exec # = fork without waiting (background), exec # <user> <group> -- = fork as specific user/group without waiting
+-- Example: exec # root -- /system/bin/vdc --wait cryptfs mountdefaultencrypted
+-- Example: exec # media_rw media_rw -- /system/bin/chattr +F /data/media
+
+- exec_start <service> # Executes service and waits for completion​
+-- Example: exec_start apexd-bootstrap
+
+- exec_background <user> <group> -- <path> [args]* # Executes a program in the background without waiting for it to complete. The init process continues executing further commands immediately.​
+--- Example: exec_background # system system -- /system/bin/flags_health_check BOOT_FAILURE
+
+- execstart <service> # Executes a service synchronously (waits for it to complete)​
+-- Example: execstart apexd-bootstrap
+
+4. Class Management Commands
+Services with specific class values start when class_start <name> is called
+
+- Class values:
+-- core
+-- main
+-- hal
+-- late_start
+-- charger
+-- animation
+-- earlyhal
+-- cali
+
+- class_start <name> # Starts all services in the specified class​
+-- Example: class_start charger
+
+- class_stop <name> # Stops all services in the class​
+
+- class_reset <name> # Stops then starts all services in the class​
+
+5. Property Commands
+- setprop <name> <value> # Sets an Android system property​
+-- Example: setprop sys.usb.configfs 1
+
+- load_persist_props # Loads persistent properties from storage​
+-- Example from file:
+on load_persist_props_action
+    load_persist_props
+    start logd
+
+- loadpersistprops # Loads persistent properties from storage​
+
+- load_all_props # Loads all system properties (not just persistent ones)​
+
+- load_system_props # Loads system properties specifically
+
+- class_reset_post_data # A class management command specifically for post-data classes​
+
+- class_start_post_data # A class management command specifically for post-data classes
+
+6. System Configuration Commands
+- trigger <event> # Manually triggers an action block​
+-- Example: trigger early-fs
+
+- setrlimit <resource> <cur> <max> # Sets resource limits using setrlimit(2)​
+-- Example: setrlimit nice 40 40
+
+- sysclktz <mins> # Sets system clock timezone​
+-- Example: sysclktz 0
+
+- insmod <path> # Loads a kernel module​
+-- Example: insmod ${ro.vendor.ko.mount.point}/socko/sprd_sensor.ko
+
+- export <name> <value> # Sets environment variable for all child processes​
+-- Example: export DOWNLOAD_CACHE /data/cache
+
+7. Advanced Commands
+- mount_all <fstab> # Mounts all filesystems from fstab file​
+-- Example: mount_all /vendor/etc/fstab.cali
+-- Example: --blkid_context=u:r:blkid:s0 # SELinux context for block device identification
+-- Example: --blkid_untrusted_context=u:r:blkid_untrusted:s0 # Untrusted block device context
+-- Example: --fsck_context=u:r:fsck:s0 # Filesystem check context
+-- Example: --fsck_untrusted_context=u:r:fsck_untrusted:s0 # Untrusted fsck context
+
+- swapon_all <fstab> # Activates all swap partitions​
+-- Example: swapon_all /vendor/etc/fstab.enableswap
+
+- wait <path> [timeout] # Waits for file to exist​
+-- Example: wait /sys/class/leds/sc27xx-red/brightness
+
+- installkey <path> # Installs encryption key​
+-- Example: installkey /data
+
+- bootchart start # Starts bootchart profiling​
+
+- update_linker_config # Regenerates linker configuration​
+
+- enter_default_mount_ns # Enters default mount namespace​
+
+- umount <path> # Unmounts a filesystem
+-- Example: umount /data_mirror/data_ce/null/0
+
+- rmdir <path> # Removes a directory
+-- Example: rmdir /config/usb_gadget/g1/functions/rndis.gs4
+
+- enable <servicename> # Enables a service
+
+- disable <servicename> # Disables a service
+
+- wait_for_prop <name> <value> # Waits for a system property to reach a specific value before continuing
+-- Example: wait_for_prop apexd.status activated
+
+- loglevel # Sets the kernel log level for init messages
+
+- nodev # Security mount options
+
+- noexec # Security mount options
+
+- nosuid # Security mount options
+
+- ro # Read-only/read-write
+
+- rw # Read-only/read-write
+
+- remount # Remount existing filesystem
+
+- slave # Mount propagation types
+
+- shared # Mount propagation types
+
+- private # Mount propagation types
+
+- tmpfs # Temporary filesystem type for mount command​
+
+- functionfs # Function filesystem type (used for USB FFS)​
+-- Example: mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+
+- fusectl # Filesystem type for FUSE control​
+
+- configfs # Configuration filesystem type​
+
+- bpf # BPF filesystem type
+
+- override # Marks that the service definition is overriding a previous service definition with the same name (used by APEXes)​
+
+8. Service Options
+These modify how services behave and are only valid inside service blocks:. Services can have command-line arguments with special prefixes like -Dnl80211, -iwlan0, -g@android:wpa_wlan0 that are passed directly to the binary. Services can have complex argument patterns with multiple flags and parameters, including quotes for strings
+
+- class <name> # Assigns service to a class group​
+-- Example: class hal
+
+- user <username> # Sets the user ID for the service​
+-- Example: user audioserver
+
+- group <groupname> [<groupname>]* # Sets primary and supplementary groups​
+- group identifiers:
+uhid # USB HID device access
+context_hub # Context hub sensor access
+package_info # Package information access
+external_storage # External storage access
+vpn # VPN configuration access
+log # Log access
+shell # Shell access
+sdcard_rw # SD card read/write
+media_rw # Media read/write access
+wakelock # Wakelock capability
+--- Example: group audio camera drmrpc inet media
+
+
+- disabled # Service won't auto-start, must be manually started​
+
+- oneshot # Service runs once and init doesn't monitor it​
+
+- seclabel <label> # Sets SELinux security context​
+-- Example: seclabel u:r:adbd:s0
+
+- socket <name> <type> <perm> <user> <group> [seclabel] # Creates a socket for the service​
+-- Example: socket pdx/system/vr/display/client stream 0666 system graphics u:object_r:pdx_display_client_endpoint_socket:s0
+-- socket <name> <type> <perm> <user> <group> [seclabel]
+--- socket types:
+---- dgram # Datagram socket (UDP-like)
+---- stream # Stream socket (TCP-like)
+---- seqpacket # Sequential packet socket
+
+- capabilities <cap>* # Sets Linux capabilities​
+-- Example: capabilities BLOCK_SUSPEND
+-- Example: capabilities WAKE_ALARM # Wake alarm capability​
+-- Example: capabilities DAC_OVERRIDE # Override DAC access controls​
+-- Example: capabilities DAC_READ_SEARCH # DAC read and search permissions​
+-- Example: capabilities CHOWN # Change file ownership​
+-- Example: capabilities FOWNER # Bypass permission checks​
+-- Example: capabilities IPC_LOCK # Lock memory​
+-- Example: capabilities KILL # Kill processes​
+
+- ioprio <class> <priority> # Sets I/O priority​
+-- Example: ioprio rt 4
+
+- writepid <file>* # Writes PID to specified files​
+-- Example: writepid /dev/stune/foreground/tasks
+
+- interface <interface> <instance> # Declares HIDL interface provided​
+-- Example: interface android.hardware.bluetooth@1.1::IBluetoothHci default
+
+- onrestart <command> # Executes command when service restarts​
+-- Example: onrestart restart audioserver
+
+- critical # Service is critical; too many crashes trigger recovery​
+service hwservicemanager /system/bin/hwservicemanager
+    class animation
+    user system
+    group system readproc
+    critical
+
+- setenv <name> <value> # Sets environment variable for this service only​
+-- Example: setenv BORINGSSL_SELF_TEST_CREATE_FLAG true
+
+- reboot_on_failure <target> # Reboots to target if service fails​
+-- Example: reboot_on_failure reboot,boringssl-self-check-failed
+
+- stdio_to_kmsg # Redirects stdout/stderr to kernel log​
+
+- shutdown <shutdown_behavior> # Defines behavior during shutdown​
+-- Example from file:
+service hwservicemanager /system/bin/hwservicemanager
+    ...
+    shutdown critical
+
+- task_profiles <profile>* # Assigns task profiles​
+-- Example: task_profiles ProcessCapacityHigh HighPerformance
+
+- updatable # Service can be updated by APEXes​
+
+- console # Designates the service as a system console, often providing a shell for debugging purposes. It can take an optional argument for a specific console device.
+-- Example:
+    class core
+    console
+    user shell
+    group shell log readproc
+
+- rlimit <resource> <cur> <max> # Sets a resource limit for a single service, which is distinct from the global setrlimit command.
+-- Example: rlimit rtprio 10 10
+
+- file <path> <perm> # Opens a file at the given path and passes the file descriptor to the service upon launch.
+
+- file <path> <mode> # Opens and provides file descriptor to service​
+-- Example: file /dev/kmsg w
+-- Example: file /d/mmc0/mmc0:0001/ext_csd r
+
+- priority <priority> # Sets the process priority (different from ioprio)
+- Example: priority -20
+
+- namespace <pid|mnt> # Enters a specific Linux namespace for containerization and isolation
+
+- enter_namespace <type> <path> # Service option to enter a specific namespace before starting
+
+- memcg.swappiness <value> # Sets the swappiness value for the service's memory cgroup
+
+- memcg.soft_limit_in_bytes <value> # Sets memory soft limit for the service
+
+- memcg.limit_in_bytes <value> # Sets hard memory limit for the service
+
+- encryptionRequire / encryptionNone # Directory encryption requirements (appears after mkdir commands)​
+-- Example: mkdir /data/misc 01771 system misc encryptionRequire
+
+- timeout_period <seconds> # Provides a timeout after which point the service will be killed; particularly useful for creating a periodic service when combined with restart_period​
+
+- sigstop # Send SIGSTOP to the service immediately before exec is called; primarily used for debugging​
+
+- restart_period <seconds> # If a non-oneshot service exits, it will be restarted at its start time plus this period; defaults to 5 seconds to rate limit crashing services​
+
+- keychord <keycode> [<keycode>]* # Service can be started via specific key combinations (not explicitly in your list but is a standard init option)​
+
+- override_group <groupname> # Sets an override group for the service​
+
+- gentle_kill # Service will be sent SIGTERM first before SIGKILL during shutdown
+
+- readproc # A special group identifier found in service definitions​
+-- Example: group system readproc
+
+- Copy # Special security usage pattern​
+-- Example: copy /proc/cmdline /dev/urandom # mixing entropy
+
+9. Formatting
+
+- Comments within service definitions # Inline comments are allowed​
+-- Example: setenv BORINGSSL_SELF_TEST_CREATE_FLAG true # Any nonempty value counts as true
+
+- Tab indentation # Some files use tabs instead of spaces​
+-- Example in netbox.rc uses \t for indentation
+
+- Shell script service arguments # Services can launch shell scripts with arguments​
+
+-- Example: service vendor.rps_on /system_ext/bin/data_rps.sh on
+-- Example: service gro_off /system_ext/bin/netbox.sh gro off

@@ -1,0 +1,1071 @@
+#!/system/bin/sh
+# Alpine Linux Hardware Testing Script with Super Partition Support
+
+# === PARTITION CONFIGURATION ===
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT=""
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT=""
+TEMP_DIR=""
+LOGFILE="/tmp/alpine_hardware_test.log"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Alpine Linux Hardware Testing Script ==="
+log "Device: Retroid Pocket 3 Plus (ums512_1h10)"
+log "Kernel: $(uname -a)"
+
+# === BOOT PARTITION MOUNT ===
+log ""
+log "=== BOOT PARTITION ==="
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/boot; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted: $SD_MOUNT"
+            break
+        fi
+    done
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot"
+        mkdir -p "$SD_MOUNT"
+        log "⚠ Using fallback: $SD_MOUNT"
+    fi
+fi
+
+# Create logs directory on SD card
+mkdir -p "$SD_MOUNT/logs" 2>/dev/null
+
+# Switch log to SD card if available
+if [ "$SD_MOUNT" != "/tmp/boot" ] && [ -w "$SD_MOUNT/logs" ]; then
+    NEW_LOG="${SD_MOUNT}/logs/alpine_hardware_test_$(date +%Y%m%d_%H%M%S).log"
+    cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null && LOGFILE="$NEW_LOG"
+    log "✓ Log relocated: $LOGFILE"
+fi
+
+# === WAIT FOR BLOCK DEVICES ===
+log ""
+log "=== WAITING FOR BLOCK DEVICES ==="
+WAIT=0
+while [ ! -b $SUPER_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $SUPER_PARTITION ]; then
+    log "ERROR: Super partition not found: $SUPER_PARTITION"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Super partition found: $SUPER_PARTITION"
+
+WAIT=0
+while [ ! -b $DISTRO_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $DISTRO_PARTITION ]; then
+    log "ERROR: Distro partition not found: $DISTRO_PARTITION"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Distro partition found: $DISTRO_PARTITION"
+
+# === MOUNT DISTRO PARTITION ===
+log ""
+log "=== DISTRO PARTITION MOUNT ==="
+mkdir -p $DISTRO_MOUNT
+
+if mount $DISTRO_PARTITION $DISTRO_MOUNT 2>&1 | tee -a "$LOGFILE"; then
+    log "✓ Mounted: $DISTRO_MOUNT"
+else
+    log "ERROR: Mount failed"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# === CREATE TEMP DIRECTORY ON DISTRO PARTITION ===
+TEMP_DIR="$DISTRO_MOUNT/super_temp"
+mkdir -p "$TEMP_DIR" 2>/dev/null
+log "✓ Temp directory: $TEMP_DIR"
+
+# === FIND ALPINE ROOTFS ===
+log ""
+log "=== ROOTFS DISCOVERY ==="
+DISTRO_ROOT=$(find "$DISTRO_MOUNT" -type d -name "alpine" -path "*/chroot-distro/alpine" 2>/dev/null | head -1)
+
+if [ -z "$DISTRO_ROOT" ]; then
+    log "ERROR: Alpine rootfs not found in $DISTRO_MOUNT"
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Rootfs: $DISTRO_ROOT"
+if [ -f "$DISTRO_ROOT/etc/alpine-release" ]; then
+    log "  Version: $(cat $DISTRO_ROOT/etc/alpine-release)"
+fi
+
+# === SUPER PARTITION CONFIGURATION ===
+log ""
+log "=== CONFIGURATION ==="
+log "Super partition: $SUPER_PARTITION"
+log "Distro partition: $DISTRO_PARTITION"
+log "Mount root: $DISTRO_MOUNT"
+log "Temp storage: $TEMP_DIR"
+
+# Check available space
+AVAILABLE_SPACE=$(df "$TEMP_DIR" | tail -1 | awk '{print $4}')
+log "Available space: $((AVAILABLE_SPACE / 1024)) MB"
+
+# === CREATE MOUNT POINTS FOR SUPER PARTITIONS ===
+log ""
+log "=== CREATING MOUNT POINTS ==="
+mkdir -p $DISTRO_MOUNT/system 2>/dev/null
+mkdir -p $DISTRO_MOUNT/vendor 2>/dev/null
+mkdir -p $DISTRO_MOUNT/system_ext 2>/dev/null
+mkdir -p $DISTRO_MOUNT/product 2>/dev/null
+log "✓ Mount points created"
+
+# === MOUNT FUNCTION FOR SUPER PARTITIONS ===
+mount_partition() {
+    local name=$1
+    local start_sector=$2
+    local num_sectors=$3
+    local mount_point="$DISTRO_MOUNT/$name"
+    
+    log ""
+    log "=== Mounting $name ==="
+    log "Start sector: $start_sector"
+    log "Sector count: $num_sectors ($((num_sectors / 2048)) MB)"
+    
+    local img_file="${TEMP_DIR}/${name}.img"
+    
+    log "Extracting to: $img_file"
+    
+    # Extract partition with dd
+    if dd if=$SUPER_PARTITION of=$img_file bs=4096 skip=$((start_sector / 8)) count=$((num_sectors / 8)) 2>&1 | tee -a "$LOGFILE"; then
+        if [ -f "$img_file" ]; then
+            log "✓ Partition extracted"
+            
+            IMG_SIZE=$(ls -lh $img_file | awk '{print $5}')
+            log "Extracted file size: $IMG_SIZE"
+            
+            # Find available loop device
+            local loop_dev=$(losetup -f 2>/dev/null)
+            
+            if [ -z "$loop_dev" ]; then
+                log "✗ No available loop device"
+                return 1
+            fi
+            
+            log "Using loop device: $loop_dev"
+            
+            if losetup $loop_dev $img_file 2>&1 | tee -a "$LOGFILE"; then
+                log "✓ Loop device attached"
+                
+                if mount -t ext4 -o rw $loop_dev $mount_point 2>&1 | tee -a "$LOGFILE"; then
+                    log "✓ Mount successful (rw)"
+                    
+                    ITEM_COUNT=$(ls $mount_point 2>/dev/null | wc -l)
+                    log "Top-level items: $ITEM_COUNT"
+                    
+                    log "Sample contents:"
+                    ls $mount_point | head -10 | while read item; do
+                        log "  - $item"
+                    done
+                    
+                    # Partition-specific verification
+                    case "$name" in
+                        system)
+                            if [ -f "$mount_point/build.prop" ]; then
+                                log "✓ Verified: system partition (build.prop found)"
+                            fi
+                            ;;
+                        vendor)
+                            if [ -d "$mount_point/lib64" ]; then
+                                LIB_COUNT=$(ls $mount_point/lib64 2>/dev/null | wc -l)
+                                log "✓ Verified: vendor partition ($LIB_COUNT libs in lib64)"
+                            fi
+                            ;;
+                        system_ext|product)
+                            if [ -d "$mount_point/etc" ] || [ -d "$mount_point/app" ]; then
+                                log "✓ Verified: $name partition"
+                            fi
+                            ;;
+                    esac
+                    
+                    return 0
+                else
+                    log "✗ Mount failed"
+                    losetup -d $loop_dev 2>/dev/null
+                    return 1
+                fi
+            else
+                log "✗ Failed to attach loop device"
+                return 1
+            fi
+        else
+            log "✗ Extraction failed or file not created"
+            return 1
+        fi
+    else
+        log "✗ dd extraction failed"
+        return 1
+    fi
+}
+
+# === MOUNT ALL SUPER LOGICAL PARTITIONS ===
+log ""
+log "=== MOUNTING ALL LOGICAL PARTITIONS ==="
+log ""
+
+MOUNTED_COUNT=0
+START_TIME=$(date +%s)
+
+# system_a: 2048 to 2694328 (2692280 sectors = 1.3GB)
+if mount_partition "system" 2048 2692280; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# system_ext_a: 2695168 to 3436304 (741136 sectors = 361MB)
+if mount_partition "system_ext" 2695168 741136; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# vendor_a: 3436544 to 7137520 (3700976 sectors = 1.8GB)
+if mount_partition "vendor" 3436544 3700976; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# product_a: 7139328 to 8329336 (1190008 sectors = 581MB)
+if mount_partition "product" 7139328 1190008; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+log ""
+log "=== MOUNT SUMMARY ==="
+log "Successfully mounted: $MOUNTED_COUNT/4 partitions"
+log "Total time: ${ELAPSED} seconds ($((ELAPSED / 60)) minutes)"
+log ""
+
+if [ $MOUNTED_COUNT -gt 0 ]; then
+    log "✓ SUCCESS - Mounted partitions:"
+    mount | grep "$DISTRO_MOUNT" | tee -a "$LOGFILE"
+    
+    log ""
+    log "=== PARTITION ANALYSIS ==="
+    
+    for partition in system vendor system_ext product; do
+        mp="$DISTRO_MOUNT/$partition"
+        
+        if mount | grep -q "$mp"; then
+            log ""
+            log "--- $partition partition ---"
+            
+            df -h $mp 2>&1 | tail -1 | tee -a "$LOGFILE"
+            
+            log "Counting files..."
+            FILES=$(find $mp -type f 2>/dev/null | wc -l)
+            DIRS=$(find $mp -type d 2>/dev/null | wc -l)
+            log "  Files: $FILES"
+            log "  Directories: $DIRS"
+            
+            APKS=$(find $mp -name "*.apk" 2>/dev/null | wc -l)
+            SOS=$(find $mp -name "*.so" 2>/dev/null | wc -l)
+            RCS=$(find $mp -name "*.rc" 2>/dev/null | wc -l)
+            log "  APKs: $APKS"
+            log "  Shared libraries: $SOS"
+            log "  Init scripts: $RCS"
+        fi
+    done
+    
+    log ""
+    log "=== PARTITION ACCESS READY ==="
+    log "All partitions are mounted and accessible"
+    log "  Images: $TEMP_DIR/"
+    log ""
+    log "Mounted at:"
+    log "  $DISTRO_MOUNT/system"
+    log "  $DISTRO_MOUNT/vendor"
+    log "  $DISTRO_MOUNT/system_ext"
+    log "  $DISTRO_MOUNT/product"
+fi
+
+# === CHROOT SETUP ===
+log ""
+log "=== CHROOT SETUP ==="
+
+# Create ld.so.conf with updated library paths
+mkdir -p "$DISTRO_ROOT/etc"
+cat > "$DISTRO_ROOT/etc/ld.so.conf" << 'EOF'
+/lib
+/usr/lib
+/system_ext/lib
+/system/lib
+/vendor/lib
+/system_ext/lib64
+/system/lib64
+/vendor/lib64
+EOF
+
+# Backup ld.so.conf for later use
+cp "$DISTRO_ROOT/etc/ld.so.conf" "$TEMP_DIR/ld.so.conf.backup" 2>/dev/null
+
+log "✓ Library paths configured"
+
+# === MOUNT VIRTUAL FILESYSTEMS ===
+log ""
+log "=== MOUNTING VIRTUAL FILESYSTEMS ==="
+
+# Check and mount /dev
+if [ -d "/dev" ]; then
+    mkdir -p "$DISTRO_ROOT/dev" 2>/dev/null
+    mount --bind /dev "$DISTRO_ROOT/dev" 2>/dev/null && log "✓ /dev bind mounted"
+else
+    mkdir -p "$DISTRO_ROOT/dev" 2>/dev/null
+    log "⚠ /dev not available in host"
+fi
+
+# Check and mount devpts
+mkdir -p "$DISTRO_ROOT/dev/pts" 2>/dev/null
+if mount -t devpts devpts "$DISTRO_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null; then
+    log "✓ devpts mounted"
+else
+    log "⚠ devpts mount failed"
+fi
+
+# Check and mount proc
+if [ -d "/proc" ]; then
+    mount -t proc proc "$DISTRO_ROOT/proc" 2>/dev/null && log "✓ proc mounted"
+else
+    mkdir -p "$DISTRO_ROOT/proc" 2>/dev/null
+    log "⚠ proc not available"
+fi
+
+# Check and mount sysfs
+if [ -d "/sys" ]; then
+    mount -t sysfs sysfs "$DISTRO_ROOT/sys" 2>/dev/null && log "✓ sysfs mounted"
+else
+    mkdir -p "$DISTRO_ROOT/sys" 2>/dev/null
+    log "⚠ sysfs not available"
+fi
+
+# === DISCOVER AND BIND MOUNT ALL AVAILABLE PATHS ===
+log ""
+log "=== DISCOVERING AVAILABLE PATHS ==="
+
+# Discover all top-level directories to potentially bind mount
+for src_path in /system /vendor /system_ext /product /firmware /odm /oem; do
+    if [ -d "$src_path" ] && [ "$(ls -A $src_path 2>/dev/null)" ]; then
+        log "Found: $src_path"
+    fi
+done
+
+# === BIND MOUNT SUPER PARTITIONS ===
+log ""
+log "=== BIND MOUNTING SUPER PARTITIONS ==="
+
+# Bind mount system
+if mount | grep -q "$DISTRO_MOUNT/system"; then
+    mkdir -p "$DISTRO_ROOT/system" 2>/dev/null
+    if mount --bind "$DISTRO_MOUNT/system" "$DISTRO_ROOT/system" 2>/dev/null; then
+        log "✓ /system bound"
+    else
+        log "⚠ /system bind mount failed"
+    fi
+fi
+
+# Bind mount system_ext
+if mount | grep -q "$DISTRO_MOUNT/system_ext"; then
+    mkdir -p "$DISTRO_ROOT/system_ext" 2>/dev/null
+    if mount --bind "$DISTRO_MOUNT/system_ext" "$DISTRO_ROOT/system_ext" 2>/dev/null; then
+        log "✓ /system_ext bound"
+    else
+        log "⚠ /system_ext bind mount failed"
+    fi
+fi
+
+# Bind mount vendor
+if mount | grep -q "$DISTRO_MOUNT/vendor"; then
+    mkdir -p "$DISTRO_ROOT/vendor" 2>/dev/null
+    if mount --bind "$DISTRO_MOUNT/vendor" "$DISTRO_ROOT/vendor" 2>/dev/null; then
+        log "✓ /vendor bound"
+    else
+        log "⚠ /vendor bind mount failed"
+    fi
+fi
+
+# Bind mount product
+if mount | grep -q "$DISTRO_MOUNT/product"; then
+    mkdir -p "$DISTRO_ROOT/product" 2>/dev/null
+    if mount --bind "$DISTRO_MOUNT/product" "$DISTRO_ROOT/product" 2>/dev/null; then
+        log "✓ /product bound"
+    else
+        log "⚠ /product bind mount failed"
+    fi
+fi
+
+# === BIND MOUNT ADDITIONAL PATHS ===
+log ""
+log "=== BIND MOUNTING ADDITIONAL PATHS ==="
+
+# Bind mount firmware if available
+if [ -d "/firmware" ] && [ "$(ls -A /firmware 2>/dev/null)" ]; then
+    mkdir -p "$DISTRO_ROOT/firmware" 2>/dev/null
+    if mount --bind /firmware "$DISTRO_ROOT/firmware" 2>/dev/null; then
+        log "✓ /firmware bound"
+    fi
+fi
+
+# Bind mount odm if available
+if [ -d "/odm" ] && [ "$(ls -A /odm 2>/dev/null)" ]; then
+    mkdir -p "$DISTRO_ROOT/odm" 2>/dev/null
+    if mount --bind /odm "$DISTRO_ROOT/odm" 2>/dev/null; then
+        log "✓ /odm bound"
+    fi
+fi
+
+# Bind mount oem if available
+if [ -d "/oem" ] && [ "$(ls -A /oem 2>/dev/null)" ]; then
+    mkdir -p "$DISTRO_ROOT/oem" 2>/dev/null
+    if mount --bind /oem "$DISTRO_ROOT/oem" 2>/dev/null; then
+        log "✓ /oem bound"
+    fi
+fi
+
+# === MOUNT SD CARD INTO CHROOT ===
+log ""
+log "=== MOUNTING SD CARD ==="
+mkdir -p "$DISTRO_ROOT/sdcard" 2>/dev/null
+if mount --bind "$SD_MOUNT" "$DISTRO_ROOT/sdcard" 2>/dev/null; then
+    log "✓ SD card mounted in chroot"
+else
+    log "⚠ SD card mount failed"
+fi
+
+# === DNS CONFIGURATION ===
+cat > "$DISTRO_ROOT/etc/resolv.conf" << 'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
+log "✓ DNS configured"
+
+# === TEST LIBRARY COMPATIBILITY ===
+log ""
+log "=== TESTING ALPINE ENVIRONMENT ==="
+
+if ! /system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/lib64:/vendor/lib'
+    echo 'Library test successful'
+    /bin/busybox --help >/dev/null 2>&1 && echo 'Busybox functional'
+" 2>&1 | tee -a "$LOGFILE"; then
+    log "ERROR: Alpine library compatibility test failed"
+    # Cleanup and exit
+    umount "$DISTRO_ROOT/sdcard" 2>/dev/null
+    umount "$DISTRO_ROOT/firmware" 2>/dev/null
+    umount "$DISTRO_ROOT/odm" 2>/dev/null
+    umount "$DISTRO_ROOT/oem" 2>/dev/null
+    umount "$DISTRO_ROOT/product" 2>/dev/null
+    umount "$DISTRO_ROOT/vendor" 2>/dev/null
+    umount "$DISTRO_ROOT/system_ext" 2>/dev/null
+    umount "$DISTRO_ROOT/system" 2>/dev/null
+    umount "$DISTRO_ROOT/sys" 2>/dev/null
+    umount "$DISTRO_ROOT/proc" 2>/dev/null
+    umount "$DISTRO_ROOT/dev/pts" 2>/dev/null
+    umount "$DISTRO_ROOT/dev" 2>/dev/null
+    for i in 0 1 2 3 4 5 6 7; do
+        losetup -d /dev/loop$i 2>/dev/null
+    done
+    umount $DISTRO_MOUNT/system 2>/dev/null
+    umount $DISTRO_MOUNT/vendor 2>/dev/null
+    umount $DISTRO_MOUNT/system_ext 2>/dev/null
+    umount $DISTRO_MOUNT/product 2>/dev/null
+    rm -rf "$TEMP_DIR" 2>/dev/null
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Alpine library compatibility confirmed"
+
+# === CHECK FOR DROID FOLDER AND PROCESS DROIDPATHS ===
+log ""
+log "=== CHECKING FOR DROID FOLDER ==="
+
+DROID_FOLDER=$(find "$DISTRO_ROOT" -maxdepth 2 -type d -name "droid" 2>/dev/null | head -1)
+
+if [ -n "$DROID_FOLDER" ]; then
+    log "✓ Found droid folder: $DROID_FOLDER"
+    
+    DROIDPATHS_FILE="$DROID_FOLDER/droidpaths.txt"
+    
+    if [ -f "$DROIDPATHS_FILE" ]; then
+        log "✓ Found droidpaths.txt"
+        log ""
+        log "=== CREATING DROID PATHS ==="
+        
+        CREATED_PATHS=0
+        SKIPPED_PATHS=0
+        
+        while IFS= read -r path_line; do
+            # Skip empty lines and comments
+            [ -z "$path_line" ] && continue
+            echo "$path_line" | grep -q "^#" && continue
+            
+            # Full path in chroot
+            FULL_PATH="$DISTRO_ROOT$path_line"
+            
+            # Check if it's a file (contains extension) or directory
+            if echo "$path_line" | grep -q '\.[a-zA-Z0-9]*$'; then
+                # It's a file - create parent directory
+                PARENT_DIR=$(dirname "$FULL_PATH")
+                
+                if [ -f "$FULL_PATH" ]; then
+                    log "  Skipped (exists): $path_line"
+                    SKIPPED_PATHS=$((SKIPPED_PATHS + 1))
+                else
+                    mkdir -p "$PARENT_DIR" 2>/dev/null
+                    
+                    # Special handling for linkerconfig ld.config.txt
+                    if echo "$path_line" | grep -q "linkerconfig.*ld\.config\.txt"; then
+                        if [ -f "$TEMP_DIR/ld.so.conf.backup" ]; then
+                            cp "$TEMP_DIR/ld.so.conf.backup" "$FULL_PATH" 2>/dev/null
+                            log "  Created (replaced): $path_line"
+                            CREATED_PATHS=$((CREATED_PATHS + 1))
+                        else
+                            touch "$FULL_PATH" 2>/dev/null
+                            log "  Created (empty): $path_line"
+                            CREATED_PATHS=$((CREATED_PATHS + 1))
+                        fi
+                    else
+                        touch "$FULL_PATH" 2>/dev/null
+                        log "  Created: $path_line"
+                        CREATED_PATHS=$((CREATED_PATHS + 1))
+                    fi
+                fi
+            else
+                # It's a directory
+                if [ -d "$FULL_PATH" ]; then
+                    log "  Skipped (exists): $path_line"
+                    SKIPPED_PATHS=$((SKIPPED_PATHS + 1))
+                else
+                    mkdir -p "$FULL_PATH" 2>/dev/null
+                    log "  Created: $path_line"
+                    CREATED_PATHS=$((CREATED_PATHS + 1))
+                fi
+            fi
+        done < "$DROIDPATHS_FILE"
+        
+        log ""
+        log "Path creation summary:"
+        log "  Created: $CREATED_PATHS"
+        log "  Skipped: $SKIPPED_PATHS"
+        
+        # === RUN RC_PARSER AND INIT_STARTER ===
+        log ""
+        log "=== RUNNING DROID INITIALIZATION ==="
+        
+        RC_PARSER_SCRIPT="$DROID_FOLDER/rc_parser.sh"
+        INIT_STARTER_RC="$DROID_FOLDER/init_starter.rc"
+        INIT_LOG="$SD_MOUNT/logs/droid_init_$(date +%Y%m%d_%H%M%S).log"
+        
+        if [ -f "$RC_PARSER_SCRIPT" ] && [ -f "$INIT_STARTER_RC" ]; then
+            log "✓ Found rc_parser.sh and init_starter.rc"
+            log "Running initialization (background)..."
+            
+            # Run in background
+            /system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+                export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin'
+                export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/lib64:/vendor/lib'
+                export HOME='/root'
+                export TERM='linux'
+                
+                cd $(echo $DROID_FOLDER | sed "s|$DISTRO_ROOT||")
+                /bin/ash rc_parser.sh init_starter.rc >> '/sdcard/logs/$(basename $INIT_LOG)' 2>&1
+            " 2>&1 | tee -a "$LOGFILE" &
+            
+            RC_PARSER_PID=$!
+            log "✓ Started with PID: $RC_PARSER_PID"
+            
+            # Wait for completion by monitoring log file
+            log "Waiting for RC parser to complete..."
+            WAIT_COUNT=0
+            MAX_WAIT=300  # 5 minutes timeout
+            
+            while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                # Check if process is still running
+                if ! kill -0 $RC_PARSER_PID 2>/dev/null; then
+                    log "✓ RC parser process completed (PID exited)"
+                    break
+                fi
+                
+                # Check log file for completion marker
+                if [ -f "$INIT_LOG" ]; then
+                    if grep -q "=== RC Parser Completed ===" "$INIT_LOG" 2>/dev/null; then
+                        log "✓ RC parser completed successfully"
+                        # Wait a moment for process to clean up
+                        sleep 1
+                        break
+                    fi
+                fi
+                
+                sleep 1
+                WAIT_COUNT=$((WAIT_COUNT + 1))
+                
+                # Log progress every 10 seconds
+                if [ $((WAIT_COUNT % 10)) -eq 0 ]; then
+                    log "  Still waiting... (${WAIT_COUNT}s elapsed)"
+                fi
+            done
+            
+            if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+                log "⚠ Timeout waiting for RC parser (${MAX_WAIT}s)"
+                log "⚠ Killing process $RC_PARSER_PID"
+                kill -9 $RC_PARSER_PID 2>/dev/null
+            fi
+            
+            if [ -f "$INIT_LOG" ]; then
+                LOG_SIZE=$(du -h "$INIT_LOG" | cut -f1)
+                log "✓ Init log saved: $INIT_LOG ($LOG_SIZE)"
+            else
+                log "⚠ Init log not found"
+            fi
+        else
+            log "⚠ rc_parser.sh or init_starter.rc not found"
+        fi
+    else
+        log "⚠ droidpaths.txt not found in droid folder"
+    fi
+else
+    log "⚠ No droid folder found - skipping droid initialization"
+fi
+
+# === RUN ENHANCED HARDWARE TEST ===
+log ""
+log "=== RUNNING ENHANCED HARDWARE TEST ==="
+
+TEST_OUTPUT="/sdcard/logs/hardware_test_results_$(date +%Y%m%d_%H%M%S).log"
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    export PATH='/bin:/usr/bin:/sbin:/usr/sbin:/system/bin'
+    export LD_LIBRARY_PATH='/lib:/usr/lib:/system/lib64:/system/lib:/system_ext/lib64:/system_ext/lib:/vendor/lib64:/vendor/lib'
+    export HOME='/root'
+    export TERM='linux'
+    
+    exec > '$TEST_OUTPUT' 2>&1
+    
+    echo '=== ALPINE LINUX ENHANCED HARDWARE TEST ==='
+    echo 'Date: '\$(date)
+    echo 'Kernel: '\$(uname -a)
+    echo 'Alpine: '\$(cat /etc/alpine-release 2>/dev/null || echo 'unknown')
+    echo ''
+
+    # === TEST 0: ROOT FILESYSTEM LISTING ===
+    echo '=== TEST 0: ROOT FILESYSTEM CONTENTS ==='
+    echo ''
+    ls -la / 2>/dev/null
+    echo ''
+
+    # === TEST 1: DEVICE NODES ===
+    echo '=== TEST 1: DEVICE NODES AVAILABLE ==='
+    echo ''
+
+    echo '--- Block Devices ---'
+    ls -la /dev/block/ 2>/dev/null | head -30 || echo 'No /dev/block'
+    ls -la /dev/mmcblk* 2>/dev/null || echo 'No mmcblk devices'
+    echo ''
+
+    echo '--- DRM/Graphics Devices ---'
+    ls -la /dev/dri/ 2>/dev/null || echo 'No /dev/dri'
+    ls -la /dev/fb* 2>/dev/null || echo 'No framebuffer devices'
+    ls -la /dev/mali* 2>/dev/null || echo 'No Mali devices'
+    echo ''
+
+    echo '--- Video/Camera Devices ---'
+    ls -la /dev/video* 2>/dev/null || echo 'No V4L2 video devices'
+    echo ''
+
+    echo '--- Network Devices ---'
+    ls -la /sys/class/net/ 2>/dev/null || echo 'No network interfaces'
+    echo ''
+
+    echo '--- USB/Serial Devices ---'
+    ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB devices'
+    ls -la /dev/cdc-wdm* 2>/dev/null || echo 'No cdc-wdm devices'
+    echo ''
+
+    echo '--- Input Devices ---'
+    ls -la /dev/input/ 2>/dev/null | head -15 || echo 'No input devices'
+    echo ''
+
+    echo '--- Audio Devices ---'
+    ls -la /dev/snd/ 2>/dev/null || echo 'No /dev/snd'
+    echo ''
+
+    echo '--- Bluetooth Devices ---'
+    ls -la /dev/rfkill 2>/dev/null || echo 'No /dev/rfkill'
+    ls -la /sys/class/bluetooth/ 2>/dev/null || echo 'No bluetooth class'
+    echo ''
+
+    # === TEST 2: WIFI HARDWARE ===
+    echo '=== TEST 2: WIFI HARDWARE DETECTION ==='
+    echo ''
+
+    echo '--- Network Interfaces ---'
+    ip link show 2>/dev/null || ifconfig -a 2>/dev/null || echo 'No network tools'
+    echo ''
+
+    echo '--- Wireless Interfaces ---'
+    if command -v iw >/dev/null 2>&1; then
+        iw dev 2>/dev/null || echo 'iw: no wireless devices'
+        echo ''
+        iw list 2>/dev/null | head -50 || echo 'iw list failed'
+    else
+        echo 'iw command not available'
+        ls -la /sys/class/net/ 2>/dev/null | grep -i wlan && echo 'Found wlan interface' || echo 'No wlan'
+    fi
+    echo ''
+
+    echo '--- WiFi Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'wlan|wifi|80211|brcm|bcm' | tail -20
+    echo ''
+
+    # === TEST 3: LTE/MODEM ===
+    echo '=== TEST 3: LTE/MODEM HARDWARE DETECTION ==='
+    echo ''
+
+    echo '--- Modem Device Nodes ---'
+    ls -la /dev/ttyUSB* 2>/dev/null || echo 'No ttyUSB'
+    ls -la /dev/cdc-wdm* 2>/dev/null || echo 'No cdc-wdm'
+    ls -la /dev/ttyACM* 2>/dev/null || echo 'No ttyACM'
+    echo ''
+
+    echo '--- Modem Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'modem|qmi|mbim|cdc' | tail -20
+    echo ''
+
+    # === TEST 4: STORAGE ===
+    echo '=== TEST 4: STORAGE HARDWARE ==='
+    echo ''
+
+    echo '--- Block Device Tree ---'
+    lsblk 2>/dev/null || echo 'lsblk not available'
+    echo ''
+
+    echo '--- Partition List ---'
+    cat /proc/partitions
+    echo ''
+
+    echo '--- Filesystem Usage ---'
+    df -h 2>/dev/null || df 2>/dev/null
+    echo ''
+
+    echo '--- Root Filesystem Space ---'
+    ROOT_TOTAL=\$(df / 2>/dev/null | tail -1 | awk '{print \$2}')
+    ROOT_USED=\$(df / 2>/dev/null | tail -1 | awk '{print \$3}')
+    ROOT_AVAIL=\$(df / 2>/dev/null | tail -1 | awk '{print \$4}')
+    ROOT_PERCENT=\$(df / 2>/dev/null | tail -1 | awk '{print \$5}')
+    echo \"Total: \$ROOT_TOTAL\"
+    echo \"Used: \$ROOT_USED (\$ROOT_PERCENT)\"
+    echo \"Available: \$ROOT_AVAIL\"
+    echo ''
+
+    echo '--- eMMC Info ---'
+    if [ -f /sys/block/mmcblk0/device/name ]; then
+        echo 'Device: '\$(cat /sys/block/mmcblk0/device/name)
+        echo 'Size: '\$(cat /sys/block/mmcblk0/size)' sectors'
+    fi
+    echo ''
+
+    # === TEST 5: MEMORY ===
+    echo '=== TEST 5: MEMORY INFORMATION ==='
+    echo ''
+    
+    cat /proc/meminfo 2>/dev/null | head -20
+    echo ''
+    
+    echo '--- Memory Summary ---'
+    MEM_TOTAL=\$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print \$2 \" \" \$3}')
+    MEM_FREE=\$(grep MemFree /proc/meminfo 2>/dev/null | awk '{print \$2 \" \" \$3}')
+    MEM_AVAIL=\$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print \$2 \" \" \$3}')
+    echo \"Total RAM: \$MEM_TOTAL\"
+    echo \"Free RAM: \$MEM_FREE\"
+    echo \"Available RAM: \$MEM_AVAIL\"
+    echo ''
+
+    # === TEST 6: USB ===
+    echo '=== TEST 6: USB HARDWARE ==='
+    echo ''
+
+    if command -v lsusb >/dev/null 2>&1; then
+        lsusb -t 2>/dev/null || echo 'lsusb -t failed'
+        echo ''
+        lsusb 2>/dev/null | head -20
+    else
+        echo 'lsusb not available'
+        ls -la /sys/bus/usb/devices/ 2>/dev/null | head -20
+    fi
+    echo ''
+
+    # === TEST 7: DISPLAY/GPU ===
+    echo '=== TEST 7: DISPLAY/GPU HARDWARE ==='
+    echo ''
+
+    echo '--- DRM Devices ---'
+    ls -la /dev/dri/* 2>/dev/null || echo 'No DRM devices'
+    echo ''
+
+    echo '--- Framebuffer ---'
+    ls -la /dev/fb* 2>/dev/null || echo 'No framebuffer'
+    if [ -c /dev/fb0 ]; then
+        cat /sys/class/graphics/fb0/modes 2>/dev/null || echo 'No modes info'
+        cat /sys/class/graphics/fb0/virtual_size 2>/dev/null || echo 'No virtual_size'
+    fi
+    echo ''
+
+    echo '--- Mali GPU ---'
+    dmesg 2>/dev/null | grep -i mali | tail -20
+    echo ''
+
+    # === TEST 8: CAMERA ===
+    echo '=== TEST 8: CAMERA HARDWARE ==='
+    echo ''
+
+    ls -la /dev/video* 2>/dev/null || echo 'No video devices'
+    echo ''
+
+    if command -v v4l2-ctl >/dev/null 2>&1; then
+        for dev in /dev/video*; do
+            [ -c \"\$dev\" ] && v4l2-ctl --device=\$dev --list-formats-ext 2>/dev/null
+        done
+    else
+        echo 'v4l2-ctl not available'
+    fi
+    echo ''
+
+    # === TEST 9: AUDIO ===
+    echo '=== TEST 9: AUDIO HARDWARE ==='
+    echo ''
+    
+    echo '--- Audio Devices ---'
+    ls -la /dev/snd/ 2>/dev/null || echo 'No /dev/snd'
+    echo ''
+    
+    echo '--- ALSA Cards ---'
+    if [ -f /proc/asound/cards ]; then
+        cat /proc/asound/cards 2>/dev/null
+    else
+        echo 'No /proc/asound/cards'
+    fi
+    echo ''
+    
+    echo '--- Audio Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'audio|sound|alsa|codec' | tail -20
+    echo ''
+
+    # === TEST 10: BLUETOOTH ===
+    echo '=== TEST 10: BLUETOOTH HARDWARE ==='
+    echo ''
+    
+    echo '--- Bluetooth Devices ---'
+    ls -la /dev/rfkill 2>/dev/null || echo 'No /dev/rfkill'
+    echo ''
+    
+    echo '--- Bluetooth Class ---'
+    ls -la /sys/class/bluetooth/ 2>/dev/null || echo 'No bluetooth class'
+    echo ''
+    
+    echo '--- Bluetooth Kernel Messages ---'
+    dmesg 2>/dev/null | grep -i -E 'bluetooth|hci|rfkill' | tail -20
+    echo ''
+
+    # === TEST 11: THERMAL SENSORS ===
+    echo '=== TEST 11: THERMAL SENSORS ==='
+    echo ''
+    
+    if [ -d /sys/class/thermal ]; then
+        for thermal in /sys/class/thermal/thermal_zone*; do
+            if [ -d \"\$thermal\" ]; then
+                ZONE=\$(basename \$thermal)
+                TYPE=\$(cat \$thermal/type 2>/dev/null || echo 'unknown')
+                TEMP=\$(cat \$thermal/temp 2>/dev/null || echo 'N/A')
+                echo \"\$ZONE: \$TYPE = \$TEMP\"
+            fi
+        done
+    else
+        echo 'No thermal zones found'
+    fi
+    echo ''
+
+    # === TEST 12: INPUT DEVICES ===
+    echo '=== TEST 12: CURRENT INPUT DEVICES ==='
+    echo ''
+    
+    if [ -f /proc/bus/input/devices ]; then
+        cat /proc/bus/input/devices
+    else
+        echo 'No /proc/bus/input/devices'
+    fi
+    echo ''
+
+    # === TEST 13: KERNEL MODULES ===
+    echo '=== TEST 13: KERNEL MODULES ==='
+    echo ''
+    lsmod 2>/dev/null | grep -E 'mali|sprd|wifi|wlan|modem|video|drm|audio|bluetooth' || echo 'No relevant modules'
+    echo ''
+
+    # === TEST 14: FIRMWARE ===
+    echo '=== TEST 14: FIRMWARE FILES ==='
+    echo ''
+    ls -la /lib/firmware/ 2>/dev/null | head -30 || echo 'No /lib/firmware'
+    echo ''
+
+    # === HARDWARE SUMMARY ===
+    echo '=== HARDWARE TEST SUMMARY ==='
+    echo ''
+    echo 'WiFi interfaces: '\$(ls /sys/class/net/ 2>/dev/null | grep -c wlan || echo 0)
+    echo 'Video devices: '\$(ls /dev/video* 2>/dev/null | wc -l)
+    echo 'DRM devices: '\$(ls /dev/dri/ 2>/dev/null | wc -l)
+    echo 'Framebuffers: '\$(ls /dev/fb* 2>/dev/null | wc -l)
+    echo 'USB serial: '\$(ls /dev/ttyUSB* 2>/dev/null | wc -l)
+    echo 'Audio cards: '\$(grep -c '^ *[0-9]' /proc/asound/cards 2>/dev/null || echo 0)
+    echo 'Bluetooth devices: '\$(ls /sys/class/bluetooth/ 2>/dev/null | wc -l)
+    echo 'Thermal zones: '\$(ls -d /sys/class/thermal/thermal_zone* 2>/dev/null | wc -l)
+    echo ''
+    echo 'Total RAM: '\$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print \$2 \" kB\"}')
+    echo 'Available RAM: '\$(grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print \$2 \" kB\"}')
+    echo 'Root filesystem: '\$(df -h / 2>/dev/null | tail -1 | awk '{print \$3\"/\"\$2\" (\"\$5\" used)\"}')
+    echo ''
+    echo '=== ENHANCED HARDWARE TEST COMPLETED ==='
+" 2>&1 | tee -a "$LOGFILE"
+
+CHROOT_RC=$?
+
+# Check results
+RESULT_FILE="$SD_MOUNT/logs/hardware_test_results_"*".log"
+if [ $CHROOT_RC -eq 0 ] && ls $RESULT_FILE 1>/dev/null 2>&1; then
+    ACTUAL_FILE=$(ls -t $RESULT_FILE 2>/dev/null | head -1)
+    if [ -f "$ACTUAL_FILE" ] && [ -s "$ACTUAL_FILE" ]; then
+        log "✓ Hardware test SUCCESS"
+        log "✓ Results: $ACTUAL_FILE"
+        log "✓ Size: $(du -h "$ACTUAL_FILE" | cut -f1)"
+        TEST_SUCCESS=1
+    else
+        log "⚠ Output file empty"
+        TEST_SUCCESS=0
+    fi
+else
+    log "⚠ Test failed (exit: $CHROOT_RC)"
+    TEST_SUCCESS=0
+fi
+
+# === COPY /tmp FILES TO SD CARD ===
+log ""
+log "=== COPYING /tmp FILES ==="
+
+# Copy from inside chroot /tmp
+log "Copying from chroot /tmp..."
+CHROOT_TMP_COUNT=$(ls "$DISTRO_ROOT/tmp" 2>/dev/null | wc -l)
+if [ $CHROOT_TMP_COUNT -gt 0 ]; then
+    cp -r "$DISTRO_ROOT/tmp/"* "$SD_MOUNT/logs/" 2>/dev/null
+    log "✓ Copied $CHROOT_TMP_COUNT items from chroot /tmp"
+else
+    log "⚠ No files in chroot /tmp"
+fi
+
+# Copy from host /tmp
+log "Copying from host /tmp..."
+HOST_TMP_COUNT=$(ls /tmp 2>/dev/null | wc -l)
+if [ $HOST_TMP_COUNT -gt 0 ]; then
+    cp -r /tmp/* "$SD_MOUNT/logs/" 2>/dev/null
+    log "✓ Copied $HOST_TMP_COUNT items from host /tmp"
+else
+    log "⚠ No files in host /tmp"
+fi
+
+# === CLEANUP ===
+log ""
+log "=== CLEANUP ==="
+
+umount "$DISTRO_ROOT/sdcard" 2>/dev/null && log "✓ Unmounted: SD card"
+umount "$DISTRO_ROOT/firmware" 2>/dev/null && log "✓ Unmounted: firmware"
+umount "$DISTRO_ROOT/odm" 2>/dev/null && log "✓ Unmounted: odm"
+umount "$DISTRO_ROOT/oem" 2>/dev/null && log "✓ Unmounted: oem"
+umount "$DISTRO_ROOT/product" 2>/dev/null && log "✓ Unmounted: product"
+umount "$DISTRO_ROOT/vendor" 2>/dev/null && log "✓ Unmounted: vendor"
+umount "$DISTRO_ROOT/system_ext" 2>/dev/null && log "✓ Unmounted: system_ext"
+umount "$DISTRO_ROOT/system" 2>/dev/null && log "✓ Unmounted: system"
+umount "$DISTRO_ROOT/sys" 2>/dev/null && log "✓ Unmounted: sysfs"
+umount "$DISTRO_ROOT/proc" 2>/dev/null && log "✓ Unmounted: proc"
+umount "$DISTRO_ROOT/dev/pts" 2>/dev/null && log "✓ Unmounted: devpts"
+umount "$DISTRO_ROOT/dev" 2>/dev/null && log "✓ Unmounted: dev"
+
+# Unmount super partitions
+log ""
+log "=== UNMOUNTING SUPER PARTITIONS ==="
+
+for partition in system vendor system_ext product; do
+    mp="$DISTRO_MOUNT/$partition"
+    
+    if mount | grep -q "$mp"; then
+        log "Unmounting $partition..."
+        umount $mp 2>&1 | tee -a "$LOGFILE"
+    fi
+done
+
+# Detach loop devices
+log ""
+log "=== DETACHING LOOP DEVICES ==="
+for i in 0 1 2 3 4 5 6 7; do
+    if losetup /dev/loop$i 2>/dev/null | grep -q "${TEMP_DIR}"; then
+        losetup -d /dev/loop$i 2>/dev/null
+        log "✓ Loop device /dev/loop$i detached"
+    elif losetup /dev/block/loop$i 2>/dev/null | grep -q "${TEMP_DIR}"; then
+        losetup -d /dev/block/loop$i 2>/dev/null
+        log "✓ Loop device /dev/block/loop$i detached"
+    fi
+done
+
+# Delete extracted partition images to free space
+log ""
+log "=== REMOVING EXTRACTED IMAGES ==="
+if [ -d "$TEMP_DIR" ]; then
+    IMG_SIZE=$(du -sh "$TEMP_DIR" 2>/dev/null | awk '{print $1}')
+    log "Temp directory size: $IMG_SIZE"
+    rm -rf "$TEMP_DIR" 2>/dev/null
+    if [ ! -d "$TEMP_DIR" ]; then
+        log "✓ Extracted images deleted"
+        log "✓ Space freed: $IMG_SIZE"
+    else
+        log "⚠ Failed to delete temp directory"
+    fi
+else
+    log "⚠ Temp directory not found"
+fi
+
+umount $DISTRO_MOUNT 2>/dev/null && log "✓ Unmounted: $DISTRO_MOUNT"
+
+log "✓ SD card retained for logs at: $SD_MOUNT/logs/"
+
+# === FINAL STATUS ===
+log ""
+log "=== ENHANCED HARDWARE TEST SESSION COMPLETE ==="
+log "Status: $([ $TEST_SUCCESS -eq 1 ] && echo 'SUCCESS' || echo 'FAILED')"
+log "Log: $LOGFILE"
+log ""
+log "Exiting to recovery in 3 seconds..."
+sleep 3
+
+exec /system/bin/realrecovery "$@"

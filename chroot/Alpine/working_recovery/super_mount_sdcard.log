@@ -1,0 +1,211 @@
+[04:57:21] === Super Partition Mount - SD CARD VERSION ===
+[04:57:21] Extracts to SD card to preserve /data space
+[04:57:21] 
+[04:57:21] === MOUNTING SD CARD ===
+[04:57:21] ✓ Mounted SD card: /sdcard
+[04:57:21] ✓ Logging to SD card: /sdcard/super_mount_sdcard.log
+[04:57:21] ✓ Temp directory: /sdcard/super_temp
+[04:57:22] SD card free space: 0 GB
+[04:57:22] WARNING: Low SD card space (need ~4GB for all partitions)
+[04:57:22] 
+[04:57:22] === CONFIGURATION ===
+[04:57:22] Super partition: /dev/block/mmcblk0p50
+[04:57:22] Mount root: /mnt/super_sdcard
+[04:57:22] Temp storage: /sdcard/super_temp
+[04:57:22] ✓ Mount points created
+[04:57:22] 
+[04:57:22] === MOUNTING ALL LOGICAL PARTITIONS ===
+[04:57:22] This will take several minutes (extracting ~4GB to SD card)
+[04:57:22] 
+[04:57:22] 
+[04:57:22] === Mounting system ===
+[04:57:22] Start sector: 2048
+[04:57:23] Sector count: 2692280 (1314 MB)
+[04:57:23] Extracting to SD card: /sdcard/super_temp/system_partition.img
+336535+0 records in
+336535+0 records out
+1378447360 bytes (1.2 G) copied, 16.072972 s, 82 M/s
+[04:57:39] ✓ Partition extracted
+[04:57:39] Extracted file size: 
+[04:57:39] Using loop device: /dev/block/loop0
+[04:57:39] ✓ Loop device attached
+[04:57:39] ✓ Mount successful
+[04:57:39] Top-level items: 35
+[04:57:39] Sample contents:
+[04:57:39]   - acct
+[04:57:39]   - apex
+[04:57:39]   - bin
+[04:57:40]   - bugreports
+[04:57:40]   - cache
+[04:57:40]   - config
+[04:57:40]   - d
+[04:57:40]   - data
+[04:57:40]   - data_mirror
+[04:57:40]   - debug_ramdisk
+[04:57:40] 
+[04:57:40] === Mounting system_ext ===
+[04:57:40] Start sector: 2695168
+[04:57:40] Sector count: 741136 (361 MB)
+[04:57:40] Extracting to SD card: /sdcard/super_temp/system_ext_partition.img
+92642+0 records in
+92642+0 records out
+379461632 bytes (362 M) copied, 8.992928 s, 40 M/s
+[04:57:49] ✓ Partition extracted
+[04:57:49] Extracted file size: 
+[04:57:49] Using loop device: /dev/block/loop1
+[04:57:49] ✓ Loop device attached
+[04:57:50] ✓ Mount successful
+[04:57:50] Top-level items: 10
+[04:57:50] Sample contents:
+[04:57:51]   - app
+[04:57:51]   - bin
+[04:57:52]   - build.prop
+[04:57:52]   - etc
+[04:57:52]   - framework
+[04:57:52]   - lib
+[04:57:52]   - lib64
+[04:57:52]   - lost+found
+[04:57:52]   - overlay
+[04:57:52]   - priv-app
+[04:57:52] ✓ Verified: system_ext partition
+[04:57:52] 
+[04:57:52] === Mounting vendor ===
+[04:57:52] Start sector: 3436544
+[04:57:52] Sector count: 3700976 (1807 MB)
+[04:57:52] Extracting to SD card: /sdcard/super_temp/vendor_partition.img
+462622+0 records in
+462622+0 records out
+1894899712 bytes (1.7 G) copied, 32.581551 s, 55 M/s
+[04:58:25] ✓ Partition extracted
+[04:58:25] Extracted file size: 
+[04:58:25] Using loop device: /dev/block/loop2
+[04:58:25] ✓ Loop device attached
+[04:58:25] ✓ Mount successful
+[04:58:25] Top-level items: 16
+[04:58:26] Sample contents:
+[04:58:27]   - app
+[04:58:28]   - bin
+[04:58:29]   - build.prop
+[04:58:29]   - default.prop
+[04:58:30]   - etc
+[04:58:30]   - firmware
+[04:58:30]   - lib
+[04:58:30]   - lib64
+[04:58:31]   - logo
+[04:58:31]   - lost+found
+[04:58:31] ✓ Verified: vendor partition (254 libs in lib64)
+[04:58:31] 
+[04:58:31] === Mounting product ===
+[04:58:31] Start sector: 7139328
+[04:58:31] Sector count: 1190008 (581 MB)
+[04:58:31] Extracting to SD card: /sdcard/super_temp/product_partition.img
+148751+0 records in
+148751+0 records out
+609284096 bytes (581 M) copied, 10.054850 s, 58 M/s
+[04:58:41] ✓ Partition extracted
+[04:58:41] Extracted file size: 
+[04:58:41] Using loop device: /dev/block/loop3
+[04:58:41] ✓ Loop device attached
+[04:58:41] ✓ Mount successful
+[04:58:42] Top-level items: 8
+[04:58:42] Sample contents:
+[04:58:42]   - app
+[04:58:42]   - build.prop
+[04:58:42]   - etc
+[04:58:42]   - framework
+[04:58:42]   - lost+found
+[04:58:42]   - media
+[04:58:42]   - overlay
+[04:58:42]   - priv-app
+[04:58:42] ✓ Verified: product partition
+[04:58:42] 
+[04:58:42] === MOUNT SUMMARY ===
+[04:58:42] Successfully mounted: 4/4 partitions
+[04:58:42] Total time: 80 seconds (1 minutes)
+[04:58:42] 
+[04:58:42] ✓ SUCCESS - Mounted partitions:
+/dev/block/loop0 on /mnt/super_sdcard/system type ext4 (ro,seclabel,relatime)
+/dev/block/loop1 on /mnt/super_sdcard/system_ext type ext4 (ro,seclabel,relatime)
+/dev/block/loop2 on /mnt/super_sdcard/vendor type ext4 (ro,seclabel,relatime)
+/dev/block/loop3 on /mnt/super_sdcard/product type ext4 (ro,seclabel,relatime)
+[04:58:42] 
+[04:58:43] === PARTITION ANALYSIS ===
+[04:58:43] 
+[04:58:43] --- system partition ---
+/dev/block/loop0 1.2G  1.2G  3.9M 100% /mnt/super_sdcard/system
+[04:58:43] Counting files...
+[04:58:46]   Files: 2307
+[04:58:46]   Directories: 196
+[04:58:46]   APKs: 53
+[04:58:46]   Shared libraries: 860
+[04:58:46]   Init scripts: 72
+[04:58:46] 
+[04:58:46] --- vendor partition ---
+/dev/block/loop2 1.7G  1.7G  5.3M 100% /mnt/super_sdcard/vendor
+[04:58:46] Counting files...
+[04:58:47]   Files: 1365
+[04:58:47]   Directories: 112
+[04:58:47]   APKs: 35
+[04:58:47]   Shared libraries: 689
+[04:58:47]   Init scripts: 72
+[04:58:47] 
+[04:58:47] --- system_ext partition ---
+/dev/block/loop1 356M  355M  1.0M 100% /mnt/super_sdcard/system_ext
+[04:58:47] Counting files...
+[04:58:48]   Files: 211
+[04:58:48]   Directories: 91
+[04:58:48]   APKs: 24
+[04:58:48]   Shared libraries: 65
+[04:58:49]   Init scripts: 13
+[04:58:49] 
+[04:58:49] --- product partition ---
+/dev/block/loop3 572M  570M  1.7M 100% /mnt/super_sdcard/product
+[04:58:49] Counting files...
+[04:58:49]   Files: 354
+[04:58:49]   Directories: 105
+[04:58:49]   APKs: 76
+[04:58:49]   Shared libraries: 0
+[04:58:49]   Init scripts: 0
+[04:58:49] 
+[04:58:49] === PARTITION ACCESS READY ===
+[04:58:49] All partitions are mounted and accessible
+[04:58:49] 
+[04:58:49] Extraction images stored on SD card at:
+[04:58:49]   /sdcard/super_temp/
+[04:58:50] 
+[04:58:50] Mounted at:
+[04:58:50]   /mnt/super_sdcard/system
+[04:58:50]   /mnt/super_sdcard/vendor
+[04:58:50]   /mnt/super_sdcard/system_ext
+[04:58:50]   /mnt/super_sdcard/product
+[04:58:50] 
+[04:58:50] IMPORTANT: Keeping partitions mounted for 300 seconds (5 minutes)
+[04:58:50] Press Ctrl+C to keep mounted longer
+[04:58:50] 
+[04:58:50] After unmount, extracted images remain on SD card for reuse
+[05:03:50] 
+[05:03:50] === CLEANUP ===
+[05:03:50] Unmounting partitions (keeping extracted images)...
+[05:03:50] Unmounting system...
+[05:03:51] Unmounting vendor...
+[05:03:51] Unmounting system_ext...
+[05:03:51] Unmounting product...
+[05:03:51] 
+[05:03:51] NOTE: Extracted partition images kept on SD card:
+__bionic_open_tzdata: couldn't find any tzdata when looking for Africa/Cairo!
+-rwx------ 1 root root 581M 2025-10-15 04:58 /sdcard/super_temp/product_partition.img
+-rwx------ 1 root root 362M 2025-10-15 04:57 /sdcard/super_temp/system_ext_partition.img
+-rwx------ 1 root root 1.2G 2025-10-15 04:57 /sdcard/super_temp/system_partition.img
+-rwx------ 1 root root 1.7G 2025-10-15 04:58 /sdcard/super_temp/vendor_partition.img
+[05:03:51] 
+[05:03:51] To remount later (much faster):
+[05:03:51]   losetup /dev/loop0 /sdcard/super_temp/system_partition.img
+[05:03:51]   mount /dev/loop0 /mnt/system
+[05:03:51] 
+[05:03:52] To free SD card space:
+[05:03:52]   rm /sdcard/super_temp/*.img
+[05:03:52] ✓ Cleanup complete
+[05:03:52] 
+[05:03:52] === TEST COMPLETE ===
+[05:03:52] Full log: /sdcard/super_mount_sdcard.log
+[05:03:52] Extracted images: /sdcard/super_temp/

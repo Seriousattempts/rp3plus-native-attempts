@@ -1,0 +1,37 @@
+log "=== CAMERA GPIO INITIALIZATION ==="
+
+/system/bin/busybox chroot "$DISTRO_ROOT" /bin/ash -c "
+    # Export camera GPIOs based on device tree analysis
+    # GPIO controller base: 128 (from 32070000.gpio)
+    
+    # Main Camera (I2C 0x20) - pins relative to base 128
+    # AVDD: 25, DVDD: 15, Power-Down: 46, Reset: 44
+    CAM_MAIN_AVDD=\$((128 + 25))
+    CAM_MAIN_DVDD=\$((128 + 15))
+    CAM_MAIN_PWDN=\$((128 + 46))
+    CAM_MAIN_RST=\$((128 + 44))
+    
+    # Second Main Camera (I2C 0x2A) - Reset: 41
+    CAM_MAIN2_RST=\$((128 + 41))
+    
+    echo 'Exporting camera GPIOs...'
+    
+    for gpio in \$CAM_MAIN_AVDD \$CAM_MAIN_DVDD \$CAM_MAIN_PWDN \$CAM_MAIN_RST \$CAM_MAIN2_RST; do
+        if [ ! -d /sys/class/gpio/gpio\$gpio ]; then
+            echo \$gpio > /sys/class/gpio/export 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo out > /sys/class/gpio/gpio\$gpio/direction 2>/dev/null
+                echo 0 > /sys/class/gpio/gpio\$gpio/value 2>/dev/null
+                echo \"  ✓ Exported GPIO \$gpio\"
+            else
+                echo \"  ✗ Failed to export GPIO \$gpio\"
+            fi
+        else
+            echo \"  • GPIO \$gpio already exported\"
+        fi
+    done
+    
+    echo '✓ Camera GPIO initialization complete'
+" 2>&1 | tee -a "$LOGFILE"
+
+log "✓ Camera GPIOs configured"

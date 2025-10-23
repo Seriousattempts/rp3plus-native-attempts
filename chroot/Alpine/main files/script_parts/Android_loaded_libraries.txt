@@ -1,0 +1,113 @@
+    # === ANDROID GRAPHICAL LIBRARIES TESTING ===
+    echo '======================================================================='
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] TEST: ANDROID GRAPHICAL LIBRARIES'
+    echo '======================================================================='
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Phase 1: Testing Native Android lib64 Libraries ---'
+    
+    for lib_path in /system/lib64 /system_ext/lib64 /vendor/lib64; do
+        if [ -d \"\$lib_path\" ]; then
+            echo \"Testing libraries in \$lib_path:\"
+            
+            # Test EGL libraries
+            for lib in \"\$lib_path\"/libEGL*.so \"\$lib_path\"/libGLES*.so; do
+                if [ -f \"\$lib\" ]; then
+                    echo \"  Testing: \$(basename \$lib)\"
+                    file \"\$lib\" | head -1
+                    ldd \"\$lib\" 2>&1 | head -10
+                    echo ''
+                fi
+            done
+            
+            # Test EGL subdirectory
+            if [ -d \"\$lib_path/egl\" ]; then
+                for egl_lib in \"\$lib_path/egl\"/*.so; do
+                    if [ -f \"\$egl_lib\" ]; then
+                        echo \"  Testing EGL: \$(basename \$egl_lib)\"
+                        file \"\$egl_lib\" | head -1
+                        ldd \"\$egl_lib\" 2>&1 | head -10
+                        echo ''
+                    fi
+                done
+            fi
+            
+            # Test graphics hardware libraries
+            if [ -d \"\$lib_path/hw\" ]; then
+                for hw_lib in \"\$lib_path/hw\"/*graphics* \"\$lib_path/hw\"/*gralloc* \"\$lib_path/hw\"/*composer*; do
+                    if [ -f \"\$hw_lib\" ]; then
+                        echo \"  Testing HW: \$(basename \$hw_lib)\"
+                        file \"\$hw_lib\" | head -1
+                        ldd \"\$hw_lib\" 2>&1 | head -10
+                        echo ''
+                    fi
+                done
+            fi
+        fi
+    done
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Phase 2: Testing /droid Libraries ---'
+    
+    if [ -d /droid/lib64 ]; then
+        echo 'Testing ALL libraries from /droid/lib64...'
+        echo ''
+        
+        export LD_LIBRARY_PATH=\"/droid/lib64:\$LD_LIBRARY_PATH\"
+        
+        for droid_lib in /droid/lib64/*.so*; do
+            if [ -f \"\$droid_lib\" ]; then
+                LIB_NAME=\$(basename \"\$droid_lib\")
+                echo \"Testing /droid library: \$LIB_NAME\"
+                file \"\$droid_lib\" | head -1
+                echo ''
+                
+                echo 'Checking dependencies:'
+                ldd \"\$droid_lib\" 2>&1 | head -15
+                echo ''
+                
+                # Try to load library
+                echo 'Attempting to load library...'
+                LD_PRELOAD=\"\$droid_lib\" /bin/true 2>&1 || echo 'Note: Library load test completed (errors may be expected)'
+                echo ''
+                echo '---'
+                echo ''
+            fi
+        done
+    else
+        echo '/droid/lib64 directory not found'
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Testing Android Mali Libraries ---'
+    
+    export LD_LIBRARY_PATH=\"/vendor/lib64:/vendor/lib64/egl:\$LD_LIBRARY_PATH\"
+    
+    for mali_lib in /vendor/lib64/egl/libGLES_mali.so /system/lib64/libGLES_mali.so; do
+        if [ -f \"\$mali_lib\" ]; then
+            echo \"Testing Mali library: \$mali_lib\"
+            file \"\$mali_lib\"
+            echo ''
+            
+            echo 'Checking dependencies:'
+            ldd \"\$mali_lib\" 2>&1
+            echo ''
+            
+            # Try to use the library even if there are permission issues
+            echo 'Attempting to load library (ignoring permission errors)...'
+            LD_PRELOAD=\"\$mali_lib\" /bin/true 2>&1 || echo 'Note: Permission issues detected but continuing test'
+            echo ''
+        fi
+    done
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Testing Android EGL with Mali ---'
+    if command -v eglinfo >/dev/null 2>&1; then
+        export EGL_PLATFORM=android
+        export LD_LIBRARY_PATH=\"/vendor/lib64:/vendor/lib64/egl:\$LD_LIBRARY_PATH\"
+        
+        echo 'EGL test with Android Mali libraries:'
+        eglinfo 2>&1 | head -100
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] ✓ ANDROID GRAPHICAL LIBRARIES TEST COMPLETED'
+    echo ''

@@ -1,0 +1,132 @@
+    # === BLUETOOTH TESTING ===
+    echo '======================================================================='
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] TEST: BLUETOOTH SUBSYSTEM'
+    echo '======================================================================='
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Bluetooth Kernel Module Status ---'
+    lsmod | grep -i 'bt\|bluetooth\|sprdbt'
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- rfkill Status ---'
+    if [ -d /sys/class/rfkill ]; then
+        echo 'rfkill devices:'
+        ls -la /sys/class/rfkill/
+        echo ''
+        
+        for rfkill_dev in /sys/class/rfkill/rfkill*; do
+            if [ -d \"\$rfkill_dev\" ]; then
+                RFKILL_NAME=\$(cat \"\$rfkill_dev/name\" 2>/dev/null)
+                RFKILL_TYPE=\$(cat \"\$rfkill_dev/type\" 2>/dev/null)
+                RFKILL_STATE=\$(cat \"\$rfkill_dev/state\" 2>/dev/null)
+                RFKILL_SOFT=\$(cat \"\$rfkill_dev/soft\" 2>/dev/null)
+                RFKILL_HARD=\$(cat \"\$rfkill_dev/hard\" 2>/dev/null)
+                
+                echo \"Device: \$(basename \$rfkill_dev)\"
+                echo \"  Name: \$RFKILL_NAME\"
+                echo \"  Type: \$RFKILL_TYPE\"
+                echo \"  State: \$RFKILL_STATE (0=disabled, 1=enabled)\"
+                echo \"  Soft blocked: \$RFKILL_SOFT\"
+                echo \"  Hard blocked: \$RFKILL_HARD\"
+                echo ''
+            fi
+        done
+    else
+        echo 'No rfkill interface found'
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Attempting to Unblock Bluetooth ---'
+    if command -v rfkill >/dev/null 2>&1; then
+        rfkill list 2>&1
+        echo ''
+        
+        echo 'Unblocking bluetooth...'
+        rfkill unblock bluetooth 2>&1
+        sleep 2
+        
+        echo 'Status after unblock:'
+        rfkill list 2>&1
+    else
+        echo 'rfkill command not available'
+        
+        # Manual unblock via sysfs
+        for rfkill_dev in /sys/class/rfkill/rfkill*; do
+            if [ -f \"\$rfkill_dev/type\" ]; then
+                TYPE=\$(cat \"\$rfkill_dev/type\" 2>/dev/null)
+                if [ \"\$TYPE\" = \"bluetooth\" ]; then
+                    echo 'Attempting manual unblock via sysfs...'
+                    echo 0 > \"\$rfkill_dev/soft\" 2>&1
+                    echo \"State: \$(cat \$rfkill_dev/state 2>/dev/null)\"
+                fi
+            fi
+        done
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Bluetooth Device Nodes ---'
+    ls -la /dev/ttyBT* 2>/dev/null || echo 'No /dev/ttyBT* devices found'
+    ls -la /dev/wcn* 2>/dev/null
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- WCN (WiFi/BT Combo) Status ---'
+    echo 'WCN logging devices:'
+    ls -la /dev/slog_wcn* 2>/dev/null
+    echo ''
+    
+    echo 'WCN processes:'
+    ps aux | grep wcn | grep -v grep
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Bluetooth Service Status ---'
+    if command -v bluetoothd >/dev/null 2>&1; then
+        echo 'Starting bluetoothd (requires D-Bus)...'
+        
+        if pgrep -x dbus-daemon >/dev/null; then
+            bluetoothd -n 2>&1 &
+            BT_PID=\$!
+            sleep 3
+            
+            if ps -p \$BT_PID >/dev/null 2>&1; then
+                echo '✓ bluetoothd started'
+                
+                # Try bluetoothctl if available
+                if command -v bluetoothctl >/dev/null 2>&1; then
+                    echo ''
+                    echo 'Testing bluetoothctl...'
+                    timeout 5 bluetoothctl --timeout 3 list 2>&1
+                    timeout 5 bluetoothctl --timeout 3 show 2>&1
+                fi
+                
+                kill \$BT_PID 2>/dev/null
+            else
+                echo '✗ bluetoothd failed to start'
+            fi
+        else
+            echo '✗ D-Bus not running - bluetoothd requires D-Bus'
+        fi
+    else
+        echo 'bluetoothd not available'
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Bluetooth HCI Interface ---'
+    if command -v hciconfig >/dev/null 2>&1; then
+        hciconfig -a 2>&1
+    else
+        echo 'hciconfig not available'
+        
+        # Check for HCI device via sysfs
+        if [ -d /sys/class/bluetooth ]; then
+            echo 'Bluetooth devices in sysfs:'
+            ls -la /sys/class/bluetooth/
+        fi
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Bluetooth Kernel Messages ---'
+    dmesg | grep -i 'bluetooth\|hci\|sprd.*bt' | tail -30
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] ✓ BLUETOOTH SUBSYSTEM TEST COMPLETED'
+    echo ''

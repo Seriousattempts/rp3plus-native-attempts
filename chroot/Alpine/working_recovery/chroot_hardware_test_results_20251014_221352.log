@@ -1,0 +1,379 @@
+=== ALPINE LINUX HARDWARE TEST ===
+Date: Tue Oct 14 18:13:52 EDT 2025
+Kernel: Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64 GNU/Linux
+Alpine: 3.22.2
+
+=== TEST 1: DEVICE NODES AVAILABLE ===
+
+--- Block Devices ---
+total 0
+drwxr-xr-x  4 root   root      2400 Oct 14 18:13 .
+drwxr-xr-x 12 root   root      3260 Oct 14 18:13 ..
+drwxr-xr-x  2 root   root      1640 Oct 14 18:13 by-name
+brw-------  1 root   root     7,  0 Oct 14 18:13 loop0
+brw-------  1 root   root     7,  1 Oct 14 18:13 loop1
+brw-------  1 root   root     7, 10 Oct 14 18:13 loop10
+brw-------  1 root   root     7, 11 Oct 14 18:13 loop11
+brw-------  1 root   root     7, 12 Oct 14 18:13 loop12
+brw-------  1 root   root     7, 13 Oct 14 18:13 loop13
+brw-------  1 root   root     7, 14 Oct 14 18:13 loop14
+brw-------  1 root   root     7, 15 Oct 14 18:13 loop15
+brw-------  1 root   root     7,  2 Oct 14 18:13 loop2
+brw-------  1 root   root     7,  3 Oct 14 18:13 loop3
+brw-------  1 root   root     7,  4 Oct 14 18:13 loop4
+brw-------  1 root   root     7,  5 Oct 14 18:13 loop5
+brw-------  1 root   root     7,  6 Oct 14 18:13 loop6
+brw-------  1 root   root     7,  7 Oct 14 18:13 loop7
+brw-------  1 root   root     7,  8 Oct 14 18:13 loop8
+brw-------  1 root   root     7,  9 Oct 14 18:13 loop9
+crw------- 1 root root 509, 0 Oct 14 18:13 /dev/mmcblk0rpmb
+
+--- DRM/Graphics Devices ---
+total 0
+drwxr-xr-x  2 root root     60 Oct 14 18:13 .
+drwxr-xr-x 12 root root   3260 Oct 14 18:13 ..
+crw-rw-rw-  1 root 1003 226, 0 Oct 14 18:13 card0
+No framebuffer devices
+No Mali devices
+
+--- Video/Camera Devices ---
+No V4L2 video devices
+
+--- Network Devices ---
+total 0
+drwxr-xr-x  2 root root 0 Oct 14 18:13 .
+drwxr-xr-x 68 root root 0 Oct 14 18:13 ..
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 dummy0 -> ../../devices/virtual/net/dummy0
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 ip6_vti0 -> ../../devices/virtual/net/ip6_vti0
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 ip6tnl0 -> ../../devices/virtual/net/ip6tnl0
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 ip_vti0 -> ../../devices/virtual/net/ip_vti0
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 lo -> ../../devices/virtual/net/lo
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte0 -> ../../devices/virtual/net/seth_lte0
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte1 -> ../../devices/virtual/net/seth_lte1
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte10 -> ../../devices/virtual/net/seth_lte10
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte11 -> ../../devices/virtual/net/seth_lte11
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte12 -> ../../devices/virtual/net/seth_lte12
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte13 -> ../../devices/virtual/net/seth_lte13
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte2 -> ../../devices/virtual/net/seth_lte2
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte3 -> ../../devices/virtual/net/seth_lte3
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte4 -> ../../devices/virtual/net/seth_lte4
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte5 -> ../../devices/virtual/net/seth_lte5
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte6 -> ../../devices/virtual/net/seth_lte6
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte7 -> ../../devices/virtual/net/seth_lte7
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte8 -> ../../devices/virtual/net/seth_lte8
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 seth_lte9 -> ../../devices/virtual/net/seth_lte9
+lrwxrwxrwx  1 root root 0 Oct 14 18:13 sit0 -> ../../devices/virtual/net/sit0
+
+--- USB/Serial Devices ---
+No ttyUSB devices
+No cdc-wdm devices
+
+--- Input Devices ---
+total 0
+drwxr-xr-x  2 root root    160 Oct 14 18:13 .
+drwxr-xr-x 12 root root   3260 Oct 14 18:13 ..
+crw-rw----  1 root 1004 13, 64 Oct 14 18:13 event0
+crw-rw----  1 root 1004 13, 65 Oct 14 18:13 event1
+crw-rw----  1 root 1004 13, 66 Oct 14 18:13 event2
+crw-rw----  1 root 1004 13, 67 Oct 14 18:13 event3
+crw-rw----  1 root 1004 13, 68 Oct 14 18:13 event4
+crw-rw----  1 root 1004 13, 63 Oct 14 18:13 mice
+
+=== TEST 2: WIFI HARDWARE DETECTION ===
+
+--- Network Interfaces ---
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: dummy0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 7a:05:9e:f0:6c:05 brd ff:ff:ff:ff:ff:ff
+3: ip_vti0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ipip 0.0.0.0 brd 0.0.0.0
+4: ip6_vti0@NONE: <NOARP> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/tunnel6 :: brd ::
+5: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+6: ip6tnl0@NONE: <NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/tunnel6 :: brd ::
+7: seth_lte0: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 56:9c:27:7c:73:da brd ff:ff:ff:ff:ff:ff
+8: seth_lte1: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 56:04:0c:1d:09:08 brd ff:ff:ff:ff:ff:ff
+9: seth_lte2: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] c6:33:ef:2b:63:1b brd ff:ff:ff:ff:ff:ff
+10: seth_lte3: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 72:1f:e9:dc:58:e8 brd ff:ff:ff:ff:ff:ff
+11: seth_lte4: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 16:ef:3f:65:63:bb brd ff:ff:ff:ff:ff:ff
+12: seth_lte5: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] ee:40:e8:be:80:0b brd ff:ff:ff:ff:ff:ff
+13: seth_lte6: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 8e:05:ae:df:e8:35 brd ff:ff:ff:ff:ff:ff
+14: seth_lte7: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] fa:02:06:6f:7a:8b brd ff:ff:ff:ff:ff:ff
+15: seth_lte8: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 0a:ee:5f:30:a9:33 brd ff:ff:ff:ff:ff:ff
+16: seth_lte9: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] b6:49:ac:66:49:ff brd ff:ff:ff:ff:ff:ff
+17: seth_lte10: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] b2:23:b2:80:a3:8f brd ff:ff:ff:ff:ff:ff
+18: seth_lte11: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 4a:81:b1:da:1d:e7 brd ff:ff:ff:ff:ff:ff
+19: seth_lte12: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] d2:f8:96:26:da:e8 brd ff:ff:ff:ff:ff:ff
+20: seth_lte13: <> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/[519] 1a:dd:ee:8c:19:92 brd ff:ff:ff:ff:ff:ff
+
+--- Wireless Interfaces ---
+
+
+--- WiFi Kernel Messages ---
+
+=== TEST 3: LTE/MODEM HARDWARE DETECTION ===
+
+--- Modem Device Nodes ---
+No ttyUSB
+No cdc-wdm
+No ttyACM
+
+--- Modem Kernel Messages ---
+[    0.000000] -;Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=32816 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=
+[    0.823297] -;cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+[    4.948342] -;WCN BASEgnss_download_firmware no find gnssmodem.bin err:-2(ignore)
+[    5.942334] -;WCN BASEno find wcnmodem.bin errno:(-2)(ignore!!)
+
+=== TEST 4: STORAGE HARDWARE ===
+
+--- Block Device Tree ---
+NAME         MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+mmcblk0      179:0    0 116.5G  0 disk 
+├─mmcblk0p1  179:1    0    10M  0 part 
+├─mmcblk0p2  179:2    0     1M  0 part 
+├─mmcblk0p3  179:3    0     1M  0 part 
+├─mmcblk0p4  179:4    0     6M  0 part 
+├─mmcblk0p5  179:5    0     6M  0 part 
+├─mmcblk0p6  179:6    0     1M  0 part 
+├─mmcblk0p7  179:7    0     1M  0 part 
+├─mmcblk0p8  259:1    0     1M  0 part 
+├─mmcblk0p9  259:2    0     1M  0 part 
+├─mmcblk0p10 259:3    0     4M  0 part 
+├─mmcblk0p11 259:4    0     8M  0 part 
+├─mmcblk0p12 259:5    0     8M  0 part 
+├─mmcblk0p13 259:6    0     2M  0 part 
+├─mmcblk0p14 259:7    0     2M  0 part 
+├─mmcblk0p15 259:8    0     2M  0 part 
+├─mmcblk0p16 259:9    0     2M  0 part 
+├─mmcblk0p17 259:10   0     2M  0 part 
+├─mmcblk0p18 259:11   0     2M  0 part 
+├─mmcblk0p19 259:12   0     1M  0 part 
+├─mmcblk0p20 259:13   0     1M  0 part 
+├─mmcblk0p21 259:14   0    10M  0 part 
+├─mmcblk0p22 259:15   0    10M  0 part 
+├─mmcblk0p23 259:16   0     2M  0 part 
+├─mmcblk0p24 259:17   0    25M  0 part 
+├─mmcblk0p25 259:18   0    25M  0 part 
+├─mmcblk0p26 259:19   0     1M  0 part 
+├─mmcblk0p27 259:20   0     1M  0 part 
+├─mmcblk0p28 259:21   0    10M  0 part 
+├─mmcblk0p29 259:22   0    10M  0 part 
+├─mmcblk0p30 259:23   0    20M  0 part 
+├─mmcblk0p31 259:24   0    20M  0 part 
+├─mmcblk0p32 259:25   0     6M  0 part 
+├─mmcblk0p33 259:26   0     6M  0 part 
+├─mmcblk0p34 259:27   0     1M  0 part 
+├─mmcblk0p35 259:28   0     1M  0 part 
+├─mmcblk0p36 259:29   0     1M  0 part 
+├─mmcblk0p37 259:30   0     1M  0 part 
+├─mmcblk0p38 259:31   0     1M  0 part 
+├─mmcblk0p39 259:32   0     1M  0 part 
+├─mmcblk0p40 259:33   0    10M  0 part 
+├─mmcblk0p41 259:34   0    10M  0 part 
+├─mmcblk0p42 259:35   0    64M  0 part 
+├─mmcblk0p43 259:36   0    64M  0 part 
+├─mmcblk0p44 259:37   0   100M  0 part 
+├─mmcblk0p45 259:38   0   100M  0 part 
+├─mmcblk0p46 259:39   0     8M  0 part 
+├─mmcblk0p47 259:40   0     8M  0 part 
+├─mmcblk0p48 259:41   0     8M  0 part 
+├─mmcblk0p49 259:42   0     8M  0 part 
+├─mmcblk0p50 259:43   0   6.2G  0 part 
+├─mmcblk0p51 259:44   0   100M  0 part 
+├─mmcblk0p52 259:45   0    75M  0 part 
+├─mmcblk0p53 259:46   0    75M  0 part 
+├─mmcblk0p54 259:47   0    25M  0 part 
+├─mmcblk0p55 259:48   0    25M  0 part 
+├─mmcblk0p56 259:49   0     1M  0 part 
+├─mmcblk0p57 259:50   0     1M  0 part 
+├─mmcblk0p58 259:51   0    16M  0 part 
+├─mmcblk0p59 259:52   0    10M  0 part 
+├─mmcblk0p60 259:53   0     1M  0 part 
+├─mmcblk0p61 259:54   0     1M  0 part 
+├─mmcblk0p62 259:55   0     1M  0 part 
+├─mmcblk0p63 259:56   0     1M  0 part 
+├─mmcblk0p64 259:57   0     1M  0 part 
+├─mmcblk0p65 259:58   0     1M  0 part 
+├─mmcblk0p66 259:59   0     1M  0 part 
+├─mmcblk0p67 259:60   0     1M  0 part 
+├─mmcblk0p68 259:61   0     1M  0 part 
+├─mmcblk0p69 259:62   0     1M  0 part 
+├─mmcblk0p70 259:63   0     1M  0 part 
+├─mmcblk0p71 259:64   0     1M  0 part 
+├─mmcblk0p72 259:65   0     8M  0 part 
+├─mmcblk0p73 259:66   0     8M  0 part 
+├─mmcblk0p74 259:67   0    16M  0 part 
+├─mmcblk0p75 259:68   0    16M  0 part 
+├─mmcblk0p76 259:69   0  54.7G  0 part 
+└─mmcblk0p77 259:70   0  54.7G  0 part 
+mmcblk0boot0 179:8    0     4M  0 disk 
+mmcblk0boot1 179:16   0     4M  0 disk 
+mmcblk1      179:24   0 238.8G  0 disk 
+└─mmcblk1p1  179:25   0 238.7G  0 part /sdcard
+zram0        254:0    0     0B  0 disk 
+pmem0        259:0    0    64K  0 disk 
+
+--- Partition List ---
+major minor  #blocks  name
+
+   1        0       8192 ram0
+   1        1       8192 ram1
+   1        2       8192 ram2
+   1        3       8192 ram3
+   1        4       8192 ram4
+   1        5       8192 ram5
+   1        6       8192 ram6
+   1        7       8192 ram7
+   1        8       8192 ram8
+   1        9       8192 ram9
+   1       10       8192 ram10
+   1       11       8192 ram11
+   1       12       8192 ram12
+   1       13       8192 ram13
+   1       14       8192 ram14
+   1       15       8192 ram15
+ 259        0         64 pmem0
+ 179        0  122142720 mmcblk0
+ 179        1      10240 mmcblk0p1
+ 179        2       1024 mmcblk0p2
+ 179        3       1024 mmcblk0p3
+ 179        4       6144 mmcblk0p4
+ 179        5       6144 mmcblk0p5
+ 179        6       1024 mmcblk0p6
+ 179        7       1024 mmcblk0p7
+ 259        1       1024 mmcblk0p8
+ 259        2       1024 mmcblk0p9
+ 259        3       4096 mmcblk0p10
+ 259        4       8192 mmcblk0p11
+ 259        5       8192 mmcblk0p12
+ 259        6       2048 mmcblk0p13
+ 259        7       2048 mmcblk0p14
+ 259        8       2048 mmcblk0p15
+ 259        9       2048 mmcblk0p16
+ 259       10       2048 mmcblk0p17
+ 259       11       2048 mmcblk0p18
+ 259       12       1024 mmcblk0p19
+ 259       13       1024 mmcblk0p20
+ 259       14      10240 mmcblk0p21
+ 259       15      10240 mmcblk0p22
+ 259       16       2048 mmcblk0p23
+ 259       17      25600 mmcblk0p24
+ 259       18      25600 mmcblk0p25
+ 259       19       1024 mmcblk0p26
+ 259       20       1024 mmcblk0p27
+ 259       21      10240 mmcblk0p28
+ 259       22      10240 mmcblk0p29
+ 259       23      20480 mmcblk0p30
+ 259       24      20480 mmcblk0p31
+ 259       25       6144 mmcblk0p32
+ 259       26       6144 mmcblk0p33
+ 259       27       1024 mmcblk0p34
+ 259       28       1024 mmcblk0p35
+ 259       29       1024 mmcblk0p36
+ 259       30       1024 mmcblk0p37
+ 259       31       1024 mmcblk0p38
+ 259       32       1024 mmcblk0p39
+ 259       33      10240 mmcblk0p40
+ 259       34      10240 mmcblk0p41
+ 259       35      65536 mmcblk0p42
+ 259       36      65536 mmcblk0p43
+ 259       37     102400 mmcblk0p44
+ 259       38     102400 mmcblk0p45
+ 259       39       8192 mmcblk0p46
+ 259       40       8192 mmcblk0p47
+ 259       41       8192 mmcblk0p48
+ 259       42       8192 mmcblk0p49
+ 259       43    6500352 mmcblk0p50
+ 259       44     102400 mmcblk0p51
+ 259       45      76800 mmcblk0p52
+ 259       46      76800 mmcblk0p53
+ 259       47      25600 mmcblk0p54
+ 259       48      25600 mmcblk0p55
+ 259       49       1024 mmcblk0p56
+ 259       50       1024 mmcblk0p57
+ 259       51      16384 mmcblk0p58
+ 259       52      10240 mmcblk0p59
+ 259       53       1024 mmcblk0p60
+ 259       54       1024 mmcblk0p61
+ 259       55       1024 mmcblk0p62
+ 259       56       1024 mmcblk0p63
+ 259       57       1024 mmcblk0p64
+ 259       58       1024 mmcblk0p65
+ 259       59       1024 mmcblk0p66
+ 259       60       1024 mmcblk0p67
+ 259       61       1024 mmcblk0p68
+ 259       62       1024 mmcblk0p69
+ 259       63       1024 mmcblk0p70
+ 259       64       1024 mmcblk0p71
+ 259       65       8192 mmcblk0p72
+ 259       66       8192 mmcblk0p73
+ 259       67      16384 mmcblk0p74
+ 259       68      16384 mmcblk0p75
+ 259       69   57317879 mmcblk0p76
+ 259       70   57317359 mmcblk0p77
+ 179       16       4096 mmcblk0boot1
+ 179        8       4096 mmcblk0boot0
+ 179       24  250347520 mmcblk1
+ 179       25  250314752 mmcblk1p1
+
+--- eMMC Info ---
+Device: G1J9S9
+Size: 244285440 sectors
+
+=== TEST 5: USB HARDWARE ===
+
+/:  Bus 001.Port 001: Dev 001, Class=root_hub, Driver=musb-hdrc/1p, 480M
+
+Bus 001 Device 001: ID 1d6b:0002 Linux 4.14.193 musb-hcd MUSB HDRC host driver
+
+=== TEST 6: DISPLAY/GPU HARDWARE ===
+
+--- DRM Devices ---
+crw-rw-rw- 1 root 1003 226, 0 Oct 14 18:13 /dev/dri/card0
+
+--- Framebuffer ---
+No framebuffer
+
+--- Mali GPU ---
+
+=== TEST 7: CAMERA HARDWARE ===
+
+No video devices
+
+
+=== TEST 8: KERNEL MODULES ===
+
+No relevant modules
+
+=== TEST 9: FIRMWARE FILES ===
+
+total 8
+drwxr-xr-x 2 root root 4096 Oct  8 05:29 .
+drwxr-xr-x 6 root root 4096 Oct 13 02:40 ..
+
+=== HARDWARE TEST SUMMARY ===
+
+WiFi interfaces: 0 0
+Video devices: 0
+DRM devices: 1
+Framebuffers: 0
+USB serial: 0
+
+=== HARDWARE TEST COMPLETED ===

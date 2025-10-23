@@ -1,0 +1,65 @@
+
+
+Alpine can use it's Bridging musl and Bionic library systems
+
+1. Flash magisk twrp to boot.img (Either with SPD Flash tools or adb)
+
+
+ADB
+-> Connect device to computer
+--> open cmd line where platform tools were downloaded and extracted
+---> Settings, About console, tap last item Build number 8 times
+----> Go back a page, click system, advanced, developer options usb debugging
+------> Allow USB debugging when connected to your PC
+-------> cmdline | adb devices
+---------> cmdline | adb reboot bootloader
+----------> cmdline | flashboot flash boot_a magisktwrp.img
+-----------> cmdline | fastboot reboot
+------------> cmdline | adb reboot recovery
+
+2. Boot into recovery
+-> TWRP
+--> Advanced 
+---> external_sd
+----> Hit bottom right blue button, Open Terminal Here
+-----> chmod +x 76.sh
+------> sh 76.sh
+
+2. Format data, reboot back to recovery
+-> Middle home button
+--> Wipe
+---> Format data
+----> yes
+-----> Middle home button
+------> Reboot
+-------> Recovery
+
+3. Boot back to recovery
+-> TWRP
+--> Advanced 
+---> external_sd
+----> Hit bottom right blue button, Open Terminal Here
+-----> chmod +x 77.sh
+------> sh 77.sh
+
+4. Advanced Wipe (bidet and toilet paper method)
+-> Middle home button
+--> Wipe
+---> Advanced Wipe
+----> Select only Data
+-----> Swipe to Wipe
+------> Reboot to System
+-------> Recovery
+
+5. Install alpine by either TWRP script or with Magisk, Termux and multiple scripts
+- TERMUX VERSION -
+-> install magisk, termux and magisk modules chroot-distro & UPDATE-Busybox.Installer.v1.36.1-ALL-signed
+---> Move required files to root of SD Card
+---- To run the alpine.sh script ----
+-----> launch termux
+------> ls -la /storage/
+-------> su
+--------> GRANT
+---------> sh /storage/XXXX-XXXX/scriptname.sh
+
+5.5 Back up alpine path to a zip file that retains sysmlinks and permissions

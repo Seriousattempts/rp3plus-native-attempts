@@ -1,0 +1,473 @@
+
+import /vendor/etc/init/*.rc
+import /system/etc/init/hw/init.usb.rc 
+import /vendor/etc/init/hw/init.${ro.hardware}.rc
+import /system/etc/init/hw/init.usb.configfs.rc
+import /system/etc/init/retropocket.rc
+
+# Kernel parameters
+write /proc/sys/kernel/sysrq 0
+write /proc/sys/kernel/modprobe \n
+
+# Device nodes
+mkdir /dev/net 0755 root root
+symlink ../tun /dev/net/tun
+
+# Resource limits
+setrlimit nice 40 40
+setrlimit nofile 32768 32768
+
+# Tracefs
+mount tracefs tracefs /sys/kernel/tracing
+
+# Virtual device nodes
+symlink /proc/self/fd/0 /dev/stdin
+symlink /proc/self/fd/1 /dev/stdout
+symlink /proc/self/fd/2 /dev/stderr
+
+# Mount Android's cgroup structure
+mount -t cgroup -o schedtune none /dev/stune
+mount -t cgroup -o cpuset none /dev/cpuset
+mount -t cgroup -o cpu none /dev/cpuctl
+mount -t cgroup -o blkio none /dev/blkio
+
+# Create subdirectories
+mkdir -p /dev/stune/foreground /dev/stune/background /dev/stune/top-app
+mkdir -p /dev/cpuset/foreground /dev/cpuset/background
+
+# Scheduler tunables (CRITICAL FOR PERFORMANCE)
+chown system system /dev/stune/*
+chmod 0664 /dev/stune/*/tasks
+
+# Block I/O control
+write /dev/blkio/blkio.weight 1000
+write /dev/blkio/background/blkio.weight 200
+
+# Binder IPC (ESSENTIAL FOR ANDROID HALS)
+mkdir /dev/binderfs
+mount binder binder /dev/binderfs stats=global
+chmod 0755 /dev/binderfs
+symlink /dev/binderfs/binder /dev/binder
+symlink /dev/binderfs/hwbinder /dev/hwbinder
+symlink /dev/binderfs/vndbinder /dev/vndbinder
+chmod 0666 /dev/binderfs/*
+
+# Mount fusectl (for FUSE filesystems)
+mount fusectl none /sys/fs/fuse/connections
+
+# Storage mounts structure
+mkdir /mnt/secure 0700 root root
+mkdir /mnt/user 0755 root root
+mkdir /mnt/runtime 0700 root root
+
+# Kernel parameters
+write /proc/sys/kernel/panic_on_oops 1
+write /proc/sys/kernel/sched_tunable_scaling 0
+write /proc/sys/kernel/randomize_va_space 2
+write /proc/sys/vm/mmap_min_addr 32768
+write /proc/sys/net/ipv4/ping_group_range "0 2147483647"
+
+# Network parameters
+write /proc/sys/net/core/rmem_max 262144
+write /proc/sys/net/core/wmem_max 262144
+write /proc/sys/net/ipv4/fwmark_reflect 1
+write /proc/sys/net/ipv6/fwmark_reflect 1
+write /proc/sys/net/ipv4/tcp_fwmark_accept 1
+
+# CPU control
+chown system system /dev/cpuset/*
+chmod 0664 /dev/cpuset/*/tasks
+
+# pstore/ramoops (crash logs)
+mount pstore pstore /sys/fs/pstore nodev noexec nosuid
+chmod 0550 /sys/fs/pstore
+
+# Power management
+chown system system /sys/power/state
+chown system system /sys/power/wakeup_count
+chmod 0660 /sys/power/state
+
+on late-init
+    trigger early-fs
+
+    # Mount fstab in init.{$device}.rc by mount_all command. Optional parameter
+    # '--early' can be specified to skip entries with 'latemount'.
+    # /system and /vendor must be mounted by the end of the fs stage,
+    # while /data is optional.
+    trigger post-fs
+
+    # Mount fstab in init.{$device}.rc by mount_all with '--late' parameter
+    # to only mount entries with 'latemount'. This is needed if '--early' is
+    # specified in the previous mount_all command on the fs stage.
+    # With /system mounted and properties form /system + /factory available,
+    # some services can be started.
+    trigger late-fs
+
+on early-fs
+    # Once metadata has been mounted, we'll need vold to deal with volume daemon (for mounted SD Card checkpointing)
+    start vold
+
+on post-fs
+    # Once everything is setup, no need to modify /.
+    # The bind+remount combination allows this to work in containers.
+    mount rootfs rootfs / remount bind ro nodev
+
+if command -v restorecon >/dev/null 2>&1; then
+    # Make sure /sys/kernel/debug (if present) is labeled properly
+    # Note that tracefs may be mounted under debug, so we need to cross filesystems
+    restorecon --recursive --cross-filesystems /sys/kernel/debug
+
+    # We chown/chmod /cache again so because mount is run as root + defaults
+    chown system cache /cache
+    chmod 0770 /cache
+    # We restorecon /cache in case the cache partition has been reset.
+    restorecon_recursive /cache
+
+    # Create /cache/recovery in case it's not there. It'll also fix the odd
+    # permissions if created by the recovery system.
+    mkdir /cache/recovery 0770 system cache
+
+    # Backup/restore mechanism uses the cache partition
+    mkdir /cache/backup_stage 0700 system system
+    mkdir /cache/backup 0700 system system
+
+    #change permissions on vmallocinfo so we can grab it from bugreports
+    chown root log /proc/vmallocinfo
+    chmod 0440 /proc/vmallocinfo
+
+    chown root log /proc/slabinfo
+    chmod 0440 /proc/slabinfo
+
+    #change permissions on kmsg & sysrq-trigger so bugreports can grab kthread stacks
+    chown root system /proc/kmsg
+    chmod 0440 /proc/kmsg
+    chown root system /proc/sysrq-trigger
+    chmod 0220 /proc/sysrq-trigger
+    chown system log /proc/last_kmsg
+    chmod 0440 /proc/last_kmsg
+
+    # create the lost+found directories, so as to enforce our permissions
+    mkdir /cache/lost+found 0770 root root
+
+    restorecon_recursive /metadata
+    mkdir /metadata/vold
+    chmod 0700 /metadata/vold
+    mkdir /metadata/password_slots 0771 root system
+    mkdir /metadata/bootstat 0750 system log
+    mkdir /metadata/ota 0700 root system
+    mkdir /metadata/ota/snapshots 0700 root system
+
+    mkdir /metadata/apex 0700 root system
+    mkdir /metadata/apex/sessions 0700 root system
+    # On some devices we see a weird behaviour in which /metadata/apex doesn't
+    # have a correct label. To workaround this bug, explicitly call restorecon
+    # on /metadata/apex. For most of the boot sequences /metadata/apex will
+    # already have a correct selinux label, meaning that this call will be a
+    # no-op.
+    restorecon_recursive /metadata/apex
+
+    mkdir /metadata/staged-install 0770 root system
+on late-fs
+    # Ensure that tracefs has the correct permissions.
+    # This does not work correctly if it is called in post-fs.
+    chmod 0755 /sys/kernel/tracing
+    chmod 0755 /sys/kernel/debug/tracing
+
+on post-fs-data
+    mark_post_data
+
+    # Start checkpoint before we touch data
+    exec - system system -- /system/bin/vdc checkpoint prepareCheckpoint
+
+    # We chown/chmod /data again so because mount is run as root + defaults
+    chown system system /data
+    chmod 0771 /data
+    # We restorecon /data in case the userdata partition has been reset.
+    restorecon /data
+
+    # Make sure we have the device encryption key.
+    installkey /data
+
+    # Start bootcharting as soon as possible after the data partition is
+    # mounted to collect more data.
+    mkdir /data/bootchart 0755 shell shell
+    bootchart start
+
+    # create basic filesystem structure
+    mkdir /data/misc 01771 system misc
+    mkdir /data/misc/recovery 0770 system log
+    copy /data/misc/recovery/ro.build.fingerprint /data/misc/recovery/ro.build.fingerprint.1
+    chmod 0440 /data/misc/recovery/ro.build.fingerprint.1
+    chown system log /data/misc/recovery/ro.build.fingerprint.1
+    write /data/misc/recovery/ro.build.fingerprint ${ro.build.fingerprint}
+    chmod 0440 /data/misc/recovery/ro.build.fingerprint
+    chown system log /data/misc/recovery/ro.build.fingerprint
+    mkdir /data/misc/recovery/proc 0770 system log
+    copy /data/misc/recovery/proc/version /data/misc/recovery/proc/version.1
+    chmod 0440 /data/misc/recovery/proc/version.1
+    chown system log /data/misc/recovery/proc/version.1
+    copy /proc/version /data/misc/recovery/proc/version
+    chmod 0440 /data/misc/recovery/proc/version
+    chown system log /data/misc/recovery/proc/version
+    mkdir /data/misc/bluedroid 02770 bluetooth bluetooth
+    # Fix the access permissions and group ownership for 'bt_config.conf'
+    chmod 0660 /data/misc/bluedroid/bt_config.conf
+    chown bluetooth bluetooth /data/misc/bluedroid/bt_config.conf
+    mkdir /data/misc/bluetooth 0770 bluetooth bluetooth
+    mkdir /data/misc/bluetooth/logs 0770 bluetooth bluetooth
+    mkdir /data/misc/credstore 0700 credstore credstore
+    mkdir /data/misc/keystore 0700 keystore keystore
+    mkdir /data/misc/gatekeeper 0700 system system
+    mkdir /data/misc/keychain 0771 system system
+    mkdir /data/misc/net 0750 root shell
+    mkdir /data/misc/radio 0770 system radio
+    mkdir /data/misc/sms 0770 system radio
+    mkdir /data/misc/carrierid 0770 system radio
+    mkdir /data/misc/apns 0770 system radio
+    mkdir /data/misc/emergencynumberdb 0770 system radio
+    mkdir /data/misc/zoneinfo 0775 system system
+    mkdir /data/misc/network_watchlist 0774 system system
+    mkdir /data/misc/textclassifier 0771 system system
+    mkdir /data/misc/vpn 0770 system vpn
+    mkdir /data/misc/shared_relro 0771 shared_relro shared_relro
+    mkdir /data/misc/systemkeys 0700 system system
+    mkdir /data/misc/wifi 0770 wifi wifi
+    mkdir /data/misc/wifi/sockets 0770 wifi wifi
+    mkdir /data/misc/wifi/wpa_supplicant 0770 wifi wifi
+    mkdir /data/misc/ethernet 0770 system system
+    mkdir /data/misc/dhcp 0770 dhcp dhcp
+    mkdir /data/misc/user 0771 root root
+    # give system access to wpa_supplicant.conf for backup and restore
+    chmod 0660 /data/misc/wifi/wpa_supplicant.conf
+    mkdir /data/local 0751 root root
+    mkdir /data/misc/media 0700 media media
+    mkdir /data/misc/audioserver 0700 audioserver audioserver
+    #mkdir /data/misc/cameraserver 0700 cameraserver cameraserver
+    mkdir /data/misc/vold 0700 root root
+    mkdir /data/misc/boottrace 0771 system shell
+    mkdir /data/misc/update_engine 0700 root root
+    mkdir /data/misc/update_engine_log 02750 root log
+    mkdir /data/misc/trace 0700 root root
+    # create location to store surface and window trace files
+    mkdir /data/misc/wmtrace 0700 system system
+    # profile file layout
+    mkdir /data/misc/profiles 0771 system system
+    mkdir /data/misc/profiles/cur 0771 system system
+    mkdir /data/misc/profiles/ref 0770 system system
+    mkdir /data/misc/profman 0770 system shell
+    mkdir /data/misc/gcov 0770 root root
+    mkdir /data/misc/installd 0700 root root
+    mkdir /data/misc/apexdata 0711 root root
+    mkdir /data/misc/apexrollback 0700 root root
+    mkdir /data/misc/snapshotctl_log 0755 root root
+    # create location to store pre-reboot information
+    mkdir /data/misc/prereboot 0700 system system
+
+    mkdir /data/preloads 0775 system system
+
+    mkdir /data/vendor 0771 root root
+    mkdir /data/vendor_ce 0771 root root
+    mkdir /data/vendor_de 0771 root root
+    mkdir /data/vendor/hardware 0771 root root
+
+    # For security reasons, /data/local/tmp should always be empty.
+    # Do not place files or directories in /data/local/tmp
+    mkdir /data/local/tmp 0771 shell shell
+    mkdir /data/local/traces 0777 shell shell
+    mkdir /data/data 0771 system system
+    mkdir /data/app-private 0771 system system
+    mkdir /data/app-ephemeral 0771 system system
+    mkdir /data/app-asec 0700 root root
+    mkdir /data/app-lib 0771 system system
+    mkdir /data/app 0771 system system
+    mkdir /data/property 0700 root root
+    mkdir /data/tombstones 0775 system system
+    mkdir /data/vendor/tombstones 0771 root root
+    mkdir /data/vendor/tombstones/wifi 0771 wifi wifi
+
+    # create resource-cache and double-check the perms
+    mkdir /data/resource-cache 0771 system system
+    chown system system /data/resource-cache
+    chmod 0771 /data/resource-cache
+
+
+    # create the lost+found directories, so as to enforce our permissions
+    mkdir /data/lost+found 0770 root root
+
+    # create directory for DRM plug-ins - give drm the read/write access to
+    # the following directory.
+    mkdir /data/drm 0770 drm drm
+
+    # create directory for MediaDrm plug-ins - give drm the read/write access to
+    # the following directory.
+    mkdir /data/mediadrm 0770 mediadrm mediadrm
+
+    mkdir /data/anr 0775 system system
+
+    # NFC: create data/nfc for nv storage
+    mkdir /data/nfc 0770 nfc nfc
+    mkdir /data/nfc/param 0770 nfc nfc
+
+   # Unlink /data/user/0 if we previously symlink it to /data/data
+    rm /data/user/0
+
+    # Bind mount /data/user/0 to /data/data
+    mkdir /data/user/0 0700 system system
+    mount none /data/data /data/user/0 bind rec
+
+    # A tmpfs directory, which will contain all apps CE DE data directory that
+    # bind mount from the original source.
+    mount tmpfs tmpfs /data_mirror nodev noexec nosuid mode=0700,uid=0,gid=1000
+    restorecon /data_mirror
+    mkdir /data_mirror/data_ce 0700 root root
+    mkdir /data_mirror/data_de 0700 root root
+
+    # Create CE and DE data directory for default volume
+    mkdir /data_mirror/data_ce/null 0700 root root
+    mkdir /data_mirror/data_de/null 0700 root root
+
+    # Bind mount CE and DE data directory to mirror's default volume directory
+    mount none /data/user /data_mirror/data_ce/null bind rec
+    mount none /data/user_de /data_mirror/data_de/null bind rec
+
+    # Create mirror directory for jit profiles
+    mkdir /data_mirror/cur_profiles 0700 root root
+    mount none /data/misc/profiles/cur /data_mirror/cur_profiles bind rec
+
+    mkdir /data/cache 0770 system cache
+    mkdir /data/cache/recovery 0770 system cache
+    mkdir /data/cache/backup_stage 0700 system system
+    mkdir /data/cache/backup 0700 system system
+
+    # Delete these if need be, per b/139193659
+    mkdir /data/rollback 0700 system system encryption=DeleteIfNecessary
+    mkdir /data/rollback-observer 0700 system system encryption=DeleteIfNecessary
+
+    # Create root dir for Incremental Service
+    mkdir /data/incremental 0771 system system
+
+    # Create directories for statsd
+    mkdir /data/misc/stats-active-metric/ 0770 statsd system
+    mkdir /data/misc/stats-data/ 0770 statsd system
+    mkdir /data/misc/stats-metadata/ 0770 statsd system
+    mkdir /data/misc/stats-service/ 0770 statsd system
+    mkdir /data/misc/train-info/ 0770 statsd system
+
+
+    # Special-case /data/media/obb per b/64566063
+    mkdir /data/media 0770 media_rw media_rw
+    exec - media_rw media_rw -- /system/bin/chattr +F /data/media
+    mkdir /data/media/obb 0770 media_rw media_rw encryption=Attempt
+
+    # Set fscklog permission
+    chown root system /dev/fscklogs/log
+    chmod 0770 /dev/fscklogs/log
+
+    # Enable FUSE by default
+    setprop persist.sys.fuse false
+
+# /cache permissions (if using cache partition)
+chown system cache /cache
+chmod 0770 /cache
+
+# Kernel debug permissions
+chown root log /proc/vmallocinfo
+chmod 0440 /proc/vmallocinfo
+chown root system /proc/kmsg
+chmod 0440 /proc/kmsg
+
+# tracefs permissions
+chmod 0755 /sys/kernel/tracing
+
+# Start early HALs (BEFORE encryption check)
+class_start early_hal
+
+# Firmware files
+mkdir /data/vendor/firmware 0771 root root
+
+on boot
+    # basic network init
+    ifup lo
+    hostname localhost
+    domainname localdomain
+
+# Memory management
+write /proc/sys/vm/overcommit_memory 1
+write /proc/sys/vm/min_free_order_shift 4
+write /proc/sys/vm/dirty_expire_centisecs 200
+write /proc/sys/vm/dirty_background_ratio 5
+
+# F2FS tuning (if using F2FS)
+# Alpine is ran on ext4
+# write /sys/fs/f2fs/${dev.mnt.blk.data}/cp_interval 200
+
+    # limit discard size to 128MB in order to avoid long IO latency
+    # for filesystem tuning first (dm or sda)
+    # Note that, if dm-<num> is used, sda/mmcblk0 should be tuned in vendor/init.rc
+    write /sys/devices/virtual/block/${dev.mnt.blk.data}/queue/discard_max_bytes 134217728
+
+    # Permissions for System Server and daemons.
+    chown system system /sys/power/autosleep
+
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/timer_rate
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/timer_rate
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/timer_slack
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/timer_slack
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/min_sample_time
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/min_sample_time
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/target_loads
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/target_loads
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boost
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/boost
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/input_boost
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/input_boost
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+    chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+
+    chown system system /sys/class/leds/vibrator/trigger
+    chown system system /sys/class/leds/vibrator/activate
+    chown system system /sys/class/leds/vibrator/brightness
+    chown system system /sys/class/leds/vibrator/duration
+    chown system system /sys/class/leds/vibrator/state
+    chown system system /sys/class/timed_output/vibrator/enable
+    chown system system /sys/class/leds/keyboard-backlight/brightness
+    chown system system /sys/class/leds/lcd-backlight/brightness
+    chown system system /sys/class/leds/button-backlight/brightness
+    chown system system /sys/class/leds/jogball-backlight/brightness
+    chown system system /sys/class/leds/red/brightness
+    chown system system /sys/class/leds/green/brightness
+    chown system system /sys/class/leds/blue/brightness
+    chown system system /sys/class/leds/red/device/grpfreq
+    chown system system /sys/class/leds/red/device/grppwm
+    chown system system /sys/class/leds/red/device/blink
+    chown system system /sys/module/sco/parameters/disable_esco
+    chown system system /sys/kernel/ipv4/tcp_wmem_min
+    chown system system /sys/kernel/ipv4/tcp_wmem_def
+    chown system system /sys/kernel/ipv4/tcp_wmem_max
+    chown system system /sys/kernel/ipv4/tcp_rmem_min
+    chown system system /sys/kernel/ipv4/tcp_rmem_def
+    chown system system /sys/kernel/ipv4/tcp_rmem_max
+    chown root radio /proc/cmdline
+
+# Define default initial receive window size in segments.
+setprop net.tcp.default_init_rwnd 60
+
+# Start standard binderized HAL daemons
+class_start hal
+
+class_start core
+
+service ueventd /system/bin/ueventd
+    class core
+    critical
+    seclabel u:r:ueventd:s0
+    shutdown critical

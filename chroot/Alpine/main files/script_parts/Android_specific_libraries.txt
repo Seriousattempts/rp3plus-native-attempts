@@ -1,0 +1,112 @@
+    # === ANDROID GRAPHICAL LIBRARIES TESTING ===
+    echo '======================================================================='
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] TEST: ANDROID GRAPHICAL LIBRARIES'
+    echo '======================================================================='
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Phase 1: Android Mali Userspace Driver Analysis ---'
+    
+    for mali_path in /vendor/lib64/egl/libGLES_mali.so /vendor/lib/egl/libGLES_mali.so; do
+        if [ -f \"\$mali_path\" ]; then
+            echo \"Analyzing: \$mali_path\"
+            file \"\$mali_path\"
+            echo ''
+            
+            echo 'Supported rendering paths (strings analysis):'
+            strings \"\$mali_path\" | grep -iE 'egl|gles|opengl|vulkan|drm|gbm|wayland|x11|android' | sort -u | head -50
+            echo ''
+            
+            echo 'Dependencies:'
+            ldd \"\$mali_path\" 2>&1 | head -20
+            echo ''
+            echo '---'
+            echo ''
+        fi
+    done
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] --- Phase 2: /droid Library Analysis ---'
+    
+    # Find the actual droid folder path
+    DROID_PATH=''
+    for search_path in /droid /vendor/droid /system/droid; do
+        if [ -d \"\$search_path/lib64\" ]; then
+            DROID_PATH=\"\$search_path\"
+            break
+        fi
+    done
+    
+    if [ -z \"\$DROID_PATH\" ]; then
+        echo 'Searching for droid folder in mounted partitions...'
+        for part in /vendor /system /system_ext; do
+            FOUND=\$(find \"\$part\" -type d -name 'droid' 2>/dev/null | head -1)
+            if [ -n \"\$FOUND\" ]; then
+                DROID_PATH=\"\$FOUND\"
+                break
+            fi
+        done
+    fi
+    
+    if [ -n \"\$DROID_PATH\" ] && [ -d \"\$DROID_PATH/lib64\" ]; then
+        echo \"Found droid path: \$DROID_PATH/lib64\"
+        echo ''
+        
+        # Analyze libGLES_mali.so from droid
+        if [ -f \"\$DROID_PATH/lib64/libGLES_mali.so\" ]; then
+            echo 'Analyzing: libGLES_mali.so from droid'
+            file \"\$DROID_PATH/lib64/libGLES_mali.so\"
+            echo ''
+            
+            echo 'Rendering path capabilities:'
+            strings \"\$DROID_PATH/lib64/libGLES_mali.so\" | grep -iE 'platform|egl|surface|window|display|drm|gbm|wayland|android|x11' | sort -u | head -50
+            echo ''
+            
+            echo 'Graphics API support:'
+            strings \"\$DROID_PATH/lib64/libGLES_mali.so\" | grep -iE 'gl_version|gles|opengl' | head -20
+            echo ''
+        fi
+        
+        # Analyze libOpenCL.so from droid
+        if [ -f \"\$DROID_PATH/lib64/libOpenCL.so\" ]; then
+            echo 'Analyzing: libOpenCL.so from droid'
+            file \"\$DROID_PATH/lib64/libOpenCL.so\"
+            echo ''
+            
+            echo 'OpenCL capabilities:'
+            strings \"\$DROID_PATH/lib64/libOpenCL.so\" | grep -iE 'opencl|platform|device|mali|gpu' | sort -u | head -40
+            echo ''
+        fi
+        
+        # Analyze Vulkan driver from droid
+        for vulkan_lib in \"\$DROID_PATH/lib64\"/vulkan*.so; do
+            if [ -f \"\$vulkan_lib\" ]; then
+                echo \"Analyzing: \$(basename \$vulkan_lib) from droid\"
+                file \"\$vulkan_lib\"
+                echo ''
+                
+                echo 'Vulkan capabilities:'
+                strings \"\$vulkan_lib\" | grep -iE 'vulkan|vk_|surface|display|platform|drm|wayland|xcb|android' | sort -u | head -50
+                echo ''
+            fi
+        done
+        
+    else
+        echo '/droid folder not found in expected locations'
+        echo 'Listing all graphics libraries from /droid in current mount:'
+        
+        for lib in /droid/lib64/*.so*; do
+            if [ -f \"\$lib\" ]; then
+                LIB_NAME=\$(basename \"\$lib\")
+                if echo \"\$LIB_NAME\" | grep -qiE 'gl|egl|vulkan|mali|opencl'; then
+                    echo \"Found: \$LIB_NAME\"
+                    file \"\$lib\" | head -1
+                    echo ''
+                fi
+            fi
+        done
+    fi
+    echo ''
+    
+    echo '['\$(date '+%Y-%m-%d %H:%M:%S')'] ✓ ANDROID GRAPHICAL LIBRARIES TEST COMPLETED'
+    echo ''
+
+

@@ -1,0 +1,306 @@
+#!/system/bin/sh
+# Super Partition Mount - SD CARD VERSION
+# Extracts to SD card to avoid filling /data
+
+BOOT_LOG="/boot/super_mount_sdcard.log"
+FALLBACK_LOG="/super_mount_sdcard.log"
+LOGFILE="$FALLBACK_LOG"
+> "$LOGFILE"
+
+log() {
+    TIMESTAMP="$(date '+%H:%M:%S' 2>/dev/null || echo 'TIME')"
+    echo "[$TIMESTAMP] $*" | tee -a "$LOGFILE"
+}
+
+log "=== Super Partition Mount - SD CARD VERSION ==="
+log "Extracts to SD card to preserve /data space"
+log ""
+
+# ---- Mount boot/SD card for logging and temp storage ----
+BOOT_PARTITION=/dev/block/mmcblk1p1
+SD_MOUNT=""
+
+log "=== MOUNTING SD CARD ==="
+
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/sdcard; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted SD card: $SD_MOUNT"
+            break
+        fi
+    done
+fi
+
+if [ -z "$SD_MOUNT" ] || [ ! -w "$SD_MOUNT" ]; then
+    log "ERROR: SD card not accessible or not writable"
+    log "This script requires SD card for temporary storage"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# Switch logging to SD card
+BOOT_LOG="${SD_MOUNT}/super_mount_sdcard.log"
+cat "$FALLBACK_LOG" > "$BOOT_LOG" 2>/dev/null
+LOGFILE="$BOOT_LOG"
+log "✓ Logging to SD card: $LOGFILE"
+
+# Create temp directory on SD card
+TEMP_DIR="${SD_MOUNT}/super_temp"
+mkdir -p "$TEMP_DIR" 2>/dev/null
+log "✓ Temp directory: $TEMP_DIR"
+
+# Check SD card space
+SD_FREE=$(df "$SD_MOUNT" | tail -1 | awk '{print $4}')
+SD_FREE_GB=$((SD_FREE / 1024 / 1024))
+log "SD card free space: ${SD_FREE_GB} GB"
+
+if [ $SD_FREE_GB -lt 5 ]; then
+    log "WARNING: Low SD card space (need ~4GB for all partitions)"
+fi
+
+# ---- Configuration ----
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+MOUNT_ROOT="/mnt/super_sdcard"
+
+log ""
+log "=== CONFIGURATION ==="
+log "Super partition: $SUPER_PARTITION"
+log "Mount root: $MOUNT_ROOT"
+log "Temp storage: $TEMP_DIR"
+
+# ---- Create mount points ----
+mkdir -p $MOUNT_ROOT/system 2>/dev/null
+mkdir -p $MOUNT_ROOT/vendor 2>/dev/null
+mkdir -p $MOUNT_ROOT/system_ext 2>/dev/null
+mkdir -p $MOUNT_ROOT/product 2>/dev/null
+log "✓ Mount points created"
+
+# ---- Mount function using SD card temp storage ----
+mount_partition_sdcard() {
+    local name=$1
+    local start_sector=$2
+    local num_sectors=$3
+    local mount_point="$MOUNT_ROOT/$name"
+    
+    log ""
+    log "=== Mounting $name ==="
+    log "Start sector: $start_sector"
+    log "Sector count: $num_sectors ($((num_sectors / 2048)) MB)"
+    
+    # Use SD card for temp image
+    local img_file="${TEMP_DIR}/${name}_partition.img"
+    
+    log "Extracting to SD card: $img_file"
+    
+    # Extract with progress monitoring
+    dd if=$SUPER_PARTITION of=$img_file bs=4096 skip=$((start_sector / 8)) count=$((num_sectors / 8)) 2>&1 | tee -a "$LOGFILE"
+    
+    if [ $? -eq 0 ] && [ -f "$img_file" ]; then
+        log "✓ Partition extracted"
+        
+        # Check extracted size
+        IMG_SIZE=$(ls -lh $img_file | awk '{print $5}')
+        log "Extracted file size: $IMG_SIZE"
+        
+        # Mount it
+        local loop_dev=$(losetup -f 2>/dev/null)
+        
+        if [ -z "$loop_dev" ]; then
+            log "✗ No available loop device"
+            return 1
+        fi
+        
+        log "Using loop device: $loop_dev"
+        
+        if losetup $loop_dev $img_file 2>&1 | tee -a "$LOGFILE"; then
+            log "✓ Loop device attached"
+            
+            if mount -t ext4 -o ro $loop_dev $mount_point 2>&1 | tee -a "$LOGFILE"; then
+                log "✓ Mount successful"
+                
+                # Quick verification
+                ITEM_COUNT=$(ls $mount_point 2>/dev/null | wc -l)
+                log "Top-level items: $ITEM_COUNT"
+                
+                # Show sample contents
+                log "Sample contents:"
+                ls $mount_point | head -10 | while read item; do
+                    log "  - $item"
+                done
+                
+                # Partition-specific checks
+                case "$name" in
+                    system)
+                        if [ -f "$mount_point/build.prop" ]; then
+                            log "✓ Verified: system partition (build.prop found)"
+                        fi
+                        ;;
+                    vendor)
+                        if [ -d "$mount_point/lib64" ]; then
+                            LIB_COUNT=$(ls $mount_point/lib64 2>/dev/null | wc -l)
+                            log "✓ Verified: vendor partition ($LIB_COUNT libs in lib64)"
+                        fi
+                        ;;
+                    system_ext|product)
+                        if [ -d "$mount_point/etc" ] || [ -d "$mount_point/app" ]; then
+                            log "✓ Verified: $name partition"
+                        fi
+                        ;;
+                esac
+                
+                return 0
+            else
+                log "✗ Mount failed"
+                losetup -d $loop_dev 2>/dev/null
+                return 1
+            fi
+        else
+            log "✗ Failed to attach loop device"
+            return 1
+        fi
+    else
+        log "✗ Extraction failed or file not created"
+        return 1
+    fi
+}
+
+# ---- Mount all partitions ----
+log ""
+log "=== MOUNTING ALL LOGICAL PARTITIONS ==="
+log "This will take several minutes (extracting ~4GB to SD card)"
+log ""
+
+MOUNTED_COUNT=0
+START_TIME=$(date +%s)
+
+# system_a: 2048 to 2694328 (2692280 sectors = 1.3GB)
+if mount_partition_sdcard "system" 2048 2692280; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# system_ext_a: 2695168 to 3436304 (741136 sectors = 361MB)
+if mount_partition_sdcard "system_ext" 2695168 741136; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# vendor_a: 3436544 to 7137520 (3700976 sectors = 1.8GB)
+if mount_partition_sdcard "vendor" 3436544 3700976; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+# product_a: 7139328 to 8329336 (1190008 sectors = 581MB)
+if mount_partition_sdcard "product" 7139328 1190008; then
+    MOUNTED_COUNT=$((MOUNTED_COUNT + 1))
+fi
+
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+log ""
+log "=== MOUNT SUMMARY ==="
+log "Successfully mounted: $MOUNTED_COUNT/4 partitions"
+log "Total time: ${ELAPSED} seconds ($((ELAPSED / 60)) minutes)"
+log ""
+
+if [ $MOUNTED_COUNT -gt 0 ]; then
+    log "✓ SUCCESS - Mounted partitions:"
+    mount | grep "$MOUNT_ROOT" | tee -a "$LOGFILE"
+    
+    log ""
+    log "=== PARTITION ANALYSIS ==="
+    
+    for partition in system vendor system_ext product; do
+        mp="$MOUNT_ROOT/$partition"
+        
+        if mount | grep -q "$mp"; then
+            log ""
+            log "--- $partition partition ---"
+            
+            # Disk usage
+            df -h $mp 2>&1 | tail -1 | tee -a "$LOGFILE"
+            
+            # File counts
+            log "Counting files..."
+            FILES=$(find $mp -type f 2>/dev/null | wc -l)
+            DIRS=$(find $mp -type d 2>/dev/null | wc -l)
+            log "  Files: $FILES"
+            log "  Directories: $DIRS"
+            
+            # Key file types
+            APKS=$(find $mp -name "*.apk" 2>/dev/null | wc -l)
+            SOS=$(find $mp -name "*.so" 2>/dev/null | wc -l)
+            RCS=$(find $mp -name "*.rc" 2>/dev/null | wc -l)
+            log "  APKs: $APKS"
+            log "  Shared libraries: $SOS"
+            log "  Init scripts: $RCS"
+        fi
+    done
+    
+    log ""
+    log "=== PARTITION ACCESS READY ==="
+    log "All partitions are mounted and accessible"
+    log ""
+    log "Extraction images stored on SD card at:"
+    log "  $TEMP_DIR/"
+    log ""
+    log "Mounted at:"
+    log "  $MOUNT_ROOT/system"
+    log "  $MOUNT_ROOT/vendor"
+    log "  $MOUNT_ROOT/system_ext"
+    log "  $MOUNT_ROOT/product"
+    log ""
+    log "IMPORTANT: Keeping partitions mounted for 300 seconds (5 minutes)"
+    log "Press Ctrl+C to keep mounted longer"
+    log ""
+    log "After unmount, extracted images remain on SD card for reuse"
+    
+    sleep 300
+    
+    log ""
+    log "=== CLEANUP ==="
+    log "Unmounting partitions (keeping extracted images)..."
+    
+    for partition in system vendor system_ext product; do
+        mp="$MOUNT_ROOT/$partition"
+        
+        if mount | grep -q "$mp"; then
+            log "Unmounting $partition..."
+            umount $mp 2>&1 | tee -a "$LOGFILE"
+            
+            # Detach loop device
+            LOOP=$(losetup -a | grep "${partition}_partition.img" | cut -d: -f1)
+            if [ -n "$LOOP" ]; then
+                losetup -d $LOOP 2>/dev/null
+                log "  Loop device $LOOP detached"
+            fi
+        fi
+    done
+    
+    log ""
+    log "NOTE: Extracted partition images kept on SD card:"
+    ls -lh "$TEMP_DIR"/*.img 2>&1 | tee -a "$LOGFILE"
+    log ""
+    log "To remount later (much faster):"
+    log "  losetup /dev/loop0 ${TEMP_DIR}/system_partition.img"
+    log "  mount /dev/loop0 /mnt/system"
+    log ""
+    log "To free SD card space:"
+    log "  rm ${TEMP_DIR}/*.img"
+    
+    log "✓ Cleanup complete"
+else
+    log "✗ FAILED - No partitions could be mounted"
+    log "Check SD card space and try again"
+fi
+
+log ""
+log "=== TEST COMPLETE ==="
+log "Full log: $LOGFILE"
+log "Extracted images: $TEMP_DIR/"
+sync
+
+exec /system/bin/realrecovery "$@"

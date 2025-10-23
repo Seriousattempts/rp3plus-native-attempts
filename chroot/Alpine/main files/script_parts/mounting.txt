@@ -1,0 +1,132 @@
+# === PARTITION CONFIGURATION ===
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT=""
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT=""
+TEMP_DIR=""
+LOGFILE="/tmp/alpine_hardware_test.log"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+# === BOOT PARTITION MOUNT ===
+log ""
+log "=== BOOT PARTITION ==="
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log "✓ Already mounted: $SD_MOUNT"
+else
+    for mp in /sdcard /boot /mnt/boot; do
+        mkdir -p "$mp" 2>/dev/null
+        if mount -t exfat $BOOT_PARTITION "$mp" 2>/dev/null; then
+            SD_MOUNT="$mp"
+            log "✓ Mounted: $SD_MOUNT"
+            break
+        fi
+    done
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot"
+        mkdir -p "$SD_MOUNT"
+        log "⚠ Using fallback: $SD_MOUNT"
+    fi
+fi
+
+mkdir -p "$SD_MOUNT/logs" 2>/dev/null
+
+if [ "$SD_MOUNT" != "/tmp/boot" ] && [ -w "$SD_MOUNT/logs" ]; then
+    NEW_LOG="${SD_MOUNT}/logs/alpine_hardware_test_$(date +%Y%m%d_%H%M%S).log"
+    cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null && LOGFILE="$NEW_LOG"
+    log "✓ Log relocated: $LOGFILE"
+fi
+
+# === WAIT FOR BLOCK DEVICES ===
+log ""
+log "=== WAITING FOR BLOCK DEVICES ==="
+WAIT=0
+while [ ! -b $SUPER_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $SUPER_PARTITION ]; then
+    log "ERROR: Super partition not found"
+    exec /system/bin/realrecovery "$@"
+fi
+log "✓ Super partition found"
+
+WAIT=0
+while [ ! -b $DISTRO_PARTITION ] && [ $WAIT -lt 50 ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+done
+
+if [ ! -b $DISTRO_PARTITION ]; then
+    log "ERROR: Distro partition not found"
+    exec /system/bin/realrecovery "$@"
+fi
+log "✓ Distro partition found"
+
+# === MOUNT DISTRO PARTITION ===
+log ""
+log "=== DISTRO PARTITION MOUNT ==="
+mkdir -p $DISTRO_MOUNT
+
+if mount $DISTRO_PARTITION $DISTRO_MOUNT 2>&1 | tee -a "$LOGFILE"; then
+    log "✓ Mounted: $DISTRO_MOUNT"
+else
+    log "ERROR: Mount failed"
+    exec /system/bin/realrecovery "$@"
+fi
+
+TEMP_DIR="$DISTRO_MOUNT/super_temp"
+mkdir -p "$TEMP_DIR" 2>/dev/null
+
+# === FIND ALPINE ROOTFS ===
+log ""
+log "=== ROOTFS DISCOVERY ==="
+DISTRO_ROOT=$(find "$DISTRO_MOUNT" -type d -name "alpine" -path "*/chroot-distro/alpine" 2>/dev/null | head -1)
+
+if [ -z "$DISTRO_ROOT" ]; then
+    log "ERROR: Alpine rootfs not found"
+    umount $DISTRO_MOUNT 2>/dev/null
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "✓ Rootfs: $DISTRO_ROOT"
+
+# === MOUNT FUNCTION ===
+mount_partition() {
+    local name=$1
+    local start_sector=$2
+    local num_sectors=$3
+    local mount_point="$DISTRO_MOUNT/$name"
+    local img_file="${TEMP_DIR}/${name}.img"
+    
+    dd if=$SUPER_PARTITION of=$img_file bs=4096 skip=$((start_sector / 8)) count=$((num_sectors / 8)) 2>&1 | tee -a "$LOGFILE"
+    
+    if [ -f "$img_file" ]; then
+        local loop_dev=$(losetup -f 2>/dev/null)
+        if [ -n "$loop_dev" ]; then
+            losetup $loop_dev $img_file 2>&1 | tee -a "$LOGFILE"
+            mount -t ext4 -o rw $loop_dev $mount_point 2>&1 | tee -a "$LOGFILE"
+            return $?
+        fi
+    fi
+    return 1
+}
+
+# === MOUNT PARTITIONS ===
+log ""
+log "=== MOUNTING PARTITIONS ==="
+mkdir -p $DISTRO_MOUNT/{system,vendor,system_ext,product} 2>/dev/null
+
+mount_partition "system" 2048 2692280
+mount_partition "system_ext" 2695168 741136
+mount_partition "vendor" 3436544 3700976
+mount_partition "product" 7139328 1190008

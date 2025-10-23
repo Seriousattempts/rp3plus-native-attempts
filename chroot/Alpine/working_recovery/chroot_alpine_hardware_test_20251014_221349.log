@@ -1,0 +1,51 @@
+[22:13:49] === Alpine Linux Hardware Testing Script ===
+[22:13:49] Device: Retroid Pocket 3 Plus (ums512_1h10)
+[22:13:49] Kernel: Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64
+[22:13:49] 
+[22:13:49] === BOOT PARTITION ===
+[22:13:49] ✓ Mounted: /sdcard
+[22:13:49] ✓ Log relocated: /sdcard/alpine_hardware_test_20251014_221349.log
+[22:13:49] 
+[22:13:49] === DISTRO PARTITION ===
+[22:13:49] ✓ Block device found: /dev/block/mmcblk0p77
+[22:13:49] ✓ Mounted: /mnt/distro
+[22:13:50] 
+[22:13:50] === ROOTFS DISCOVERY ===
+[22:13:51] ✓ Rootfs: /mnt/distro/chroot-distro/alpine
+[22:13:52]   Version: 3.22.2
+[22:13:52] 
+[22:13:52] === CHROOT SETUP ===
+[22:13:52] ✓ Library paths configured
+[22:13:52] ✓ /dev bind mounted
+[22:13:52] ✓ devpts mounted
+[22:13:52] ✓ proc mounted
+[22:13:52] ✓ sysfs mounted
+[22:13:52] ✓ Recovery libs bound
+[22:13:52] ✓ SD card mounted in chroot
+[22:13:52] ✓ DNS configured
+[22:13:52] 
+[22:13:52] === TESTING ALPINE ENVIRONMENT ===
+Library test successful
+Busybox functional
+[22:13:52] ✓ Alpine library compatibility confirmed
+[22:13:52] 
+[22:13:52] === RUNNING HARDWARE TEST ===
+[22:13:53] ✓ Hardware test SUCCESS
+[22:13:53] ✓ Results: /sdcard/hardware_test_results_20251014_221352.log
+[22:13:53] ✓ Size: 128K
+[22:13:53] 
+[22:13:53] === CLEANUP ===
+[22:13:53] ✓ Unmounted: SD card
+[22:13:53] ✓ Unmounted: recovery libs
+[22:13:53] ✓ Unmounted: sysfs
+[22:13:53] ✓ Unmounted: proc
+[22:13:53] ✓ Unmounted: devpts
+[22:13:53] ✓ Unmounted: dev
+[22:13:54] ✓ Unmounted: /mnt/distro
+[22:13:54] ✓ SD card retained for logs
+[22:13:54] 
+[22:13:54] === HARDWARE TEST SESSION COMPLETE ===
+[22:13:54] Status: SUCCESS
+[22:13:54] Log: /sdcard/alpine_hardware_test_20251014_221349.log
+[22:13:54] 
+[22:13:54] Exiting to recovery in 3 seconds...

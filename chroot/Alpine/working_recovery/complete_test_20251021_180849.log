@@ -1,0 +1,1179 @@
+=======================================================================
+ALPINE LINUX COMPLETE HARDWARE TEST
+Device: Retroid Pocket 3 Plus (UMS512 / Mali-G52)
+Date: Tue Oct 21 14:08:49 EDT 2025
+Kernel: Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64 GNU/Linux
+=======================================================================
+
+=== LOADING KERNEL MODULES ===
+✓ mali_gondul.ko
+✓ sprd_vdsp.ko
+✓ mmdvfs.ko
+✓ sprd_cpp.ko
+✓ sprd_sensor.ko
+✓ sprd_flash_drv.ko
+✓ sprdbt_tty.ko
+✓ sprd_fm.ko
+✓ sprdwl_ng.ko
+
+
+=======================================================================
+TEST: WIFI
+=======================================================================
+
+✓ WiFi interface: wlan0
+21: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UNKNOWN group default qlen 1000
+    link/ether 40:45:da:95:f7:79 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::4245:daff:fe95:f779/64 scope link 
+       valid_lft forever preferred_lft forever
+
+Scanning networks (abbreviated)...
+BSS 8a:15:04:f7:63:50(on wlan0)
+	signal: -66.00 dBm
+	SSID: COJSecure
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 02:18:4a:af:f6:c0(on wlan0)
+	signal: -60.00 dBm
+	SSID: COJSecure
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 8a:15:04:f7:63:51(on wlan0)
+	signal: -68.00 dBm
+	SSID: LibraryPublic
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 02:18:4a:af:f6:c1(on wlan0)
+	signal: -60.00 dBm
+	SSID: LibraryPublic
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 02:18:4a:af:f6:c3(on wlan0)
+	signal: -58.00 dBm
+	SSID: LibrarySecure
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 8a:15:04:f7:63:53(on wlan0)
+	signal: -67.00 dBm
+	SSID: LibrarySecure
+	BSS Load:
+		 * OBSS non-GF present: 0
+		 * BSS Transition
+BSS 02:18:4a:af:f6:c5(on wlan0)
+	signal: -60.00 dBm
+	SSID: CatalogSecure
+	BSS Load:
+
+Networks found: 50
+
+✓ WIFI TEST PASSED
+
+=======================================================================
+TEST: MODEM & DIGITAL SIGNAL PROCESSOR
+=======================================================================
+
+--- Starting D-Bus (Required for ModemManager) ---
+dbus-daemon[3159]: Failed to start message bus: The pid file "/run/dbus/dbus.pid" exists, if the message bus is not running, remove this file
+✓ D-Bus started
+
+--- Modem Kernel Devices ---
+No modem TTY devices
+No SMD devices
+No ESOC devices
+
+--- QMI Devices (Qualcomm MSM Interface) ---
+No QMI devices
+
+--- MBIM Devices (Mobile Broadband Interface) ---
+No MBIM devices
+
+--- USB Modem Detection ---
+
+--- PCI/PCIe Modem Detection ---
+
+--- SPRD Modem Devices (Platform-specific) ---
+crw-rw---- 1 root root  10, 54 Oct 21 14:08 /dev/slog_gnss
+crw-rw---- 1 root root 237,  0 Oct 21 14:08 /dev/slog_lte
+crw-rw---- 1 root root 243,  0 Oct 21 14:08 /dev/slog_pm
+crw-rw---- 1 root root 255,  0 Oct 21 14:08 /dev/slog_wcn0
+crw-rw---- 1 root root 255,  1 Oct 21 14:08 /dev/slog_wcn1
+crw-rw---- 1 root root 241,  0 Oct 21 14:08 /dev/spipe_lte0
+crw-rw---- 1 root root 241,  1 Oct 21 14:08 /dev/spipe_lte1
+crw-rw---- 1 root root 241, 10 Oct 21 14:08 /dev/spipe_lte10
+crw-rw---- 1 root root 241, 11 Oct 21 14:08 /dev/spipe_lte11
+crw-rw---- 1 root root 241, 12 Oct 21 14:08 /dev/spipe_lte12
+crw-rw---- 1 root root 241, 13 Oct 21 14:08 /dev/spipe_lte13
+crw-rw---- 1 root root 241, 14 Oct 21 14:08 /dev/spipe_lte14
+crw-rw---- 1 root root 241,  2 Oct 21 14:08 /dev/spipe_lte2
+crw-rw---- 1 root root 241,  3 Oct 21 14:08 /dev/spipe_lte3
+crw-rw---- 1 root root 241,  4 Oct 21 14:08 /dev/spipe_lte4
+crw-rw---- 1 root root 241,  5 Oct 21 14:08 /dev/spipe_lte5
+crw-rw---- 1 root root 241,  6 Oct 21 14:08 /dev/spipe_lte6
+crw-rw---- 1 root root 241,  7 Oct 21 14:08 /dev/spipe_lte7
+crw-rw---- 1 root root 241,  8 Oct 21 14:08 /dev/spipe_lte8
+crw-rw---- 1 root root 241,  9 Oct 21 14:08 /dev/spipe_lte9
+crw-rw---- 1 root root 244,  0 Oct 21 14:08 /dev/spipe_pm0
+crw-rw---- 1 root root 244,  1 Oct 21 14:08 /dev/spipe_pm1
+crw-rw---- 1 root root 239,  0 Oct 21 14:08 /dev/stty_lte0
+crw-rw---- 1 root root 239,  1 Oct 21 14:08 /dev/stty_lte1
+crw-rw---- 1 root root 239, 10 Oct 21 14:08 /dev/stty_lte10
+crw-rw---- 1 root root 239, 11 Oct 21 14:08 /dev/stty_lte11
+crw-rw---- 1 root root 239, 12 Oct 21 14:08 /dev/stty_lte12
+crw-rw---- 1 root root 239, 13 Oct 21 14:08 /dev/stty_lte13
+crw-rw---- 1 root root 239, 14 Oct 21 14:08 /dev/stty_lte14
+crw-rw---- 1 root root 239, 15 Oct 21 14:08 /dev/stty_lte15
+crw-rw---- 1 root root 239, 16 Oct 21 14:08 /dev/stty_lte16
+crw-rw---- 1 root root 239, 17 Oct 21 14:08 /dev/stty_lte17
+crw-rw---- 1 root root 239, 18 Oct 21 14:08 /dev/stty_lte18
+crw-rw---- 1 root root 239, 19 Oct 21 14:08 /dev/stty_lte19
+crw-rw---- 1 root root 239,  2 Oct 21 14:08 /dev/stty_lte2
+crw-rw---- 1 root root 239, 20 Oct 21 14:08 /dev/stty_lte20
+crw-rw---- 1 root root 239, 21 Oct 21 14:08 /dev/stty_lte21
+crw-rw---- 1 root root 239, 22 Oct 21 14:08 /dev/stty_lte22
+crw-rw---- 1 root root 239, 23 Oct 21 14:08 /dev/stty_lte23
+crw-rw---- 1 root root 239, 24 Oct 21 14:08 /dev/stty_lte24
+crw-rw---- 1 root root 239, 25 Oct 21 14:08 /dev/stty_lte25
+crw-rw---- 1 root root 239, 26 Oct 21 14:08 /dev/stty_lte26
+crw-rw---- 1 root root 239, 27 Oct 21 14:08 /dev/stty_lte27
+crw-rw---- 1 root root 239, 28 Oct 21 14:08 /dev/stty_lte28
+crw-rw---- 1 root root 239, 29 Oct 21 14:08 /dev/stty_lte29
+crw-rw---- 1 root root 239,  3 Oct 21 14:08 /dev/stty_lte3
+crw-rw---- 1 root root 239, 30 Oct 21 14:08 /dev/stty_lte30
+crw-rw---- 1 root root 239, 31 Oct 21 14:08 /dev/stty_lte31
+crw-rw---- 1 root root 239,  4 Oct 21 14:08 /dev/stty_lte4
+crw-rw---- 1 root root 239,  5 Oct 21 14:08 /dev/stty_lte5
+crw-rw---- 1 root root 239,  6 Oct 21 14:08 /dev/stty_lte6
+crw-rw---- 1 root root 239,  7 Oct 21 14:08 /dev/stty_lte7
+crw-rw---- 1 root root 239,  8 Oct 21 14:08 /dev/stty_lte8
+crw-rw---- 1 root root 239,  9 Oct 21 14:08 /dev/stty_lte9
+total 0
+drwxr-xr-x  2 root root 0 Oct 21 14:08 .
+drwxr-xr-x 68 root root 0 Oct 21 14:08 ..
+lrwxrwxrwx  1 root root 0 Oct 21 14:08 sensor_hub -> ../../devices/virtual/sprd_sensorhub/sensor_hub
+
+--- Digital Signal Processor (DSP) Devices ---
+No DSP devices
+
+--- DSP Kernel Module ---
+sprd_vdsp             122880  0
+
+--- DSP Sysfs Information ---
+--- ModemManager Status ---
+Starting ModemManager (background)...
+ModemManager PID: 3181
+[3181]: <msg> [1761070170.668546] ModemManager (version 1.24.2) starting in system bus...
+[3181]: <dbg> [1761070170.669005] [charsets] detecting platform iconv() support...
+[3181]: <dbg> [1761070170.669106] [charsets]   UTF-8: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669238] [charsets]   UCS-2BE: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669312] [charsets]   ASCII: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669382] [charsets]   ISO8859-1: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669451] [charsets]   CP437: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669559] [charsets]   CP850: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.669623] [charsets]   UTF-16BE: iconv conversion to/from charset is supported
+[3181]: <dbg> [1761070170.671125] Full suspend/resume hooks enabled
+[3181]: <dbg> [1761070170.672216] [sleep-monitor-systemd] singleton created
+[3181]: <wrn> [1761070170.672504] could not acquire the 'org.freedesktop.ModemManager1' service name
+[3181]: <msg> [1761070170.672616] ModemManager is shut down
+[3181]: <dbg> [1761070170.672704] [sleep-monitor-systemd] singleton disposed
+
+Listing modems:
+error: couldn't get bus: Could not connect: Connection refused
+
+✗ No modems detected by ModemManager
+
+--- QMI Device Info (if available) ---
+qmicli not installed
+
+--- MBIM Device Info (if available) ---
+mbimcli not installed
+
+--- NetworkManager WWAN Status ---
+NetworkManager not installed
+
+--- Modem Kernel Messages ---
+[    0.000000] -;Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=32816 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=
+[    1.077715] -;SELinux:  Registering netfilter hooks
+[    1.187066] -;cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+[    1.454733] -;Netfilter messages via NETLINK v0.30.
+[    3.275503] -;init: /init.recovery.common.rc: 9: ignored duplicate definition of service 'modem_ctl-cali'
+[    3.275539] -;init: /init.recovery.common.rc: 15: ignored duplicate definition of service 'modem_ctl-ft'
+[    5.454220] -;WCN BASEgnss_download_firmware no find gnssmodem.bin err:-2(ignore)
+[    6.450406] -;WCN BASEno find wcnmodem.bin errno:(-2)(ignore!!)
+[   86.872195] -;audit: type=1400 audit(1761070170.523:665): avc:  denied  { getattr } for  pid=3174 comm="ls" path="/dev/spipe_lte0" dev="tmpfs" ino=8285 scontext=u:r:recovery:s0 tcontext=u:object_r:spipe_device:s0 tclass=chr_file permissive=1
+[   86.872495] -;audit: type=1400 audit(1761070170.523:666): avc:  denied  { getattr } for  pid=3174 comm="ls" path="/dev/spipe_lte9" dev="tmpfs" ino=8346 scontext=u:r:recovery:s0 tcontext=u:object_r:volte_vtsp_device:s0 tclass=chr_file permissive=1
+[   87.015377] -;audit: type=1400 audit(1761070170.663:669): avc:  denied  { write } for  pid=3181 comm="ModemManager" name="console" dev="tmpfs" ino=8308 scontext=u:r:recovery:s0 tcontext=u:object_r:console_device:s0 tclass=chr_file permissive=1
+
+--- Modem Test Summary ---
+QMI devices: 0
+SPRD modem devices: 37
+DSP devices: 1
+DSP module loaded: 1
+
+✓ MODEM TEST COMPLETED
+
+=======================================================================
+TEST: CAMERA SUBSYSTEM (SYSFS DETECTION)
+=======================================================================
+
+--- Camera Kernel Modules ---
+sprd_flash_drv         16384  0
+sprd_sensor            90112  0
+sprd_cpp               45056  0
+
+--- Camera Device Nodes ---
+crw-rw---- 1 root root 10, 19 Oct 21 14:08 /dev/sprd_cpp
+crw-rw---- 1 root root 10, 17 Oct 21 14:08 /dev/sprd_flash
+crw-rw---- 1 root root 10, 58 Oct 21 14:08 /dev/sprd_jpg
+crw-rw---- 1 root root 10, 18 Oct 21 14:08 /dev/sprd_sensor
+crw-rw---- 1 root root 10, 27 Oct 21 14:08 /dev/sprd_uid
+crw-rw---- 1 root root 10, 59 Oct 21 14:08 /dev/sprd_vsp
+
+--- I2C Device Nodes (0-5) ---
+✓ /dev/i2c-0 exists
+crw-rw---- 1 root root 89, 0 Oct 21 14:08 /dev/i2c-0
+✓ /dev/i2c-1 exists
+crw-rw---- 1 root root 89, 1 Oct 21 14:08 /dev/i2c-1
+✓ /dev/i2c-2 exists
+crw-rw---- 1 root root 89, 2 Oct 21 14:08 /dev/i2c-2
+✓ /dev/i2c-3 exists
+crw-rw---- 1 root root 89, 3 Oct 21 14:08 /dev/i2c-3
+✓ /dev/i2c-4 exists
+crw-rw---- 1 root root 89, 4 Oct 21 14:08 /dev/i2c-4
+✓ /dev/i2c-5 exists
+crw-rw---- 1 root root 89, 5 Oct 21 14:08 /dev/i2c-5
+
+--- Camera I2C Devices (Sysfs Detection) ---
+Detected camera devices on I2C buses:
+
+✓ Device: 0-0020
+  Name:      sensor-main
+  Modalias:  i2c:sensor-main
+  Driver:    sprd_mcu
+  Attributes:
+    modalias
+    name
+
+✓ Device: 0-0021
+  Name:       deputy_camera_i2c
+  Modalias:  i2c: deputy_camera_i2c
+  Driver:    NOT BOUND
+  Attributes:
+    modalias
+    name
+
+✓ Device: 1-002a
+  Name:      sensor-main2
+  Modalias:  i2c:sensor-main2
+  Driver:    sensor_main2
+  Attributes:
+    modalias
+    name
+
+✓ Device: 1-006c
+  Name:      sensor-sub
+  Modalias:  i2c:sensor-sub
+  Driver:    sensor_sub
+  Attributes:
+    modalias
+    name
+
+--- Camera Sensor Identification ---
+Main Camera @0x20 (i2c-0):
+sensor-main
+i2c:sensor-main
+
+Deputy Camera @0x21 (i2c-0):
+ deputy_camera_i2c
+i2c: deputy_camera_i2c
+
+Main2 Camera @0x2A (i2c-1):
+sensor-main2
+i2c:sensor-main2
+
+Sub Camera @0x6C (i2c-1):
+sensor-sub
+i2c:sensor-sub
+
+--- Voltage Regulators (Camera Power) ---
+Camera-related regulators:
+  regulator.4 (vddmodem):
+    State: enabled
+    Users: 0
+    Voltage: 750 mV
+  regulator.7 (vddgen0):
+    State: enabled
+    Users: 0
+    Voltage: 1876 mV
+  regulator.8 (vddgen1):
+    State: enabled
+    Users: 0
+    Voltage: 1350 mV
+  regulator.11 (vddrf18):
+    State: enabled
+    Users: 0
+    Voltage: 1775 mV
+  regulator.12 (vddcamio):
+    State: disabled
+    Users: 0
+    Voltage: 1200 mV
+
+--- V4L2 Video Devices ---
+No V4L2 devices detected
+
+V4L2 device enumeration:
+Cannot open device /dev/video0, exiting.
+No V4L2 devices
+
+--- Media Controller Devices ---
+No media controller devices
+
+--- Camera Kernel Messages ---
+[    1.164829] -;RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_mcu_module_init():264]register main sensor:0
+[    1.166735] -;[drm] Initialized sprd 1.0.0 20180501 for display-subsystem on minor 0
+[    1.191204] -;RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_probe():185]dcam sensor probe start:device name:(null)
+[    1.191357] -;RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_regulator_enable():75]done!
+[    1.191360] -;RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_set_voltage():147]done!
+[   49.913669] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=1, gpio=-2, name=power-down-gpios
+[   49.913679] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=2, gpio=-2, name=flash-gpios
+[   49.913685] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=3, gpio=-2, name=mipi-switch-en-gpios
+[   49.913692] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=4, gpio=-2, name=mipi-switch-mode-gpios
+[   49.913698] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=5, gpio=-2, name=switch-mode-gpios
+[   49.913705] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=6, gpio=-2, name=cam-id-gpios
+[   49.913711] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=7, gpio=-2, name=iovdd-gpios
+[   49.913738] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=10, gpio=-2, name=mot-gpios
+[   49.914529] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=1, gpio=-2, name=power-down-gpios
+[   49.914537] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=2, gpio=-2, name=flash-gpios
+[   49.914544] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=3, gpio=-2, name=mipi-switch-en-gpios
+[   49.914550] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=4, gpio=-2, name=mipi-switch-mode-gpios
+[   49.914557] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=5, gpio=-2, name=switch-mode-gpios
+[   49.914563] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=6, gpio=-2, name=cam-id-gpios
+[   49.914569] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=7, gpio=-2, name=iovdd-gpios
+[   49.914575] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=8, gpio=-2, name=avdd-gpios
+[   49.914582] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=9, gpio=-2, name=dvdd-gpios
+[   49.914588] -;SENSOR_DRV: 541: sprd_sensor_parse_gpio_dt L 118: invalid gpio: i=10, gpio=-2, name=mot-gpios
+[   54.508221] -;Modules linked in: sprdwl_ng(O+) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) sprd_vdsp(O) mali_gondul(O)
+[   93.061064] -;audit: type=1400 audit(1761070176.711:676): avc:  denied  { getattr } for  pid=3223 comm="ls" path="/dev/sprd_cpp" dev="tmpfs" ino=8138 scontext=u:r:recovery:s0 tcontext=u:object_r:camera_device:s0 tclass=chr_file permissive=1
+
+--- Camera Test Summary ---
+Kernel modules loaded: 1
+I2C camera devices (sysfs): 0/4
+Camera regulators enabled: 0/5
+V4L2 devices: 0
+Media devices: 0
+
+✓ CAMERA TEST COMPLETED (Sysfs detection only - no I2C bus probing)
+
+=======================================================================
+TEST: GRAPHICS SUBSYSTEM (COMPLETE)
+=======================================================================
+
+--- Video Group Members ---
+video:x:27:root,p3plus
+
+--- All Graphics Device Nodes ---
+DRM devices:
+crw-rw---- 1 root video 226, 0 Oct 21 14:08 /dev/dri/card0
+
+Mali devices:
+crw-rw---- 1 root root 10, 21 Oct 21 14:08 /dev/mali0
+
+FB devices:
+
+--- Mesa Libraries (Installed) ---
+total 208
+drwxr-xr-x  2 root root   4096 Oct 21 02:09 .
+drwxr-xr-x 81 root root  69632 Oct 21 02:11 ..
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 apple_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 armada-drm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 asahi_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 etnaviv_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 exynos_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 gm12u320_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 hdlcd_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 hx8357d_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ili9163_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ili9225_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ili9341_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ili9486_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 imx-dcss_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 imx-drm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 imx-lcdif_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ingenic-drm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 kgsl_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 kirin_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 kms_swrast_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 komeda_dri.so -> libdril_dri.so
+-rwxr-xr-x  1 root root 132936 Aug 27 14:58 libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 lima_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 mali-dp_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 mcde_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 mediatek_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 meson_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 mi0283qt_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 msm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 mxsfb-drm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 nouveau_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 panel-mipi-dbi_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 panfrost_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 panthor_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 pl111_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 r600_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 radeonsi_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 rcar-du_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 repaper_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 rockchip-ebc_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 rockchip_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 rzg2l-du_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 ssd130x_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 st7586_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 st7735r_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 sti_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 stm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 sun4i-drm_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 swrast_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 tegra_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 udl_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 v3d_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 vc4_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 virtio_gpu_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 vkms_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 zink_dri.so -> libdril_dri.so
+lrwxrwxrwx  1 root root     14 Oct 21 02:09 zynqmp-dpsub_dri.so -> libdril_dri.so
+lrwxrwxrwx 1 root root     11 Oct 21 02:09 /usr/lib/libEGL.so -> libEGL.so.1
+lrwxrwxrwx 1 root root     15 Oct 21 02:08 /usr/lib/libEGL.so.1 -> libEGL.so.1.0.0
+-rwxr-xr-x 1 root root 330896 Aug 27 14:58 /usr/lib/libEGL.so.1.0.0
+lrwxrwxrwx 1 root root     10 Oct 21 02:09 /usr/lib/libGL.so -> libGL.so.1
+lrwxrwxrwx 1 root root     14 Oct 21 02:08 /usr/lib/libGL.so.1 -> libGL.so.1.2.0
+-rwxr-xr-x 1 root root 592448 Aug 27 14:58 /usr/lib/libGL.so.1.2.0
+lrwxrwxrwx 1 root root     17 Oct 21 02:09 /usr/lib/libGLESv1_CM.so -> libGLESv1_CM.so.1
+lrwxrwxrwx 1 root root     21 Oct 21 02:09 /usr/lib/libGLESv1_CM.so.1 -> libGLESv1_CM.so.1.1.0
+-rwxr-xr-x 1 root root  67336 Aug 27 14:58 /usr/lib/libGLESv1_CM.so.1.1.0
+lrwxrwxrwx 1 root root     14 Oct 21 02:09 /usr/lib/libGLESv2.so -> libGLESv2.so.2
+lrwxrwxrwx 1 root root     18 Oct 21 02:09 /usr/lib/libGLESv2.so.2 -> libGLESv2.so.2.0.0
+-rwxr-xr-x 1 root root  67336 Aug 27 14:58 /usr/lib/libGLESv2.so.2.0.0
+lrwxrwxrwx 1 root root     15 Oct 21 02:09 /usr/lib/libGLU.so.1 -> libGLU.so.1.3.1
+-rwxr-xr-x 1 root root 264184 May  2 22:00 /usr/lib/libGLU.so.1.3.1
+lrwxrwxrwx 1 root root     11 Oct 21 02:09 /usr/lib/libgbm.so -> libgbm.so.1
+lrwxrwxrwx 1 root root     15 Oct 21 02:08 /usr/lib/libgbm.so.1 -> libgbm.so.1.0.0
+-rwxr-xr-x 1 root root  67296 Aug 27 14:58 /usr/lib/libgbm.so.1.0.0
+
+--- Mesa Package Versions ---
+mesa-25.1.9-r0 description:
+Mesa DRI OpenGL library
+
+mesa-25.1.9-r0 webpage:
+https://www.mesa3d.org
+mesa-dri-gallium-25.1.9-r0 description:
+Mesa gallium DRI drivers
+
+mesa-dri-gallium-25.1.9-r0 webpage:
+https://www.mesa3d.org
+mesa-vulkan-panfrost-25.1.9-r0 description:
+Mesa Vulkan API driver for panfrost
+
+mesa-vulkan-panfrost-25.1.9-r0 webpage:
+https://www.mesa3d.org
+
+--- EGL/GLES Libraries (System) ---
+/usr/lib/libEGL.so
+/usr/lib/libEGL.so.1
+/usr/lib/libEGL.so.1.0.0
+/usr/lib/libGLESv1_CM.so
+/usr/lib/libGLESv1_CM.so.1
+/usr/lib/libGLESv1_CM.so.1.1.0
+/usr/lib/libGLESv2.so
+/usr/lib/libGLESv2.so.2
+/usr/lib/libGLESv2.so.2.0.0
+
+--- Vulkan Libraries (System) ---
+/usr/lib/libgstvulkan-1.0.so.0
+/usr/lib/libgstvulkan-1.0.so.0.2603.0
+/usr/lib/libvulkan.so.1
+/usr/lib/libvulkan.so.1.4.313
+/usr/lib/libvulkan_panfrost.so
+/usr/share/vulkan
+
+--- Android Graphics Libraries (droid/) ---
+-rw------- 1 root root   148752 Oct 21 14:08 /droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so
+-rw------- 1 root root    64784 Oct 21 14:08 /droid/lib64/android.hardware.renderscript@1.0-impl.so
+-rw------- 1 root root    20632 Oct 21 14:08 /droid/lib64/gralloc.default.so
+-rw------- 1 root root 40000504 Oct 21 14:08 /droid/lib64/libGLES_mali.so
+-rw------- 1 root root 40000504 Oct 21 14:08 /droid/lib64/libOpenCL.so
+
+--- Testing All .so Files in ld.so.conf Paths ---
+Alpine libraries (/usr/lib):
+  Testing: /usr/lib/libEGL.so
+/usr/lib/libEGL.so: symbolic link to libEGL.so.1
+	/lib/ld-musl-aarch64.so.1 (0x73d3193000)
+	libgallium-25.1.9.so => /usr/lib/libgallium-25.1.9.so (0x73d0fb4000)
+	libgbm.so.1 => /usr/lib/libgbm.so.1 (0x73d0f93000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x73d0f62000)
+	libX11-xcb.so.1 => /usr/lib/libX11-xcb.so.1 (0x73d0f41000)
+
+  Testing: /usr/lib/libGLESv2.so
+/usr/lib/libGLESv2.so: symbolic link to libGLESv2.so.2
+	/lib/ld-musl-aarch64.so.1 (0x761510e000)
+	libgallium-25.1.9.so => /usr/lib/libgallium-25.1.9.so (0x7612f6f000)
+	libdrm.so.2 => /usr/lib/libdrm.so.2 (0x7612f3e000)
+	libLLVM.so.20.1 => /usr/lib/libLLVM.so.20.1 (0x7609568000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x7609537000)
+
+  Testing: /usr/lib/libGL.so
+/usr/lib/libGL.so: symbolic link to libGL.so.1
+	/lib/ld-musl-aarch64.so.1 (0x7cf3ace000)
+	libgallium-25.1.9.so => /usr/lib/libgallium-25.1.9.so (0x7cf18af000)
+	libdrm.so.2 => /usr/lib/libdrm.so.2 (0x7cf187e000)
+	libX11.so.6 => /usr/lib/libX11.so.6 (0x7cf174a000)
+	libxcb-glx.so.0 => /usr/lib/libxcb-glx.so.0 (0x7cf1719000)
+
+  Testing: /usr/lib/libgbm.so
+/usr/lib/libgbm.so: symbolic link to libgbm.so.1
+	/lib/ld-musl-aarch64.so.1 (0x7e01eb7000)
+	libdrm.so.2 => /usr/lib/libdrm.so.2 (0x7e01e65000)
+	libexpat.so.1 => /usr/lib/libexpat.so.1 (0x7e01e34000)
+	libc.musl-aarch64.so.1 => /lib/ld-musl-aarch64.so.1 (0x7e01eb7000)
+
+Android libraries (/droid/lib64):
+  Testing: android.hardware.graphics.mapper@4.0-impl-arm.so
+/droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 30, BuildID[md5/uuid]=a5fc4c7547222f3ddaae6d87709d85f2, stripped
+	/lib/ld-musl-aarch64.so.1 (0x7a7f12d000)
+Error loading shared library libhardware.so: No such file or directory (needed by /droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so)
+Error loading shared library liblog.so: No such file or directory (needed by /droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so)
+Error loading shared library libbase.so: No such file or directory (needed by /droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so)
+Error loading shared library libcutils.so: No such file or directory (needed by /droid/lib64/android.hardware.graphics.mapper@4.0-impl-arm.so)
+
+  Testing: android.hardware.renderscript@1.0-impl.so
+/droid/lib64/android.hardware.renderscript@1.0-impl.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 30, BuildID[md5/uuid]=41367aa7b5b86e23e613a68fd42781fb, stripped
+	/lib/ld-musl-aarch64.so.1 (0x7796ad3000)
+Error loading shared library libbase.so: No such file or directory (needed by /droid/lib64/android.hardware.renderscript@1.0-impl.so)
+Error loading shared library libhidlbase.so: No such file or directory (needed by /droid/lib64/android.hardware.renderscript@1.0-impl.so)
+Error loading shared library libutils.so: No such file or directory (needed by /droid/lib64/android.hardware.renderscript@1.0-impl.so)
+Error loading shared library android.hardware.renderscript@1.0.so: No such file or directory (needed by /droid/lib64/android.hardware.renderscript@1.0-impl.so)
+
+  Testing: gralloc.default.so
+/droid/lib64/gralloc.default.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 30, BuildID[md5/uuid]=580cfa3005e9ec2438ed921102fe8460, stripped
+	/lib/ld-musl-aarch64.so.1 (0x74acae5000)
+Error loading shared library liblog.so: No such file or directory (needed by /droid/lib64/gralloc.default.so)
+Error loading shared library libcutils.so: No such file or directory (needed by /droid/lib64/gralloc.default.so)
+Error loading shared library libc++.so: No such file or directory (needed by /droid/lib64/gralloc.default.so)
+	libc.so => /lib/ld-musl-aarch64.so.1 (0x74acae5000)
+
+  Testing: libGLES_mali.so
+/droid/lib64/libGLES_mali.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 30, BuildID[md5/uuid]=a6641c41400ea5ac56e5b6d781ad7ae4, stripped
+	/lib/ld-musl-aarch64.so.1 (0x70d35a7000)
+Error loading shared library liblog.so: No such file or directory (needed by /droid/lib64/libGLES_mali.so)
+	libz.so => /usr/lib/libz.so (0x70d0efe000)
+Error loading shared library libnativewindow.so: No such file or directory (needed by /droid/lib64/libGLES_mali.so)
+Error loading shared library libcutils.so: No such file or directory (needed by /droid/lib64/libGLES_mali.so)
+
+  Testing: libOpenCL.so
+/droid/lib64/libOpenCL.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, for Android 30, BuildID[md5/uuid]=a6641c41400ea5ac56e5b6d781ad7ae4, stripped
+	/lib/ld-musl-aarch64.so.1 (0x77ab043000)
+Error loading shared library liblog.so: No such file or directory (needed by /droid/lib64/libOpenCL.so)
+	libz.so => /usr/lib/libz.so (0x77a899a000)
+Error loading shared library libnativewindow.so: No such file or directory (needed by /droid/lib64/libOpenCL.so)
+Error loading shared library libcutils.so: No such file or directory (needed by /droid/lib64/libOpenCL.so)
+
+--- EGL Test (No Environment Variables) ---
+Running eglinfo with default settings...
+EGL client extensions string:
+    EGL_EXT_client_extensions, EGL_EXT_device_base, 
+    EGL_EXT_device_enumeration, EGL_EXT_device_query, EGL_EXT_explicit_device, 
+    EGL_EXT_platform_base, EGL_EXT_platform_device, EGL_EXT_platform_wayland, 
+    EGL_EXT_platform_x11, EGL_EXT_platform_xcb, 
+    EGL_KHR_client_get_all_proc_addresses, EGL_KHR_debug, 
+    EGL_KHR_platform_gbm, EGL_KHR_platform_wayland, EGL_KHR_platform_x11, 
+    EGL_MESA_platform_gbm, EGL_MESA_platform_surfaceless
+
+GBM platform:
+eglinfo: eglInitialize failed
+
+Wayland platform:
+eglinfo: eglInitialize failed
+
+X11 platform:
+eglinfo: eglInitialize failed
+
+Surfaceless platform:
+EGL API version: 1.5
+EGL vendor string: Mesa Project
+EGL version string: 1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL driver name: swrast
+EGL extensions string:
+    EGL_ANDROID_blob_cache, EGL_EXT_config_select_group, 
+    EGL_EXT_create_context_robustness, EGL_EXT_image_dma_buf_import, 
+    EGL_EXT_image_dma_buf_import_modifiers, EGL_EXT_pixel_format_float, 
+    EGL_EXT_query_reset_notification_strategy, EGL_EXT_surface_compression, 
+    EGL_KHR_cl_event2, EGL_KHR_config_attribs, EGL_KHR_context_flush_control, 
+    EGL_KHR_create_context, EGL_KHR_create_context_no_error, 
+    EGL_KHR_fence_sync, EGL_KHR_get_all_proc_addresses, EGL_KHR_gl_colorspace, 
+    EGL_KHR_gl_renderbuffer_image, EGL_KHR_gl_texture_2D_image, 
+    EGL_KHR_gl_texture_3D_image, EGL_KHR_gl_texture_cubemap_image, 
+    EGL_KHR_image_base, EGL_KHR_no_config_context, EGL_KHR_reusable_sync, 
+    EGL_KHR_surfaceless_context, EGL_KHR_wait_sync, 
+    EGL_MESA_configless_context, EGL_MESA_gl_interop, EGL_MESA_query_driver, 
+    EGL_MESA_x11_native_visual_id
+OpenGL core profile vendor: Mesa
+OpenGL core profile renderer: llvmpipe (LLVM 20.1.8, 128 bits)
+OpenGL core profile version: 4.5 (Core Profile) Mesa 25.1.9
+OpenGL core profile shading language version: 4.50
+OpenGL core profile extensions:
+    GL_3DFX_texture_compression_FXT1, GL_AMD_conservative_depth, 
+    GL_AMD_draw_buffers_blend, GL_AMD_gpu_shader_int64, 
+    GL_AMD_multi_draw_indirect, GL_AMD_pinned_memory, 
+    GL_AMD_query_buffer_object, GL_AMD_seamless_cubemap_per_texture, 
+    GL_AMD_shader_stencil_export, GL_AMD_shader_trinary_minmax, 
+    GL_AMD_texture_texture4, GL_AMD_vertex_shader_layer, 
+    GL_AMD_vertex_shader_viewport_index, GL_ANGLE_texture_compression_dxt3, 
+    GL_ANGLE_texture_compression_dxt5, GL_ARB_ES2_compatibility, 
+    GL_ARB_ES3_1_compatibility, GL_ARB_ES3_2_compatibility, 
+    GL_ARB_ES3_compatibility, GL_ARB_arrays_of_arrays, GL_ARB_base_instance, 
+    GL_ARB_blend_func_extended, GL_ARB_buffer_storage, 
+    GL_ARB_clear_buffer_object, GL_ARB_clear_texture, GL_ARB_clip_control, 
+    GL_ARB_compressed_texture_pixel_storage, GL_ARB_compute_shader, 
+    GL_ARB_conditional_render_inverted, GL_ARB_conservative_depth, 
+    GL_ARB_copy_buffer, GL_ARB_copy_image, GL_ARB_cull_distance, 
+    GL_ARB_debug_output, GL_ARB_depth_buffer_float, GL_ARB_depth_clamp, 
+    GL_ARB_derivative_control, GL_ARB_direct_state_access, 
+    GL_ARB_draw_buffers, GL_ARB_draw_buffers_blend, 
+    GL_ARB_draw_elements_base_vertex, GL_ARB_draw_indirect, 
+    GL_ARB_draw_instanced, GL_ARB_enhanced_layouts, 
+    GL_ARB_explicit_attrib_location, GL_ARB_explicit_uniform_location, 
+    GL_ARB_fragment_coord_conventions, GL_ARB_fragment_layer_viewport, 
+    GL_ARB_fragment_shader, GL_ARB_framebuffer_no_attachments, 
+    GL_ARB_framebuffer_object, GL_ARB_framebuffer_sRGB, 
+    GL_ARB_get_program_binary, GL_ARB_get_texture_sub_image, GL_ARB_gl_spirv, 
+    GL_ARB_gpu_shader5, GL_ARB_gpu_shader_fp64, GL_ARB_gpu_shader_int64, 
+    GL_ARB_half_float_pixel, GL_ARB_half_float_vertex, 
+    GL_ARB_indirect_parameters, GL_ARB_instanced_arrays, 
+    GL_ARB_internalformat_query, GL_ARB_internalformat_query2, 
+    GL_ARB_invalidate_subdata, GL_ARB_map_buffer_alignment, 
+    GL_ARB_map_buffer_range, GL_ARB_multi_bind, GL_ARB_multi_draw_indirect, 
+    GL_ARB_occlusion_query2, GL_ARB_parallel_shader_compile, 
+    GL_ARB_pipeline_statistics_query, GL_ARB_pixel_buffer_object, 
+    GL_ARB_point_sprite, GL_ARB_polygon_offset_clamp, 
+    GL_ARB_post_depth_coverage, GL_ARB_program_interface_query, 
+    GL_ARB_provoking_vertex, GL_ARB_query_buffer_object, 
+    GL_ARB_robust_buffer_access_behavior, GL_ARB_robustness, 
+    GL_ARB_sample_shading, GL_ARB_sampler_objects, GL_ARB_seamless_cube_map, 
+    GL_ARB_seamless_cubemap_per_texture, GL_ARB_separate_shader_objects, 
+    GL_ARB_shader_atomic_counter_ops, GL_ARB_shader_atomic_counters, 
+    GL_ARB_shader_ballot, GL_ARB_shader_bit_encoding, GL_ARB_shader_clock, 
+    GL_ARB_shader_draw_parameters, GL_ARB_shader_group_vote, 
+    GL_ARB_shader_image_load_store, GL_ARB_shader_image_size, 
+    GL_ARB_shader_objects, GL_ARB_shader_precision, 
+    GL_ARB_shader_stencil_export, GL_ARB_shader_storage_buffer_object, 
+    GL_ARB_shader_subroutine, GL_ARB_shader_texture_image_samples, 
+    GL_ARB_shader_texture_lod, GL_ARB_shader_viewport_layer_array, 
+    GL_ARB_shading_language_420pack, GL_ARB_shading_language_include, 
+    GL_ARB_shading_language_packing, GL_ARB_spirv_extensions, 
+    GL_ARB_stencil_texturing, GL_ARB_sync, GL_ARB_tessellation_shader, 
+    GL_ARB_texture_barrier, GL_ARB_texture_border_clamp, 
+    GL_ARB_texture_buffer_object, GL_ARB_texture_buffer_object_rgb32, 
+    GL_ARB_texture_buffer_range, GL_ARB_texture_compression_bptc, 
+    GL_ARB_texture_compression_rgtc, GL_ARB_texture_cube_map_array, 
+    GL_ARB_texture_filter_anisotropic, GL_ARB_texture_filter_minmax, 
+    GL_ARB_texture_float, GL_ARB_texture_gather, 
+    GL_ARB_texture_mirror_clamp_to_edge, GL_ARB_texture_multisample, 
+
+--- EGL Test (Environment 1: Panfrost/DRM) ---
+MESA_LOADER_DRIVER_OVERRIDE=panfrost
+GALLIUM_DRIVER=panfrost
+EGL_PLATFORM=drm
+
+EGL client extensions string:
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+    EGL_EXT_client_extensions, EGL_EXT_device_base, 
+    EGL_EXT_device_enumeration, EGL_EXT_device_query, EGL_EXT_explicit_device, 
+    EGL_EXT_platform_base, EGL_EXT_platform_device, EGL_EXT_platform_wayland, 
+    EGL_EXT_platform_x11, EGL_EXT_platform_xcb, 
+    EGL_KHR_client_get_all_proc_addresses, EGL_KHR_debug, 
+    EGL_KHR_platform_gbm, EGL_KHR_platform_wayland, EGL_KHR_platform_x11, 
+    EGL_MESA_platform_gbm, EGL_MESA_platform_surfaceless
+
+GBM platform:
+eglinfo: eglInitialize failed
+
+Wayland platform:
+eglinfo: eglInitialize failed
+
+X11 platform:
+eglinfo: eglInitialize failed
+
+Surfaceless platform:
+eglinfo: eglInitialize failed
+
+Device platform:
+Device #0:
+
+EGL device extensions string:
+    EGL_EXT_device_drm_render_node, EGL_MESA_device_software
+Platform Device platform:
+eglinfo: eglInitialize failed
+
+
+--- EGL Test (Environment 2: Surfaceless) ---
+EGL client extensions string:
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+    EGL_EXT_client_extensions, EGL_EXT_device_base, 
+    EGL_EXT_device_enumeration, EGL_EXT_device_query, EGL_EXT_explicit_device, 
+    EGL_EXT_platform_base, EGL_EXT_platform_device, EGL_EXT_platform_wayland, 
+    EGL_EXT_platform_x11, EGL_EXT_platform_xcb, 
+    EGL_KHR_client_get_all_proc_addresses, EGL_KHR_debug, 
+    EGL_KHR_platform_gbm, EGL_KHR_platform_wayland, EGL_KHR_platform_x11, 
+    EGL_MESA_platform_gbm, EGL_MESA_platform_surfaceless
+
+GBM platform:
+eglinfo: eglInitialize failed
+
+Wayland platform:
+eglinfo: eglInitialize failed
+
+X11 platform:
+eglinfo: eglInitialize failed
+
+Surfaceless platform:
+eglinfo: eglInitialize failed
+
+Device platform:
+Device #0:
+
+EGL device extensions string:
+    EGL_EXT_device_drm_render_node, EGL_MESA_device_software
+Platform Device platform:
+eglinfo: eglInitialize failed
+
+
+--- EGL Test (Environment 3: GBM) ---
+EGL client extensions string:
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: DRI2: failed to create screen
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+    EGL_EXT_client_extensions, EGL_EXT_device_base, 
+    EGL_EXT_device_enumeration, EGL_EXT_device_query, EGL_EXT_explicit_device, 
+    EGL_EXT_platform_base, EGL_EXT_platform_device, EGL_EXT_platform_wayland, 
+    EGL_EXT_platform_x11, EGL_EXT_platform_xcb, 
+    EGL_KHR_client_get_all_proc_addresses, EGL_KHR_debug, 
+    EGL_KHR_platform_gbm, EGL_KHR_platform_wayland, EGL_KHR_platform_x11, 
+    EGL_MESA_platform_gbm, EGL_MESA_platform_surfaceless
+
+GBM platform:
+eglinfo: eglInitialize failed
+
+Wayland platform:
+eglinfo: eglInitialize failed
+
+X11 platform:
+eglinfo: eglInitialize failed
+
+Surfaceless platform:
+eglinfo: eglInitialize failed
+
+Device platform:
+Device #0:
+
+EGL device extensions string:
+    EGL_EXT_device_drm_render_node, EGL_MESA_device_software
+Platform Device platform:
+eglinfo: eglInitialize failed
+
+
+--- Mesa GL Info ---
+Error: unable to open display 
+
+--- Vulkan ICD Files ---
+total 12
+drwxr-xr-x 2 root root 4096 Oct 21 02:09 .
+drwxr-xr-x 5 root root 4096 Oct 21 02:09 ..
+-rw-r--r-- 1 root root  149 Aug 27 14:58 panfrost_icd.aarch64.json
+{
+    "ICD": {
+        "api_version": "1.4.311",
+        "library_path": "/usr/lib/libvulkan_panfrost.so"
+    },
+    "file_format_version": "1.0.0"
+}
+--- Vulkan Test (Panfrost) ---
+Using: /usr/share/vulkan/icd.d/panfrost_icd.aarch64.json
+'DISPLAY' environment variable not set... skipping surface info
+ERROR: [Loader Message] Code 0 : setup_loader_term_phys_devs:  Failed to detect any valid GPUs in the current config
+ERROR at /home/buildozer/aports/main/vulkan-tools/src/Vulkan-Tools-vulkan-sdk-1.4.313.0/vulkaninfo/./vulkaninfo.h:247:vkEnumeratePhysicalDevices failed with ERROR_INITIALIZATION_FAILED
+
+--- Vulkan Test (Android Mali) ---
+Using: /tmp/mali_icd.json
+ERROR: [Loader Message] Code 0 : Error loading shared library liblog.so: No such file or directory (needed by /droid/lib64/libGLES_mali.so)
+ERROR: [Loader Message] Code 0 : loader_icd_scan: Failed loading library associated with ICD JSON /droid/lib64/libGLES_mali.so. Ignoring this JSON
+ERROR: [Loader Message] Code 0 : vkCreateInstance: Found no drivers!
+Cannot create Vulkan instance.
+This problem is often caused by a faulty installation of the Vulkan driver or attempting to use a GPU that does not support Vulkan.
+ERROR at /home/buildozer/aports/main/vulkan-tools/src/Vulkan-Tools-vulkan-sdk-1.4.313.0/vulkaninfo/./vulkaninfo.h:573:vkCreateInstance failed with ERROR_INCOMPATIBLE_DRIVER
+
+--- SDL2 Test ---
+2.32.8
+-L/usr/lib -lSDL2
+
+--- X11/Xorg Configuration ---
+total 212
+drwxr-xr-x 2 root root   4096 Oct 21 02:09 .
+drwxr-xr-x 5 root root   4096 Oct 21 02:09 ..
+-rwxr-xr-x 1 root root  68368 Apr 11  2024 fbdev_drv.so
+-rwxr-xr-x 1 root root 135640 Jun 18 19:59 modesetting_drv.so
+
+--- Xorg Server Test ---
+
+X.Org X Server 1.21.1.18
+X Protocol Version 11, Revision 0
+Current Operating System: Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64
+Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=32816 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=unlocked androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=39296 androidboot.vbmeta.digest=d6c9fd3c6e3477fd88033773119f2c0655f836147b700def60a40f2e2f4d2cd1 androidboot.vbmeta.invalidate_on_error=yes androidboot.veritymode=enforcing androidboot.slot_suffix=_a androidboot.force_normal_boot=0 bootcause="Reboot into reocovery"
+ 
+Current version of pixman: 0.46.4
+	Before reporting problems, check http://wiki.x.org
+	to make sure that you have the latest version.
+
+X.Org X Server 1.21.1.18
+X Protocol Version 11, Revision 0
+Current Operating System: Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64
+Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=32816 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=unlocked androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=39296 androidboot.vbmeta.digest=d6c9fd3c6e3477fd88033773119f2c0655f836147b700def60a40f2e2f4d2cd1 androidboot.vbmeta.invalidate_on_error=yes androidboot.veritymode=enforcing androidboot.slot_suffix=_a androidboot.force_normal_boot=0 bootcause="Reboot into reocovery"
+ 
+Current version of pixman: 0.46.4
+	Before reporting problems, check http://wiki.x.org
+	to make sure that you have the latest version.
+Markers: (--) probed, (**) from config file, (==) default setting,
+	(++) from command line, (!!) notice, (II) informational,
+	(WW) warning, (EE) error, (NI) not implemented, (??) unknown.
+(==) Log file: "/var/log/Xorg.0.log", Time: Tue Oct 21 14:09:42 2025
+List of video drivers:
+	modesetting
+	fbdev
+No devices to configure.  Configuration failed.
+(EE) Server terminated with error (2). Closing log file.
+
+✓ GRAPHICS TEST COMPLETED
+
+=======================================================================
+TEST: SENSORS (IIO + LM-SENSORS - SYSFS ONLY)
+=======================================================================
+
+--- IIO Devices ---
+crw-rw---- 1 root root 247, 0 Oct 21 14:08 /dev/iio:device0
+crw-rw---- 1 root root 247, 1 Oct 21 14:08 /dev/iio:device1
+
+Device: sprd-sensor
+  Path: /sys/bus/iio/devices/iio:device0
+  Channels:
+    in_illuminance_raw
+
+Device: sc27xx-adc
+  Path: /sys/bus/iio/devices/iio:device1
+  Channels:
+    in_voltage0_input
+    in_voltage0_scale
+    in_voltage10_input
+    in_voltage10_scale
+    in_voltage11_input
+    in_voltage11_scale
+    in_voltage12_input
+    in_voltage12_scale
+    in_voltage13_input
+    in_voltage13_scale
+
+--- IIO Sensor Proxy ---
+iio-sensor-proxy not installed
+
+--- LM-Sensors Detection (SKIPPED - Causes hangs on I2C buses) ---
+sensors-detect would scan I2C buses which causes system hangs
+Skipping automatic detection...
+
+--- Sensor Readings (lm-sensors) ---
+No sensors found!
+Make sure you loaded all the kernel drivers you need.
+Try sensors-detect to find out which these are.
+
+--- I2C Sensor Devices (SYSFS DETECTION ONLY) ---
+Detecting I2C sensors via sysfs (NO bus scanning):
+
+I2C bus 0 devices (sysfs):
+  Address 0x0020: sensor-main (modalias: i2c:sensor-main)
+  Address 0x0021:  deputy_camera_i2c (modalias: i2c: deputy_camera_i2c)
+
+I2C bus 1 devices (sysfs):
+  Address 0x002a: sensor-main2 (modalias: i2c:sensor-main2)
+  Address 0x006c: sensor-sub (modalias: i2c:sensor-sub)
+
+I2C bus 2 devices (sysfs):
+  No devices detected on this bus
+
+I2C bus 3 devices (sysfs):
+  Address 0x005a: cst1xx (modalias: i2c:cst1xx)
+
+I2C bus 4 devices (sysfs):
+  Address 0x006a: fan54015_chg (modalias: i2c:fan54015_chg)
+
+I2C bus 5 devices (sysfs):
+  Address 0x0060: dcdc-cpu1 (modalias: i2c:dcdc-cpu1)
+  Address 0x0062: cpudvfs-regulator-s (modalias: i2c:cpudvfs-regulator-s)
+
+--- Hardware Monitoring Devices (hwmon) ---
+No hwmon devices found
+
+--- Thermal Zones (Detailed) ---
+thermal_zone0: board-thmzone - 31°C (mode: enabled)
+thermal_zone1: soc-thmzone - 34°C (mode: enabled)
+thermal_zone10: ank4-thmzone - 32°C (mode: enabled)
+thermal_zone11: ank5-thmzone - 32°C (mode: enabled)
+thermal_zone12: cputop-thmzone - 32°C (mode: enabled)
+thermal_zone13: gpuank2-thmzone - 32°C (mode: enabled)
+thermal_zone14: cluster0-thmzone - 33°C (mode: enabled)
+thermal_zone15: cluster1-thmzone - 33°C (mode: enabled)
+thermal_zone18: battery - 26°C (mode: N/A)
+thermal_zone2: prometheus6-tzone0 - 32°C (mode: enabled)
+thermal_zone3: prometheus6-tzone1 - 33°C (mode: enabled)
+thermal_zone4: prometheus7-thmzone - 32°C (mode: enabled)
+thermal_zone5: ank0-thmzone - 33°C (mode: enabled)
+thermal_zone6: ank1-thmzone - 33°C (mode: enabled)
+thermal_zone7: gpu-thmzone - 32°C (mode: enabled)
+thermal_zone8: ank2-thmzone - 32°C (mode: enabled)
+thermal_zone9: ank3-thmzone - 32°C (mode: enabled)
+
+--- Input Devices (Sensors/Accelerometer) ---
+
+--- Sensor Test Summary ---
+IIO devices: 2
+I2C sensor devices (sysfs): 14
+hwmon devices: 0
+Thermal zones: 19
+
+⚠ I2C bus scanning skipped to prevent system hangs
+✓ All sensor detection done via sysfs only
+
+✓ SENSOR TEST COMPLETED
+
+=======================================================================
+TEST: SYSTEM RESOURCES (COMPREHENSIVE)
+=======================================================================
+
+--- STORAGE (Chroot Only) ---
+Filesystem             Size  Used Avail Use% Mounted on
+tmpfs                  1.8G  908K  1.8G   1% /dev
+/dev/block/loop0       1.3G  1.3G     0 100% /system
+/dev/block/loop1       356M  355M     0 100% /system_ext
+/dev/block/loop2       1.8G  1.8G     0 100% /vendor
+/dev/block/loop3       572M  570M     0 100% /product
+/dev/block/mmcblk0p52   70M   32M   36M  47% /mnt/vendor/socko
+
+Breakdown:
+Alpine root: Used:6.1G Total:54G Free:48G Usage:12%
+Vendor:      Used:1.8G Total:1.8G Free:0 Usage:100%
+System:      Used:1.3G Total:1.3G Free:0 Usage:100%
+
+--- CPU INFO ---
+Architecture:                    aarch64
+CPU op-mode(s):                  32-bit, 64-bit
+Byte Order:                      Little Endian
+CPU(s):                          8
+On-line CPU(s) list:             0-7
+Vendor ID:                       ARM
+Model name:                      Cortex-A55
+Model:                           0
+Thread(s) per core:              1
+Core(s) per socket:              6
+Socket(s):                       1
+Stepping:                        r1p0
+Frequency boost:                 disabled
+CPU(s) scaling MHz:              48%
+CPU max MHz:                     2002.0000
+CPU min MHz:                     614.4000
+BogoMIPS:                        52.00
+Flags:                           fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+Model name:                      Cortex-A75
+Model:                           1
+Thread(s) per core:              1
+Core(s) per socket:              2
+Socket(s):                       1
+Stepping:                        r3p1
+CPU(s) scaling MHz:              61%
+CPU max MHz:                     2002.0000
+CPU min MHz:                     1228.8000
+BogoMIPS:                        52.00
+Flags:                           fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+Vulnerability Itlb multihit:     Not affected
+Vulnerability L1tf:              Not affected
+Vulnerability Mds:               Not affected
+Vulnerability Meltdown:          Not affected
+Vulnerability Spec store bypass: Vulnerable
+Vulnerability Spectre v1:        Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:        Not affected
+Vulnerability Srbds:             Not affected
+Vulnerability Tsx async abort:   Not affected
+
+CPU Frequencies:
+  CPU0: 962 MHz
+  CPU1: 962 MHz
+  CPU2: 962 MHz
+  CPU3: 962 MHz
+  CPU4: 962 MHz
+  CPU5: 962 MHz
+  CPU6: 1228 MHz
+  CPU7: 1228 MHz
+
+--- GPU INFO ---
+Mali GPU: Mali-G52 2 cores r1p0 0x7402
+Clock: 384000000 Hz
+Utilization: 0%
+Current core mask (JS0) : 0x3
+Current core mask (JS1) : 0x3
+Current core mask (JS2) : 0x3
+Available core mask : 0x3
+
+--- THERMAL SENSORS ---
+board-thmzone: 31°C
+soc-thmzone: 33°C
+ank4-thmzone: 32°C
+ank5-thmzone: 32°C
+cputop-thmzone: 32°C
+gpuank2-thmzone: 31°C
+cluster0-thmzone: 33°C
+cluster1-thmzone: 32°C
+battery: 26°C
+prometheus6-tzone0: 31°C
+prometheus6-tzone1: 32°C
+prometheus7-thmzone: 32°C
+ank0-thmzone: 32°C
+ank1-thmzone: 33°C
+gpu-thmzone: 32°C
+ank2-thmzone: 32°C
+ank3-thmzone: 32°C
+
+--- IIO SENSORS ---
+IIO Device: sprd-sensor
+IIO Device: sc27xx-adc
+
+--- RAM USAGE ---
+              total        used        free      shared  buff/cache   available
+Mem:           3.4G       81.0M      681.4M      916.0K        2.7G        3.2G
+Swap:             0           0           0
+
+Breakdown:
+Total: 3.4G | Used: 81.2M | Free: 680.9M
+
+--- UPTIME & LOAD ---
+ 14:09:43 up 1 min,  0 users,  load average: 3.75, 1.34, 0.48
+
+--- OS INFO ---
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.22.2
+PRETTY_NAME="Alpine Linux v3.22"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64 GNU/Linux
+
+--- CONKY TEST ---
+conky 1.22.1 compiled for Linux aarch64
+
+Compiled in features:
+
+System config file: /etc/conky/conky.conf
+Package library path: /usr/lib/conky
+
+
+ General:
+  * math
+  * hddtemp
+  * portmon
+  * IPv6
+  * Curl
+  * RSS
+  * wireless
+  * support for IBM/Lenovo notebooks
+  * builtin default configuration
+  * old configuration syntax
+  * Imlib2
+  * OSS mixer support
+  * apcupsd
+  * iostats
+  * ncurses
+
+ Lua bindings:
+  * Cairo
+ X11:
+  * Xdamage extension
+  * Xinerama extension (virtual display)
+  * Xshape extension (click through)
+  * XDBE (double buffer extension)
+  * Xft
+  * ARGB visual
+  * Own window
+  * Mouse events
+ Wayland:
+  * ARGB visual
+  * Mouse events
+
+ Music detection:
+  * CMUS
+  * MPD
+  * MOC
+
+ Default values:
+  * Netdevice: eno1
+  * Local configfile: $HOME/.conkyrc
+  * Maximum netdevices: 256
+  * Maximum text size: 16384
+  * Size text buffer: 256
+
+Running conky (3 iterations)...
+conky: FOUND: wayland
+conky: FOUND: x11
+conky: FOUND: file
+conky: FOUND: ncurses
+conky: FOUND: console
+2025-10-21 14:09:43
+CPU: 4% @ 0.96GHz
+RAM: 190MiB/3.41GiB (5%)
+Uptime: 0h 1m 39s
+Load: 3.76 1.35 0.49
+2025-10-21 14:09:43
+CPU: 4% @ 0.96GHz
+RAM: 190MiB/3.41GiB (5%)
+Uptime: 0h 1m 40s
+Load: 3.76 1.35 0.49
+2025-10-21 14:09:44
+CPU: 0% @ 0.96GHz
+RAM: 190MiB/3.41GiB (5%)
+Uptime: 0h 1m 41s
+Load: 3.78 1.39 0.51
+
+✓ SYSTEM RESOURCES TEST COMPLETED
+
+=======================================================================
+COMPLETE HARDWARE TEST SUMMARY
+=======================================================================
+
+WiFi:              PASS ✓
+Modem:             TESTED ✓
+Camera Regulators: PASS ✓
+Camera I2C:        PASS ✓
+Mali GPU:          PASS ✓
+DRM:               PASS ✓
+Mesa:              INSTALLED ✓
+Vulkan:            INSTALLED ✓
+X11:               INSTALLED ✓
+IIO Sensors:       PASS ✓
+Conky:             INSTALLED ✓
+
+=======================================================================
+TEST COMPLETE - Log: /sdcard/logs/complete_test_20251021_180849.log
+=======================================================================
