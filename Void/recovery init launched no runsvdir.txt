@@ -1,0 +1,235 @@
+#!/system/bin/sh
+# ---- Logging setup ----
+BOOT_LOG="/boot/void_boot.log"
+FALLBACK_LOG="/void_boot.log"
+# Try to use boot partition for logging
+if touch "$BOOT_LOG".test 2>/dev/null; then
+    LOGFILE="$BOOT_LOG"
+    rm -f "$BOOT_LOG".test
+else
+    LOGFILE="$FALLBACK_LOG"
+fi
+# Clear existing log
+> "$LOGFILE"
+# Logging function
+log() {
+    TS="$(/system/bin/uptime 2>/dev/null | cut -d' ' -f1 2>/dev/null)"
+    [ -z "$TS" ] && TS="T"
+    echo "[$TS] $*" | tee -a "$LOGFILE" >/dev/null
+}
+log "=== Void Linux aarch64 Boot Script Started ==="
+# ---- Start ueventd for device filesystem ----
+log "INIT: Starting ueventd for device node creation"
+if [ -f /system/bin/ueventd ]; then
+    /system/bin/ueventd &
+    sleep 2
+    log "INIT: ueventd started successfully"
+else
+    log "ERROR: ueventd not found"
+    exec /system/bin/realrecovery "$@"
+fi
+# ---- Setup binderfs ----
+log "INIT: Setting up binderfs"
+if [ -d /dev/binderfs ]; then
+    ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+    ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+    ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+    log "INIT: binderfs symlinks created"
+else
+    if mkdir -p /dev/binderfs 2>/dev/null; then
+        mount -t binder binder /dev/binderfs 2>/dev/null
+        chmod 755 /dev/binderfs 2>/dev/null
+        ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+        ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+        ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+        log "INIT: binderfs mounted and configured"
+    else
+        log "WARNING: Failed to setup binderfs"
+    fi
+fi
+# ---- Boot partition configuration ----
+BOOT_PARTITION_MOUNT_POINT=/boot
+BOOT_PARTITION=/dev/block/mmcblk1p1
+BOOT_PARTITION_WAIT_COUNTER=0
+ROOTFS_IMG="/boot/ext3fs.img"
+log "BOOT: Waiting for boot partition $BOOT_PARTITION"
+# ---- Wait for boot partition detection ----
+while [ ! -b $BOOT_PARTITION ]; do
+    sleep 0.1
+    BOOT_PARTITION_WAIT_COUNTER=$((BOOT_PARTITION_WAIT_COUNTER + 1))
+    if [ $BOOT_PARTITION_WAIT_COUNTER -ge 50 ]; then
+        log "ERROR: Boot partition not detected after 5 seconds"
+        exec /system/bin/realrecovery "$@"
+    fi
+done
+log "BOOT: Boot partition $BOOT_PARTITION detected"
+# ---- Mount boot partition ----
+mkdir -p $BOOT_PARTITION_MOUNT_POINT
+if mount -t exfat $BOOT_PARTITION $BOOT_PARTITION_MOUNT_POINT; then
+    log "BOOT: Boot partition mounted at $BOOT_PARTITION_MOUNT_POINT"
+    
+    # Ensure boot is writable
+    mount -o remount,rw $BOOT_PARTITION_MOUNT_POINT 2>/dev/null
+    log "BOOT: Boot partition remounted as read-write"
+    
+    # Update log file location now that boot is mounted
+    if [ "$LOGFILE" = "$FALLBACK_LOG" ]; then
+        LOGFILE="$BOOT_LOG"
+        cat "$FALLBACK_LOG" > "$LOGFILE" 2>/dev/null
+        log "LOG: Switched to boot partition logging"
+    fi
+else
+    log "ERROR: Failed to mount boot partition"
+    exec /system/bin/realrecovery "$@"
+fi
+# ---- Check for required files ----
+if [ ! -f "$BOOT_PARTITION_MOUNT_POINT/$ROOTFS_IMG" ]; then
+    log "ERROR: Void Linux rootfs image not found: $BOOT_PARTITION_MOUNT_POINT/$ROOTFS_IMG"
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+log "VOID: Found Void Linux rootfs: $BOOT_PARTITION_MOUNT_POINT/$ROOTFS_IMG"
+# ---- Mount ext3fs.img rootfs ----
+mkdir -p /mnt/void
+if mount -o loop "$BOOT_PARTITION_MOUNT_POINT/$ROOTFS_IMG" /mnt/void; then
+    log "VOID: Rootfs mounted successfully at /mnt/void"
+else
+    log "ERROR: Failed to mount Void Linux rootfs"
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+# ---- Set SELinux to permissive immediately ----
+if [ -f /sys/fs/selinux/enforce ]; then
+    echo 0 > /sys/fs/selinux/enforce 2>/dev/null
+    log "SELINUX: Set to permissive mode"
+else
+    log "WARNING: SELinux enforce file not found"
+fi
+# ---- Enable adbd for debugging ----
+log "ADB: Enabling adbd for debugging"
+start adbd 2>/dev/null || true
+setprop sys.usb.config adb 2>/dev/null || true
+setprop sys.usb.state adb 2>/dev/null || true
+setprop sys.usb.ffs.ready 1 2>/dev/null || true
+log "ADB: adbd enabled"
+# ---- Reset boot device to emmc (safety) ----
+/system/bin/erasebootrecord 2>/dev/null || true
+log "BOOT: Reset boot device to emmc"
+
+# ---- FIXED: Always use the real rootfs, skip initramfs entirely ----
+log "CHROOT: Using real rootfs directly (skipping initramfs)"
+CHROOT_TARGET="/mnt/void"
+
+# Check for init in the real rootfs
+if [ -x "/mnt/void/sbin/init" ]; then
+    INIT_PATH="/sbin/init"
+    log "CHROOT: Found init at /sbin/init"
+elif [ -x "/mnt/void/usr/bin/init" ]; then
+    INIT_PATH="/usr/bin/init"
+    log "CHROOT: Found init at /usr/bin/init"
+elif [ -x "/mnt/void/bin/init" ]; then
+    INIT_PATH="/bin/init"
+    log "CHROOT: Found init at /bin/init"
+else
+    log "ERROR: No init system found in real rootfs"
+    log "DEBUG: Looking for init files..."
+    find /mnt/void -name "init" -type f 2>/dev/null | head -10 | while read f; do
+        log "DEBUG: Found: $f"
+    done
+    umount /mnt/void
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+
+# ---- Set up chroot environment ----
+log "CHROOT: Setting up chroot environment at $CHROOT_TARGET"
+# Mount essential filesystems as per Void documentation
+mount -t proc none "$CHROOT_TARGET/proc" 2>/dev/null && log "MOUNT: proc mounted"
+mount -t sysfs none "$CHROOT_TARGET/sys" 2>/dev/null && log "MOUNT: sysfs mounted"
+mount --rbind /dev "$CHROOT_TARGET/dev" 2>/dev/null && log "MOUNT: dev bind mounted"
+mount --rbind /run "$CHROOT_TARGET/run" 2>/dev/null && log "MOUNT: run bind mounted"
+
+# Copy network configuration
+mkdir -p "$CHROOT_TARGET/etc"
+if [ -f /system/etc/resolv.conf ]; then
+    cp /system/etc/resolv.conf "$CHROOT_TARGET/etc/resolv.conf" 2>/dev/null
+elif [ -f /etc/resolv.conf ]; then
+    cp /etc/resolv.conf "$CHROOT_TARGET/etc/resolv.conf" 2>/dev/null
+else
+    echo "nameserver 8.8.8.8" > "$CHROOT_TARGET/etc/resolv.conf"
+    echo "nameserver 1.1.1.1" >> "$CHROOT_TARGET/etc/resolv.conf"
+fi
+log "NETWORK: Copied resolv.conf"
+
+# Copy hosts file if exists
+if [ -f /system/etc/hosts ]; then
+    cp /system/etc/hosts "$CHROOT_TARGET/etc/hosts" 2>/dev/null
+elif [ -f /etc/hosts ]; then
+    cp /etc/hosts "$CHROOT_TARGET/etc/hosts" 2>/dev/null
+else
+    echo "127.0.0.1 localhost" > "$CHROOT_TARGET/etc/hosts"
+fi
+log "NETWORK: Created hosts file"
+
+# ---- FIXED: Use proper chroot(1) method ----
+log "CHROOT: Using chroot(1) method as per Void documentation"
+
+# Make sure init is executable
+chmod +x "$CHROOT_TARGET$INIT_PATH" 2>/dev/null
+log "CHROOT: Ensured init is executable at $INIT_PATH"
+
+# Method 1: Try direct chroot with the real init system
+if [ -f /system/bin/busybox ]; then
+    log "CHROOT: Executing chroot using busybox with real init system"
+    
+    # Use proper chroot(1) method - this should start the full Linux system
+    /system/bin/busybox chroot "$CHROOT_TARGET" "$INIT_PATH" &
+    CHROOT_PID=$!
+    log "CHROOT: Started chroot with PID $CHROOT_PID"
+    
+    # Wait a moment to see if it starts successfully
+    sleep 5
+    
+    if kill -0 $CHROOT_PID 2>/dev/null; then
+        log "CHROOT: Init process is running successfully"
+        log "SYSTEM: Void Linux should be starting services and desktop"
+        
+        # Keep monitoring the chroot process
+        while kill -0 $CHROOT_PID 2>/dev/null; do 
+            sleep 60
+            log "SYSTEM: Monitoring - Void Linux still running (PID: $CHROOT_PID)"
+        done
+        
+        log "WARNING: Chroot process exited"
+        wait $CHROOT_PID
+        RC=$?
+        log "CHROOT: Process exited with code $RC"
+    else
+        log "ERROR: Chroot process failed to start or crashed immediately"
+        RC=1
+    fi
+else
+    log "ERROR: busybox not found at /system/bin/busybox"
+    RC=1
+fi
+
+# Check result and cleanup on failure
+if [ $RC -ne 0 ]; then
+    log "ERROR: Chroot/init failed with exit code $RC"
+    log "FALLBACK: Cleaning up and starting realrecovery"
+    
+    # Clean up mounts
+    umount "$CHROOT_TARGET/run" 2>/dev/null
+    umount "$CHROOT_TARGET/dev" 2>/dev/null
+    umount "$CHROOT_TARGET/sys" 2>/dev/null
+    umount "$CHROOT_TARGET/proc" 2>/dev/null
+    umount /mnt/void 2>/dev/null
+    umount $BOOT_PARTITION_MOUNT_POINT 2>/dev/null
+    
+    # Execute real recovery as fallback
+    exec /system/bin/realrecovery "$@"
+fi
+
+# Should not reach here under normal circumstances
+log "=== Void Linux boot script completed ==="
+exec /system/bin/realrecovery "$@"

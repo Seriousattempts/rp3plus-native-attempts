@@ -1,0 +1,461 @@
+[T] === Void Linux aarch64 Boot Script Started ===
+[T] INIT: Starting ueventd for device node creation
+[T] INIT: ueventd started successfully
+[T] INIT: Setting up binderfs
+[T] INIT: binderfs mounted and configured
+[T] BOOT: Waiting for boot partition /dev/block/mmcblk1p1
+[T] BOOT: Boot partition /dev/block/mmcblk1p1 detected
+[T] BOOT: Boot partition mounted at /boot
+[T] BOOT: Boot partition remounted as read-write-exec
+[T] LOG: Switched to boot partition logging
+[T] VOID: Found Void Linux rootfs: /boot//boot/ext3fs.img
+[T] INIT: Found init script: /boot//boot/init
+[T] DEBUG: Analyzing init script properties
+[T] DEBUG: Init script size: 18254 bytes
+[T] DEBUG: Init script permissions: -rwx------ 1 root root 18254 2025-09-20 21:05 /boot//boot/init
+[T] DEBUG: Init script file type: /boot//boot/init: /bin/sh script
+[T] DEBUG: Init script header: 0000000   #   !   /   b   i   n   /   s   h  
+0000012
+[T] VOID: Rootfs mounted successfully at /mnt/void
+[T] SELINUX: Set to permissive mode
+[T] ADB: Enabling adbd for debugging
+[T] ADB: adbd enabled
+[T] BOOT: Reset boot device to emmc
+[T] INITRAMFS: Extracting initramfs to set up proper init environment
+[T] INITRAMFS: Extracted successfully to /mnt/initramfs
+[T] INITRAMFS: Found original init at /mnt/initramfs/init
+[T] DEBUG: Original init permissions: -rwxr-xr-x 1 root root 11983 2023-07-04 14:19 /mnt/initramfs/init
+[T] INITRAMFS: Found dracut-lib.sh at /mnt/initramfs/usr/lib/dracut-lib.sh
+[T] VOID: Setting up chroot environment with initramfs as root
+[T] DEBUG: Checking initramfs mount options
+[T] DEBUG: Initramfs mount info: not found
+[T] MOUNT: proc mounted in initramfs
+[T] MOUNT: sysfs mounted in initramfs
+[T] MOUNT: dev mounted in initramfs
+[T] MOUNT: Void rootfs bound to /sysroot in initramfs
+[T] MOUNT: Boot partition bound in initramfs
+[T] NETWORK: Created resolv.conf in initramfs
+[T] CONFIG: Setting up hardware environment for UMS512
+[T] CONFIG: Created cmdline with UMS512 parameters
+[T] DEBUG: === Environment Verification Start ===
+[T] DEBUG: Available shells in initramfs:
+[T] DEBUG: Found shell: /bin/sh - lrwxrwxrwx 1 root root 4 2023-07-04 14:19 /mnt/initramfs/bin/sh -> bash
+[T] DEBUG: Found shell: /bin/bash - -rwxr-xr-x 1 root root 1478192 2023-07-04 14:19 /mnt/initramfs/bin/bash
+[T] DEBUG: Found shell: /usr/bin/sh - lrwxrwxrwx 1 root root 4 2023-07-04 14:19 /mnt/initramfs/usr/bin/sh -> bash
+[T] DEBUG: chroot command available
+[T] DEBUG: Testing basic chroot functionality
+[T] ERROR: Basic chroot test failed
+[T] DEBUG: Available interpreters in initramfs:
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/shutdown/30-md-shutdown.sh - -rwxr-xr-x 1 root root 464 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/shutdown/30-md-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/shutdown/25-dm-shutdown.sh - -rwxr-xr-x 1 root root 1870 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/shutdown/25-dm-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-mdmon-pre-udev.sh - -rwxr-xr-x 1 root root 133 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-mdmon-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-dm-pre-udev.sh - -rwxr-xr-x 1 root root 103 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-dm-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-block-genrules.sh - -rwxr-xr-x 1 root root 507 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-udev/30-block-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-trigger/30-parse-md.sh - -rwxr-xr-x 1 root root 2766 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-trigger/30-parse-md.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-shutdown/30-mdmon-pre-shutdown.sh - -rwxr-xr-x 1 root root 232 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-shutdown/30-mdmon-pre-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-pivot/50-mount-usr.sh - -rwxr-xr-x 1 root root 3539 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-pivot/50-mount-usr.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-mount/99-mount-virtiofs.sh - -rwxr-xr-x 1 root root 631 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-mount/99-mount-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/pre-mount/10-mdraid-waitclean.sh - -rwxr-xr-x 1 root root 701 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/pre-mount/10-mdraid-waitclean.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/mount/99-mount-root.sh - -rwxr-xr-x 1 root root 4085 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/mount/99-mount-root.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/initqueue/timeout/99-rootfallback.sh - -rwxr-xr-x 1 root root 459 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/initqueue/timeout/99-rootfallback.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/initqueue/timeout/10-btrfs_timeout.sh - -rwxr-xr-x 1 root root 144 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/initqueue/timeout/10-btrfs_timeout.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/95-parse-virtiofs.sh - -rwxr-xr-x 1 root root 208 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/95-parse-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/95-parse-block.sh - -rwxr-xr-x 1 root root 342 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/95-parse-block.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-lvm.sh - -rwxr-xr-x 1 root root 423 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-lvm.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-lunmask.sh - -rwxr-xr-x 1 root root 1290 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-lunmask.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-crypt.sh - -rwxr-xr-x 1 root root 8018 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/30-parse-crypt.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/20-parse-i18n.sh - -rwxr-xr-x 1 root root 1088 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/20-parse-i18n.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-root-opts.sh - -rwxr-xr-x 1 root root 273 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-root-opts.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-resume.sh - -rwxr-xr-x 1 root root 3412 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-keydev.sh - -rwxr-xr-x 1 root root 1363 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/10-parse-keydev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cmdline/01-parse-kernel.sh - -rwxr-xr-x 1 root root 675 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cmdline/01-parse-kernel.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cleanup/99-mdraid-needshutdown.sh - -rwxr-xr-x 1 root root 156 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cleanup/99-mdraid-needshutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/var/lib/dracut/hooks/cleanup/30-crypt-cleanup.sh - -rwxr-xr-x 1 root root 415 2023-07-04 14:20 /mnt/initramfs/var/lib/dracut/hooks/cleanup/30-crypt-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/udev/sas_transport_scan_lun.sh - -rwxr-xr-x 1 root root 577 2023-07-04 14:20 /mnt/initramfs/usr/lib/udev/sas_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/udev/fc_transport_scan_lun.sh - -rwxr-xr-x 1 root root 571 2023-07-04 14:20 /mnt/initramfs/usr/lib/udev/fc_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/fs-lib.sh - -rwxr-xr-x 1 root root 6392 2023-07-04 14:20 /mnt/initramfs/usr/lib/fs-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/dracut-lib.sh - -rwxr-xr-x 1 root root 29236 2023-07-04 14:19 /mnt/initramfs/usr/lib/dracut-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/dracut-dev-lib.sh - -rwxr-xr-x 1 root root 4078 2023-07-04 14:19 /mnt/initramfs/usr/lib/dracut-dev-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/dracut-crypt-lib.sh - -rwxr-xr-x 1 root root 8177 2023-07-04 14:19 /mnt/initramfs/usr/lib/dracut-crypt-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/lib/dracut/resume.sh - -rwxr-xr-x 1 root root 438 2023-07-04 14:19 /mnt/initramfs/usr/lib/dracut/resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/bin/insmodpost.sh - -rwxr-xr-x 1 root root 178 2023-07-04 14:19 /mnt/initramfs/usr/bin/insmodpost.sh
+[T] DEBUG: Shell found: /mnt/initramfs/usr/bin/bash - -rwxr-xr-x 1 root root 1478192 2023-07-04 14:19 /mnt/initramfs/usr/bin/bash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/libexec/iptables-flush - -rwxr-xr-x 1 root root 373 2023-11-13 05:49 /mnt/initramfs/sysroot/usr/libexec/iptables-flush
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/libexec/gvfsd-trash - -rwxr-xr-x 1 root root 67568 2024-07-10 16:42 /mnt/initramfs/sysroot/usr/libexec/gvfsd-trash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/alsa-info.sh - -rwxr-xr-x 1 root root 30134 2024-07-16 19:42 /mnt/initramfs/sysroot/usr/bin/alsa-info.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/brltty-config.sh - -rw-r--r-- 1 root root 5179 2024-12-15 16:39 /mnt/initramfs/sysroot/usr/bin/brltty-config.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/cryptsetup-ssh - -rwxr-xr-x 1 root root 68800 2024-09-13 15:19 /mnt/initramfs/sysroot/usr/bin/cryptsetup-ssh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/ssh - -rwxr-xr-x 1 root root 985840 2024-09-24 11:35 /mnt/initramfs/sysroot/usr/bin/ssh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/dash - -rwxr-xr-x 1 root root 133720 2023-12-07 14:34 /mnt/initramfs/sysroot/usr/bin/dash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/insmodpost.sh - -rwxr-xr-x 1 root root 178 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/bin/insmodpost.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/xclash - -rwxr-xr-x 1 root root 844 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/bin/xclash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/capsh - -rwxr-xr-x 1 root root 70392 2024-11-04 19:15 /mnt/initramfs/sysroot/usr/bin/capsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/chsh - -rwsr-xr-x 1 root root 67640 2024-10-28 21:31 /mnt/initramfs/sysroot/usr/bin/chsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/pax11publish - -rwxr-xr-x 1 root root 67576 2024-03-09 20:17 /mnt/initramfs/sysroot/usr/bin/pax11publish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/alsabat-test.sh - -rwxr-xr-x 1 root root 4136 2024-07-16 19:42 /mnt/initramfs/sysroot/usr/bin/alsabat-test.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/brltty-prologue.sh - -rw-r--r-- 1 root root 15444 2024-12-15 16:39 /mnt/initramfs/sysroot/usr/bin/brltty-prologue.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/bash - -rwxr-xr-x 1 root root 1478192 2024-09-24 11:37 /mnt/initramfs/sysroot/usr/bin/bash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/bin/slsh - -rwxr-xr-x 1 root root 32200 2018-04-03 16:21 /mnt/initramfs/sysroot/usr/bin/slsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xgrep.fish - -rw-r--r-- 1 root root 118 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xgrep.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xmksv.fish - -rw-r--r-- 1 root root 73 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xmksv.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdistdir.fish - -rw-r--r-- 1 root root 24 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdistdir.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xhog.fish - -rw-r--r-- 1 root root 20 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xhog.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xoptdiff.fish - -rw-r--r-- 1 root root 142 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xoptdiff.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xpkg.fish - -rw-r--r-- 1 root root 666 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xpkg.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xvoidstrap.fish - -rw-r--r-- 1 root root 225 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xvoidstrap.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xilog.fish - -rw-r--r-- 1 root root 21 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xilog.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdiff.fish - -rw-r--r-- 1 root root 188 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdiff.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xclash.fish - -rw-r--r-- 1 root root 22 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xclash.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xnews.fish - -rw-r--r-- 1 root root 21 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xnews.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xcheckrestart.fish - -rw-r--r-- 1 root root 78 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xcheckrestart.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdbg.fish - -rw-r--r-- 1 root root 71 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdbg.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xrs.fish - -rw-r--r-- 1 root root 19 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xrs.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xnodev.fish - -rw-r--r-- 1 root root 22 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xnodev.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xchroot.fish - -rw-r--r-- 1 root root 120 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xchroot.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xls.fish - -rw-r--r-- 1 root root 69 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xls.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xuname.fish - -rw-r--r-- 1 root root 22 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xuname.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xgenfstab.fish - -rw-r--r-- 1 root root 409 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xgenfstab.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xi.fish - -rw-r--r-- 1 root root 31 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xi.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdowngrade.fish - -rw-r--r-- 1 root root 103 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdowngrade.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xq.fish - -rw-r--r-- 1 root root 111 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xq.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdeptree.fish - -rw-r--r-- 1 root root 79 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xdeptree.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xetcchanges.fish - -rw-r--r-- 1 root root 27 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xetcchanges.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xmirror.fish - -rw-r--r-- 1 root root 1172 2023-05-21 00:15 /mnt/initramfs/sysroot/usr/share/fish/vendor_completions.d/xmirror.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_one_package.fish - -rw-r--r-- 1 root root 119 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_one_package.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_repo_urls.fish - -rw-r--r-- 1 root root 350 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_repo_urls.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_archs.fish - -rw-r--r-- 1 root root 108 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_archs.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_packages.fish - -rw-r--r-- 1 root root 105 2025-01-03 16:54 /mnt/initramfs/sysroot/usr/share/fish/vendor_functions.d/__xtools_complete_packages.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/bash-completion/completions/xmirror.bash - -rw-r--r-- 1 root root 841 2023-05-21 00:15 /mnt/initramfs/sysroot/usr/share/bash-completion/completions/xmirror.bash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/bash-completion/completions/chsh - -rw-r--r-- 1 root root 504 2024-10-28 21:31 /mnt/initramfs/sysroot/usr/share/bash-completion/completions/chsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/vi/catalog/english - -r--r--r-- 1 root root 10085 2022-08-19 18:15 /mnt/initramfs/sysroot/usr/share/vi/catalog/english
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/vi/catalog/spanish - -r--r--r-- 1 root root 12573 2022-08-19 18:15 /mnt/initramfs/sysroot/usr/share/vi/catalog/spanish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/vi/catalog/swedish - -r--r--r-- 1 root root 10565 2022-08-19 18:15 /mnt/initramfs/sysroot/usr/share/vi/catalog/swedish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/doc/dotconf/examples/maketest.sh - -rw-r--r-- 1 root root 829 2018-11-24 20:58 /mnt/initramfs/sysroot/usr/share/doc/dotconf/examples/maketest.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/doc/util-linux/getopt-example.bash - -rw-r--r-- 1 root root 1594 2024-10-28 21:31 /mnt/initramfs/sysroot/usr/share/doc/util-linux/getopt-example.bash
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/doc/util-linux/getopt-example.tcsh - -rw-r--r-- 1 root root 2256 2024-10-28 21:31 /mnt/initramfs/sysroot/usr/share/doc/util-linux/getopt-example.tcsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/os-prober/common.sh - -rwxr-xr-x 1 root root 6706 2024-11-01 03:04 /mnt/initramfs/sysroot/usr/share/os-prober/common.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/gnome/shutdown/libcanberra-logout-sound.sh - -rwxr-xr-x 1 root root 89 2024-06-30 19:56 /mnt/initramfs/sysroot/usr/share/gnome/shutdown/libcanberra-logout-sound.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/slsh/scripts/svnsh - -rwxr-xr-x 1 root root 6602 2018-04-03 16:21 /mnt/initramfs/sysroot/usr/share/slsh/scripts/svnsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/geometry/macintosh - -rw-r--r-- 1 root root 41020 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/geometry/macintosh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws003sh - -rw-r--r-- 1 root root 1924 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws003sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws020sh - -rw-r--r-- 1 root root 1847 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws020sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws011sh - -rw-r--r-- 1 root root 2071 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws011sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws007sh - -rw-r--r-- 1 root root 1924 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/symbols/sharp_vndr/ws007sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/share/X11/xkb/keycodes/macintosh - -rw-r--r-- 1 root root 4120 2024-03-03 20:08 /mnt/initramfs/sysroot/usr/share/X11/xkb/keycodes/macintosh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/dracut-functions.sh - -rwxr-xr-x 1 root root 32345 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/dracut-functions.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdmon-pre-shutdown.sh - -rwxr-xr-x 1 root root 232 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdmon-pre-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid_start.sh - -rwxr-xr-x 1 root root 2366 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid_start.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/parse-md.sh - -rwxr-xr-x 1 root root 2766 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/parse-md.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-cleanup.sh - -rwxr-xr-x 1 root root 503 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdmon-pre-udev.sh - -rwxr-xr-x 1 root root 133 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdmon-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-needshutdown.sh - -rwxr-xr-x 1 root root 156 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-needshutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-waitclean.sh - -rwxr-xr-x 1 root root 701 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/mdraid-waitclean.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/module-setup.sh - -rwxr-xr-x 1 root root 4351 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/md-shutdown.sh - -rwxr-xr-x 1 root root 464 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90mdraid/md-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00shell-interpreter/module-setup.sh - -rwxr-xr-x 1 root root 420 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00shell-interpreter/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95fstab-sys/mount-sys.sh - -rwxr-xr-x 1 root root 1296 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95fstab-sys/mount-sys.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95fstab-sys/module-setup.sh - -rwxr-xr-x 1 root root 340 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95fstab-sys/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98selinux/selinux-loadpolicy.sh - -rwxr-xr-x 1 root root 2287 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98selinux/selinux-loadpolicy.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98selinux/module-setup.sh - -rwxr-xr-x 1 root root 188 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98selinux/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95debug/module-setup.sh - -rwxr-xr-x 1 root root 855 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95debug/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03modsign/load-modsign-keys.sh - -rwxr-xr-x 1 root root 258 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03modsign/load-modsign-keys.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03modsign/module-setup.sh - -rwxr-xr-x 1 root root 770 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03modsign/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-ntfs/module-setup.sh - -rwxr-xr-x 1 root root 337 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-ntfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-ntfs/mount-ntfs-3g.sh - -rwxr-xr-x 1 root root 618 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-ntfs/mount-ntfs-3g.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules-extra/module-setup.sh - -rwxr-xr-x 1 root root 6397 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules-extra/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95udev-rules/module-setup.sh - -rwxr-xr-x 1 root root 3549 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95udev-rules/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/parse-crypt.sh - -rwxr-xr-x 1 root root 8018 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/parse-crypt.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/parse-keydev.sh - -rwxr-xr-x 1 root root 1363 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/parse-keydev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-run-generator.sh - -rwxr-xr-x 1 root root 800 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-run-generator.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/probe-keydev.sh - -rwxr-xr-x 1 root root 383 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/probe-keydev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-cleanup.sh - -rwxr-xr-x 1 root root 415 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-lib.sh - -rwxr-xr-x 1 root root 8177 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/crypt-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/module-setup.sh - -rwxr-xr-x 1 root root 5257 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/cryptroot-ask.sh - -rwxr-xr-x 1 root root 5586 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90crypt/cryptroot-ask.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90ppcmac/module-setup.sh - -rwxr-xr-x 1 root root 2818 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90ppcmac/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90ppcmac/load-thermal.sh - -rwxr-xr-x 1 root root 946 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90ppcmac/load-thermal.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00dash/module-setup.sh - -rwxr-xr-x 1 root root 597 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00dash/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/resume.sh - -rwxr-xr-x 1 root root 438 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/module-setup.sh - -rwxr-xr-x 1 root root 3051 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/parse-resume.sh - -rwxr-xr-x 1 root root 3412 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95resume/parse-resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-gpg/crypt-gpg-lib.sh - -rwxr-xr-x 1 root root 2840 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-gpg/crypt-gpg-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-gpg/module-setup.sh - -rwxr-xr-x 1 root root 1847 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-gpg/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99uefi-lib/uefi-lib.sh - -rwxr-xr-x 1 root root 5786 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99uefi-lib/uefi-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99uefi-lib/module-setup.sh - -rwxr-xr-x 1 root root 211 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99uefi-lib/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99fs-lib/fs-lib.sh - -rwxr-xr-x 1 root root 6392 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99fs-lib/fs-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99fs-lib/module-setup.sh - -rwxr-xr-x 1 root root 1600 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99fs-lib/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/prepare-overlayfs.sh - -rwxr-xr-x 1 root root 661 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/prepare-overlayfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/module-setup.sh - -rwxr-xr-x 1 root root 434 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/mount-overlayfs.sh - -rwxr-xr-x 1 root root 645 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90overlayfs/mount-overlayfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99busybox/module-setup.sh - -rwxr-xr-x 1 root root 757 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99busybox/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipath-shutdown.sh - -rwxr-xr-x 1 root root 173 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipath-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd-stop.sh - -rwxr-xr-x 1 root root 314 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd-stop.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/module-setup.sh - -rwxr-xr-x 1 root root 4562 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd-needshutdown.sh - -rwxr-xr-x 1 root root 221 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd-needshutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd.sh - -rwxr-xr-x 1 root root 490 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90multipath/multipathd.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/parse-kernel.sh - -rwxr-xr-x 1 root root 675 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/parse-kernel.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/insmodpost.sh - -rwxr-xr-x 1 root root 178 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/insmodpost.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/module-setup.sh - -rwxr-xr-x 1 root root 5675 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90kernel-modules/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/62bluetooth/module-setup.sh - -rwxr-xr-x 1 root root 3179 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/62bluetooth/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-liveiso-genrules.sh - -rwxr-xr-x 1 root root 327 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-liveiso-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/parse-iso-scan.sh - -rwxr-xr-x 1 root root 199 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/parse-iso-scan.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-live-root.sh - -rwxr-xr-x 1 root root 16441 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-live-root.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-live-genrules.sh - -rwxr-xr-x 1 root root 679 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-live-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/parse-dmsquash-live.sh - -rwxr-xr-x 1 root root 1331 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/parse-dmsquash-live.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/apply-live-updates.sh - -rwxr-xr-x 1 root root 820 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/apply-live-updates.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/module-setup.sh - -rwxr-xr-x 1 root root 1286 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-generator.sh - -rwxr-xr-x 1 root root 2367 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/dmsquash-generator.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/iso-scan.sh - -rwxr-xr-x 1 root root 907 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live/iso-scan.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99img-lib/img-lib.sh - -rwxr-xr-x 1 root root 3835 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99img-lib/img-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99img-lib/module-setup.sh - -rwxr-xr-x 1 root root 380 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99img-lib/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03rescue/module-setup.sh - -rwxr-xr-x 1 root root 329 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/03rescue/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/module-setup.sh - -rwxr-xr-x 1 root root 984 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/watchdog.sh - -rwxr-xr-x 1 root root 281 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/watchdog.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/watchdog-stop.sh - -rwxr-xr-x 1 root root 61 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog/watchdog-stop.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips-crypto-policies/module-setup.sh - -rwxr-xr-x 1 root root 440 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips-crypto-policies/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips-crypto-policies/fips-crypto-policies.sh - -rwxr-xr-x 1 root root 2132 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips-crypto-policies/fips-crypto-policies.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99shutdown/shutdown.sh - -rwxr-xr-x 1 root root 4780 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99shutdown/shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99shutdown/module-setup.sh - -rwxr-xr-x 1 root root 556 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99shutdown/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/ima-keys-load.sh - -rwxr-xr-x 1 root root 1416 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/ima-keys-load.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/ima-policy-load.sh - -rwxr-xr-x 1 root root 1054 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/ima-policy-load.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/module-setup.sh - -rwxr-xr-x 1 root root 364 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/evm-enable.sh - -rwxr-xr-x 1 root root 4808 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98integrity/evm-enable.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/80lvmthinpool-monitor/module-setup.sh - -rwxr-xr-x 1 root root 577 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/80lvmthinpool-monitor/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/80lvmthinpool-monitor/start-thinpool-monitor.sh - -rwxr-xr-x 1 root root 1466 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/80lvmthinpool-monitor/start-thinpool-monitor.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00bash/module-setup.sh - -rwxr-xr-x 1 root root 597 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00bash/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/module-setup.sh - -rwxr-xr-x 1 root root 2343 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/parse-lunmask.sh - -rwxr-xr-x 1 root root 1290 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/parse-lunmask.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/sas_transport_scan_lun.sh - -rwxr-xr-x 1 root root 577 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/sas_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/fc_transport_scan_lun.sh - -rwxr-xr-x 1 root root 571 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95lunmask/fc_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/rootfallback.sh - -rwxr-xr-x 1 root root 459 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/rootfallback.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/parse-block.sh - -rwxr-xr-x 1 root root 342 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/parse-block.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/module-setup.sh - -rwxr-xr-x 1 root root 2521 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/mount-root.sh - -rwxr-xr-x 1 root root 4085 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/mount-root.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/block-genrules.sh - -rwxr-xr-x 1 root root 507 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95rootfs-block/block-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50drm/module-setup.sh - -rwxr-xr-x 1 root root 2296 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50drm/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/create-overlay-genrules.sh - -rwxr-xr-x 1 root root 306 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/create-overlay-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/module-setup.sh - -rwxr-xr-x 1 root root 572 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/create-overlay.sh - -rwxr-xr-x 1 root root 3646 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmsquash-live-autooverlay/create-overlay.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/dm-pre-udev.sh - -rwxr-xr-x 1 root root 103 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/dm-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/dm-shutdown.sh - -rwxr-xr-x 1 root root 1870 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/dm-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/module-setup.sh - -rwxr-xr-x 1 root root 831 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dm/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/mount-virtiofs.sh - -rwxr-xr-x 1 root root 631 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/mount-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/module-setup.sh - -rwxr-xr-x 1 root root 539 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/parse-virtiofs.sh - -rwxr-xr-x 1 root root 208 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtiofs/parse-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97biosdevname/module-setup.sh - -rwxr-xr-x 1 root root 239 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97biosdevname/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97biosdevname/parse-biosdevname.sh - -rwxr-xr-x 1 root root 308 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97biosdevname/parse-biosdevname.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95terminfo/module-setup.sh - -rwxr-xr-x 1 root root 583 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95terminfo/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/parse-dm.sh - -rwxr-xr-x 1 root root 811 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/parse-dm.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/module-setup.sh - -rwxr-xr-x 1 root root 2156 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/dmraid.sh - -rwxr-xr-x 1 root root 1185 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90dmraid/dmraid.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90qemu/module-setup.sh - -rwxr-xr-x 1 root root 516 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90qemu/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog-modules/module-setup.sh - -rwxr-xr-x 1 root root 671 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/04watchdog-modules/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/02caps/caps.sh - -rwxr-xr-x 1 root root 1502 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/02caps/caps.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/02caps/module-setup.sh - -rwxr-xr-x 1 root root 512 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/02caps/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98usrmount/mount-usr.sh - -rwxr-xr-x 1 root root 3539 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98usrmount/mount-usr.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98usrmount/module-setup.sh - -rwxr-xr-x 1 root root 293 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98usrmount/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/module-setup.sh - -rwxr-xr-x 1 root root 482 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/parse-virtfs.sh - -rwxr-xr-x 1 root root 124 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/parse-virtfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/mount-virtfs.sh - -rwxr-xr-x 1 root root 1896 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95virtfs/mount-virtfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/parse-lvm.sh - -rwxr-xr-x 1 root root 423 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/parse-lvm.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/lvm_scan.sh - -rwxr-xr-x 1 root root 4852 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/lvm_scan.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/module-setup.sh - -rwxr-xr-x 1 root root 3880 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90lvm/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95hwdb/module-setup.sh - -rw-r--r-- 1 root root 339 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95hwdb/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/parse-nvmf-boot-connections.sh - -rwxr-xr-x 1 root root 9403 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/parse-nvmf-boot-connections.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/nbftroot.sh - -rwxr-xr-x 1 root root 95 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/nbftroot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/nvmf-autoconnect.sh - -rwxr-xr-x 1 root root 1887 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/nvmf-autoconnect.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/module-setup.sh - -rwxr-xr-x 1 root root 4819 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/95nvmf/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97masterkey/masterkey.sh - -rwxr-xr-x 1 root root 2164 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97masterkey/masterkey.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97masterkey/module-setup.sh - -rwxr-xr-x 1 root root 327 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/97masterkey/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/init.sh - -rwxr-xr-x 1 root root 11983 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/init.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/parse-root-opts.sh - -rwxr-xr-x 1 root root 273 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/parse-root-opts.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/dracut-dev-lib.sh - -rwxr-xr-x 1 root root 4078 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/dracut-dev-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/rdsosreport.sh - -rwxr-xr-x 1 root root 1508 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/rdsosreport.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/module-setup.sh - -rwxr-xr-x 1 root root 5213 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/initqueue.sh - -rwxr-xr-x 1 root root 1341 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/initqueue.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/dracut-lib.sh - -rwxr-xr-x 1 root root 29236 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/dracut-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/loginit.sh - -rwxr-xr-x 1 root root 533 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/99base/loginit.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/module-setup.sh - -rwxr-xr-x 1 root root 445 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/ifname-genrules.sh - -rwxr-xr-x 1 root root 1156 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/ifname-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/dhcp-root.sh - -rwxr-xr-x 1 root root 914 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/dhcp-root.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/netroot.sh - -rwxr-xr-x 1 root root 2839 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/netroot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/net-lib.sh - -rwxr-xr-x 1 root root 26819 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/45net-lib/net-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_device_ready.sh - -rwxr-xr-x 1 root root 469 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_device_ready.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_timeout.sh - -rwxr-xr-x 1 root root 144 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_timeout.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/module-setup.sh - -rwxr-xr-x 1 root root 1412 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_finished.sh - -rwxr-xr-x 1 root root 600 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90btrfs/btrfs_finished.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/96securityfs/securityfs.sh - -rwxr-xr-x 1 root root 220 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/96securityfs/securityfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/96securityfs/module-setup.sh - -rwxr-xr-x 1 root root 142 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/96securityfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/console_init.sh - -rwxr-xr-x 1 root root 1551 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/console_init.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/module-setup.sh - -rwxr-xr-x 1 root root 10289 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/parse-i18n.sh - -rwxr-xr-x 1 root root 1088 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/10i18n/parse-i18n.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98ecryptfs/ecryptfs-mount.sh - -rwxr-xr-x 1 root root 2763 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98ecryptfs/ecryptfs-mount.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98ecryptfs/module-setup.sh - -rwxr-xr-x 1 root root 276 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98ecryptfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00warpclock/module-setup.sh - -rwxr-xr-x 1 root root 796 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00warpclock/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00warpclock/warpclock.sh - -rwxr-xr-x 1 root root 349 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/00warpclock/warpclock.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-populate-initrd.sh - -rwxr-xr-x 1 root root 1635 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-populate-initrd.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-pretrigger.sh - -rwxr-xr-x 1 root root 1170 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-pretrigger.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-emergency.sh - -rwxr-xr-x 1 root root 52 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-emergency.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/module-setup.sh - -rwxr-xr-x 1 root root 1529 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-newroot.sh - -rwxr-xr-x 1 root root 116 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/50plymouth/plymouth-newroot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/syslog-cleanup.sh - -rwxr-xr-x 1 root root 415 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/syslog-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/rsyslogd-stop.sh - -rwxr-xr-x 1 root root 296 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/rsyslogd-stop.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/rsyslogd-start.sh - -rwxr-xr-x 1 root root 1262 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/rsyslogd-start.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/module-setup.sh - -rwxr-xr-x 1 root root 1112 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/parse-syslog-opts.sh - -rwxr-xr-x 1 root root 1159 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98syslog/parse-syslog-opts.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-loop/crypt-loop-lib.sh - -rwxr-xr-x 1 root root 1322 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-loop/crypt-loop-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-loop/module-setup.sh - -rwxr-xr-x 1 root root 375 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/91crypt-loop/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90pcmcia/module-setup.sh - -rwxr-xr-x 1 root root 558 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90pcmcia/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90nvdimm/module-setup.sh - -rwxr-xr-x 1 root root 695 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90nvdimm/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/convertfs.sh - -rwxr-xr-x 1 root root 5666 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/convertfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/do-convertfs.sh - -rwxr-xr-x 1 root root 194 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/do-convertfs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/module-setup.sh - -rwxr-xr-x 1 root root 341 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/30convertfs/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90numlock/module-setup.sh - -rwxr-xr-x 1 root root 749 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90numlock/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90numlock/numlock.sh - -rwxr-xr-x 1 root root 177 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/90numlock/numlock.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98pollcdrom/module-setup.sh - -rwxr-xr-x 1 root root 151 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98pollcdrom/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98pollcdrom/pollcdrom.sh - -rwxr-xr-x 1 root root 642 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/98pollcdrom/pollcdrom.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips.sh - -rwxr-xr-x 1 root root 8544 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-noboot.sh - -rwxr-xr-x 1 root root 418 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-noboot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/module-setup.sh - -rwxr-xr-x 1 root root 1857 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/module-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-load-crypto.sh - -rwxr-xr-x 1 root root 393 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-load-crypto.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-boot.sh - -rwxr-xr-x 1 root root 436 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/modules.d/01fips/fips-boot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/dracut-version.sh - -rwxr-xr-x 1 root root 57 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/dracut-version.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/resume.sh - -rwxr-xr-x 1 root root 438 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/dracut/resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/dracut-init.sh - -rwxr-xr-x 1 root root 36765 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/dracut-init.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut/dracut-logger.sh - -rwxr-xr-x 1 root root 13844 2024-10-28 19:51 /mnt/initramfs/sysroot/usr/lib/dracut/dracut-logger.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/python3.13/config-3.13-aarch64-linux-gnu/install-sh - -rwxr-xr-x 1 root root 15358 2024-12-14 12:44 /mnt/initramfs/sysroot/usr/lib/python3.13/config-3.13-aarch64-linux-gnu/install-sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/python3.13/venv/scripts/posix/activate.csh - -rw-r--r-- 1 root root 937 2024-12-14 12:44 /mnt/initramfs/sysroot/usr/lib/python3.13/venv/scripts/posix/activate.csh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/python3.13/venv/scripts/common/activate.fish - -rw-r--r-- 1 root root 2208 2024-12-14 12:44 /mnt/initramfs/sysroot/usr/lib/python3.13/venv/scripts/common/activate.fish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/fs-lib.sh - -rwxr-xr-x 1 root root 6392 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/fs-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut-dev-lib.sh - -rwxr-xr-x 1 root root 4078 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/dracut-dev-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/grub/arm64-efi/modinfo.sh - -rw-r--r-- 1 root root 2770 2024-05-12 18:27 /mnt/initramfs/sysroot/usr/lib/grub/arm64-efi/modinfo.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/udev/sas_transport_scan_lun.sh - -rwxr-xr-x 1 root root 577 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/udev/sas_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/udev/fc_transport_scan_lun.sh - -rwxr-xr-x 1 root root 571 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/udev/fc_transport_scan_lun.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut-lib.sh - -rwxr-xr-x 1 root root 29236 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/dracut-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/usr/lib/dracut-crypt-lib.sh - -rwxr-xr-x 1 root root 8177 2023-07-04 13:18 /mnt/initramfs/sysroot/usr/lib/dracut-crypt-lib.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/pam.d/chsh - -rw-r--r-- 1 root root 160 2024-10-28 21:31 /mnt/initramfs/sysroot/etc/pam.d/chsh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/gawk.sh - -rw-r--r-- 1 root root 757 2024-08-27 12:12 /mnt/initramfs/sysroot/etc/profile.d/gawk.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/mozplugin.sh - -rw-r--r-- 1 root root 61 2024-02-12 16:42 /mnt/initramfs/sysroot/etc/profile.d/mozplugin.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/vte.csh - -rw-r--r-- 1 root root 967 2024-06-09 22:20 /mnt/initramfs/sysroot/etc/profile.d/vte.csh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/locale.sh - -rw-r--r-- 1 root root 288 2024-02-12 16:42 /mnt/initramfs/sysroot/etc/profile.d/locale.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/colorls.sh - -rw-r--r-- 1 root root 1160 2024-02-12 16:42 /mnt/initramfs/sysroot/etc/profile.d/colorls.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/vte.sh - -rw-r--r-- 1 root root 4213 2024-06-09 22:20 /mnt/initramfs/sysroot/etc/profile.d/vte.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/gawk.csh - -rw-r--r-- 1 root root 1107 2024-08-27 12:12 /mnt/initramfs/sysroot/etc/profile.d/gawk.csh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/profile.d/bash.sh - -rw-r--r-- 1 root root 263 2024-09-24 11:37 /mnt/initramfs/sysroot/etc/profile.d/bash.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/sv/agetty-generic/finish - -rwxr-xr-x 1 root root 46 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/sv/agetty-generic/finish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/sv/alsa/finish - -rwxr-xr-x 1 root root 36 2024-07-16 19:42 /mnt/initramfs/sysroot/etc/sv/alsa/finish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/sv/iptables/finish - -rwxr-xr-x 1 root root 50 2023-11-13 05:49 /mnt/initramfs/sysroot/etc/sv/iptables/finish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/sv/ip6tables/finish - -rwxr-xr-x 1 root root 53 2023-11-13 05:49 /mnt/initramfs/sysroot/etc/sv/ip6tables/finish
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/acpi/handler.sh - -rwxr-xr-x 1 root root 2798 2024-02-23 03:00 /mnt/initramfs/sysroot/etc/acpi/handler.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/10-sv-stop.sh - -rw-r--r-- 1 root root 90 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/10-sv-stop.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/70-pkill.sh - -rw-r--r-- 1 root root 148 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/70-pkill.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/30-seedrng.sh - -rw-r--r-- 1 root root 98 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/30-seedrng.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/80-filesystems.sh - -rw-r--r-- 1 root root 338 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/80-filesystems.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/20-rc-shutdown.sh - -rw-r--r-- 1 root root 44 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/20-rc-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/50-wtmp.sh - -rw-r--r-- 1 root root 8 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/50-wtmp.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/40-hwclock.sh - -rw-r--r-- 1 root root 137 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/40-hwclock.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/90-kexec.sh - -rw-r--r-- 1 root root 349 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/90-kexec.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/shutdown.d/60-udev.sh - -rw-r--r-- 1 root root 91 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/shutdown.d/60-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/08-sysctl.sh - -rw-r--r-- 1 root root 557 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/08-sysctl.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/02-kmods.sh - -rw-r--r-- 1 root root 277 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/02-kmods.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/98-sbin-merge.sh - -rw-r--r-- 1 root root 317 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/98-sbin-merge.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/05-misc.sh - -rw-r--r-- 1 root root 642 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/05-misc.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/99-live-audio.sh - -rw-r--r-- 1 root root 167 2023-07-09 19:02 /mnt/initramfs/sysroot/etc/runit/core-services/99-live-audio.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/04-swap.sh - -rw-r--r-- 1 root root 120 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/04-swap.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/00-pseudofs.sh - -rw-r--r-- 1 root root 1900 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/00-pseudofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/01-static-devnodes.sh - -rw-r--r-- 1 root root 229 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/01-static-devnodes.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/03-console-setup.sh - -rw-r--r-- 1 root root 689 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/03-console-setup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/99-cleanup.sh - -rw-r--r-- 1 root root 408 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/99-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/03-filesystems.sh - -rw-r--r-- 1 root root 2203 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/03-filesystems.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/90-x13s-bt-address.sh - -rw-r--r-- 1 root root 73 2025-01-01 20:25 /mnt/initramfs/sysroot/etc/runit/core-services/90-x13s-bt-address.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/etc/runit/core-services/02-udev.sh - -rw-r--r-- 1 root root 493 2025-01-02 16:57 /mnt/initramfs/sysroot/etc/runit/core-services/02-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/chroot_test.sh - -rwx------ 1 root root 0 2023-07-04 09:35 /mnt/initramfs/sysroot/tmp/chroot_test.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/init_wrapper.sh - -rwx------ 1 root root 0 2023-07-04 13:18 /mnt/initramfs/sysroot/tmp/init_wrapper.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/void_session.sh - -rwx------ 1 root root 0 2023-07-04 10:00 /mnt/initramfs/sysroot/tmp/void_session.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/boot_simulation.sh - -rwx------ 1 root root 0 2023-07-04 12:05 /mnt/initramfs/sysroot/tmp/boot_simulation.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/host_logger.sh - -rwx------ 1 root root 0 2023-07-04 12:05 /mnt/initramfs/sysroot/tmp/host_logger.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/test_chroot.sh - -rwx------ 1 root root 0 2023-07-04 09:18 /mnt/initramfs/sysroot/tmp/test_chroot.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/void_init.sh - -rwx------ 1 root root 0 2023-07-04 09:35 /mnt/initramfs/sysroot/tmp/void_init.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/tmp/startup.sh - -rwx------ 1 root root 0 2023-07-04 10:02 /mnt/initramfs/sysroot/tmp/startup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-trigger/30-parse-md.sh - -rwxr-xr-x 1 root root 2766 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-trigger/30-parse-md.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-shutdown/30-mdmon-pre-shutdown.sh - -rwxr-xr-x 1 root root 232 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-shutdown/30-mdmon-pre-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-pivot/50-mount-usr.sh - -rwxr-xr-x 1 root root 3539 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-pivot/50-mount-usr.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/mount/99-mount-root.sh - -rwxr-xr-x 1 root root 4085 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/mount/99-mount-root.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-mdmon-pre-udev.sh - -rwxr-xr-x 1 root root 133 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-mdmon-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-block-genrules.sh - -rwxr-xr-x 1 root root 507 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-block-genrules.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-dm-pre-udev.sh - -rwxr-xr-x 1 root root 103 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-udev/30-dm-pre-udev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/20-parse-i18n.sh - -rwxr-xr-x 1 root root 1088 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/20-parse-i18n.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-crypt.sh - -rwxr-xr-x 1 root root 8018 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-crypt.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/95-parse-virtiofs.sh - -rwxr-xr-x 1 root root 208 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/95-parse-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/01-parse-kernel.sh - -rwxr-xr-x 1 root root 675 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/01-parse-kernel.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/95-parse-block.sh - -rwxr-xr-x 1 root root 342 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/95-parse-block.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-keydev.sh - -rwxr-xr-x 1 root root 1363 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-keydev.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-root-opts.sh - -rwxr-xr-x 1 root root 273 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-root-opts.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-resume.sh - -rwxr-xr-x 1 root root 3412 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/10-parse-resume.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-lunmask.sh - -rwxr-xr-x 1 root root 1290 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-lunmask.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-lvm.sh - -rwxr-xr-x 1 root root 423 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cmdline/30-parse-lvm.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cleanup/99-mdraid-needshutdown.sh - -rwxr-xr-x 1 root root 156 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cleanup/99-mdraid-needshutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/cleanup/30-crypt-cleanup.sh - -rwxr-xr-x 1 root root 415 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/cleanup/30-crypt-cleanup.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-mount/10-mdraid-waitclean.sh - -rwxr-xr-x 1 root root 701 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-mount/10-mdraid-waitclean.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-mount/99-mount-virtiofs.sh - -rwxr-xr-x 1 root root 631 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/pre-mount/99-mount-virtiofs.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/shutdown/25-dm-shutdown.sh - -rwxr-xr-x 1 root root 1870 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/shutdown/25-dm-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/shutdown/30-md-shutdown.sh - -rwxr-xr-x 1 root root 464 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/shutdown/30-md-shutdown.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/initqueue/timeout/10-btrfs_timeout.sh - -rwxr-xr-x 1 root root 144 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/initqueue/timeout/10-btrfs_timeout.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sysroot/var/lib/dracut/hooks/initqueue/timeout/99-rootfallback.sh - -rwxr-xr-x 1 root root 459 2023-07-04 13:18 /mnt/initramfs/sysroot/var/lib/dracut/hooks/initqueue/timeout/99-rootfallback.sh
+[T] DEBUG: Shell found: /mnt/initramfs/sys/devices/platform/soc/soc:ap-ahb/20300000.dpu/display/dispc0/refresh - --w------- 1 root root 4096 2023-07-04 14:20 /mnt/initramfs/sys/devices/platform/soc/soc:ap-ahb/20300000.dpu/display/dispc0/refresh
+[T] DEBUG: Shell found: /mnt/initramfs/sys/devices/virtual/sprd_sensorhub/sensor_hub/flush - -rw-rw---- 1 system system 4096 2023-07-04 14:19 /mnt/initramfs/sys/devices/virtual/sprd_sensorhub/sensor_hub/flush
+[T] DEBUG: Shell found: /mnt/initramfs/sys/firmware/devicetree/base/__symbols__/rgb_flash - -r--r--r-- 1 root root 39 2023-07-04 14:20 /mnt/initramfs/sys/firmware/devicetree/base/__symbols__/rgb_flash
+[T] DEBUG: Shell found: /mnt/initramfs/sys/module/tcp_cubic/parameters/initial_ssthresh - -rw-r--r-- 1 root root 4096 2023-07-04 14:20 /mnt/initramfs/sys/module/tcp_cubic/parameters/initial_ssthresh
+[T] DEBUG: Shell found: /mnt/initramfs/sys/module/ehci_hcd/parameters/log2_irq_thresh - -r--r--r-- 1 root root 4096 2023-07-04 14:20 /mnt/initramfs/sys/module/ehci_hcd/parameters/log2_irq_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/sys/module/fuse/parameters/max_user_congthresh - -rw-r--r-- 1 root root 4096 2023-07-04 14:20 /mnt/initramfs/sys/module/fuse/parameters/max_user_congthresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv4/ipfrag_high_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv4/ipfrag_high_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv4/ipfrag_low_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv4/ipfrag_low_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv4/route/flush - --w------- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv4/route/flush
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv4/route/gc_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv4/route/gc_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv4/xfrm4_gc_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv4/xfrm4_gc_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv6/ip6frag_high_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv6/ip6frag_high_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv6/ip6frag_low_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv6/ip6frag_low_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv6/route/flush - --w------- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv6/route/flush
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv6/route/gc_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv6/route/gc_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/ipv6/xfrm6_gc_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/ipv6/xfrm6_gc_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/netfilter/nf_conntrack_frag6_high_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/netfilter/nf_conntrack_frag6_high_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/net/netfilter/nf_conntrack_frag6_low_thresh - -rw-r--r-- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/net/netfilter/nf_conntrack_frag6_low_thresh
+[T] DEBUG: Shell found: /mnt/initramfs/proc/sys/vm/stat_refresh - -rw------- 1 root root 0 2023-07-04 14:20 /mnt/initramfs/proc/sys/vm/stat_refresh
+[T] DEBUG: === Permission Fixes Start ===
+[T] INIT: Copied init script to initramfs root as /init
+[T] DEBUG: Set execute permissions on /init
+[T] DEBUG: Init permissions after chmod: -rwxr-xr-x 1 root root 18254 2023-07-04 14:20 /mnt/initramfs/init
+[T] ERROR: Init script is not executable after chmod
+[T] DEBUG: Fixed permissions on critical directories
+[T] DEBUG: Mount information: none on /mnt/initramfs/proc type proc (rw,relatime,gid=3009,hidepid=2)
+none on /mnt/initramfs/sys type sysfs (rw,seclabel,relatime)
+tmpfs on /mnt/initramfs/dev type tmpfs (rw,seclabel,nosuid,relatime,mode=755)
+/dev/block/loop0 on /mnt/initramfs/sysroot type ext3 (rw,seclabel,relatime,data=ordered)
+/dev/block/mmcblk1p1 on /mnt/initramfs/boot type exfat (rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro)
+[T] DEBUG: === Android Compatibility Fixes Start ===
+[T] DEBUG: Original PATH: /sbin:/system/bin:/vendor/bin
+[T] DEBUG: Cleaned PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+[T] DEBUG: sh available with clean PATH
+[T] DEBUG: === Enhanced Debugging Start ===
+[T] DEBUG: Chroot environment details:
+[T] DEBUG: - Initramfs root: /mnt/initramfs
+[T] DEBUG: - Init script: /mnt/initramfs/init
+[T] DEBUG: - Working directory: /
+[T] DEBUG: - Current user: uid=0(root) gid=0(root) groups=0(root) context=u:r:recovery:s0
+[T] DEBUG: Critical files in initramfs:
+[T] DEBUG: init - -rwxr-xr-x 1 root root 18254 2023-07-04 14:20 /mnt/initramfs/init
+[T] DEBUG: bin/sh - lrwxrwxrwx 1 root root 4 2023-07-04 14:19 /mnt/initramfs/bin/sh -> bash
+[T] DEBUG: usr/lib/dracut-lib.sh - -rwxr-xr-x 1 root root 29236 2023-07-04 14:19 /mnt/initramfs/usr/lib/dracut-lib.sh
+[T] DEBUG: Filesystem info: Filesystem     1K-blocks   Used Available Use% Mounted on
+tmpfs            1787372 254164   1533208  15% /mnt/androidwritable
+[T] INIT: Starting Void Linux init process with comprehensive debugging
+[T] DEBUG: Testing direct execution of init script
+[T] DEBUG: Init script does not respond to direct execution (normal for init scripts)
+[T] DEBUG: Attempting chroot with explicit shell path
+[T] ERROR: Chroot with /bin/sh failed
+[T] DEBUG: Attempting alternative execution methods
+[T] DEBUG: Trying chroot with /bin/bash
+[T] DEBUG: Trying chroot with /usr/bin/sh
+[T] INIT: Void Linux init process completed
+[T] INIT: Connect via ADB to interact with the Void Linux system
+[T] INIT: System will continue running until manually stopped
