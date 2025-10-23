@@ -1,0 +1,456 @@
+Assume I cannot install tow-boot or rk2aw for my device. This is the default cmdline uboot bootloader for my device:
+earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=1 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown ltemode=lcsfb rfboard.id=0 rfhw.id=32816 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=unlocked androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=39104 androidboot.vbmeta.digest=7f89a3b80f939a922bf62e137ca2225ff4c7fb02ca46a05ba5bfe882504c1adf androidboot.vbmeta.invalidate_on_error=yes androidboot.veritymode=enforcing androidboot.slot_suffix=_a androidboot.force_normal_boot=1 bootcause="Pbint triggered"
+
+There's a sprd/ums512-1h10.dtb, showing that void was made to work for my device board. My device's dtb's partition is located at partition 48:
+"0 splloader 256KB
+1 prodnv 10MB
+2 miscdata 1MB
+3 misc 1MB
+4 trustos_a 6MB
+5 trustos_b 6MB
+6 sml_a 1MB
+7 sml_b 1MB
+8 uboot_a 1MB
+9 uboot_b 1MB
+10 uboot_log 4MB
+11 logo 8MB
+12 fbootlogo 8MB
+13 l_fixnv1_a 2MB
+14 l_fixnv2_a 2MB
+15 l_fixnv1_b 2MB
+16 l_fixnv2_b 2MB
+17 l_runtimenv1 2MB
+18 l_runtimenv2 2MB
+19 gnssmodem_a 1MB
+20 gnssmodem_b 1MB
+21 wcnmodem_a 10MB
+22 wcnmodem_b 10MB
+23 persist 2MB
+24 l_modem_a 25MB
+25 l_modem_b 25MB
+26 l_deltanv_a 1MB
+27 l_deltanv_b 1MB
+28 l_gdsp_a 10MB
+29 l_gdsp_b 10MB
+30 l_ldsp_a 20MB
+31 l_ldsp_b 20MB
+32 l_agdsp_a 6MB
+33 l_agdsp_b 6MB
+34 l_cdsp_a 1MB
+35 l_cdsp_b 1MB
+36 pm_sys_a 1MB
+37 pm_sys_b 1MB
+38 teecfg_a 1MB
+39 teecfg_b 1MB
+40 hypervsior_a 10MB
+41 hypervsior_b 10MB
+42 boot_a 64MB
+43 boot_b 64MB
+44 vendor_boot_a 100MB
+45 vendor_boot_b 100MB
+46 dtb_a 8MB
+47 dtb_b 8MB
+48 dtbo_a 8MB
+49 dtbo_b 8MB
+50 super 6348MB
+51 cache 100MB
+52 socko_a 75MB
+53 socko_b 75MB
+54 odmko_a 25MB
+55 odmko_b 25MB
+56 vbmeta_a 1MB
+57 vbmeta_b 1MB
+58 metadata 16MB
+59 sysdumpdb 10MB
+60 vbmeta_system_a 1MB
+61 vbmeta_system_b 1MB
+62 vbmeta_vendor_a 1MB
+63 vbmeta_vendor_b 1MB
+64 vbmeta_system_ext_a 1MB
+65 vbmeta_system_ext_b 1MB
+66 vbmeta_product_a 1MB
+67 vbmeta_product_b 1MB
+68 vbmeta_odm_a 1MB
+69 vbmeta_odm_b 1MB
+70 avbmeta_rs_a 1MB
+71 avbmeta_rs_b 1MB
+72 common_rs1_a 8MB
+73 common_rs1_b 8MB
+74 common_rs2_a 16MB
+75 common_rs2_b 16MB
+76 userdata 111948MB"
+
+Let's boot into void linux aarch64. The rootfs I have for it is located in /boot of my sdcard called "ext3fs.img". I have a recovery script that allowed me to boot into my sd card and run an init script in the past:
+
+"#!/system/bin/sh
+
+# Start ueventd to properly initialize the device filesystem
+if [ -f /system/bin/ueventd ]; then
+    /system/bin/ueventd &
+    # Give ueventd time to initialize device nodes
+    sleep 2
+fi
+
+# The boot partition mount point
+BOOT_PARTITION_MOUNT_POINT=/boot
+# The partition we wish to boot from
+BOOT_PARTITION=/dev/block/mmcblk1p1
+# How long we've been waiting for the boot partition to pop up (in 100ms segments)
+BOOT_PARITITON_WAIT_COUNTER=0
+# The init script we're hoping to execute instead of recovery
+INIT_FILE=boot/init
+
+# Use existing binderfs (required for libhybris) - should be available after ueventd startup
+if [ -d /dev/binderfs ]; then
+    # binderfs exists, ensure symlinks are in place
+    ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+    ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+    ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+else
+    # After ueventd startup, try to create binderfs if still missing
+    if mkdir -p /dev/binderfs 2>/dev/null; then
+        mount -t binder binder /dev/binderfs 2>/dev/null
+        chmod 755 /dev/binderfs 2>/dev/null
+        ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+        ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+        ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+    fi
+fi
+
+# Wait for the boot partition to get detected
+while [ ! -b $BOOT_PARTITION ]
+do
+	# Wait 100ms
+	sleep 0.1
+	# Increment the counter
+	BOOT_PARTITION_WAIT_COUNTER=$((BOOT_PARTITION_WAIT_COUNTER + 1))
+	# We've been waiting for more than 5 seconds
+	if [ $BOOT_PARTITION_WAIT_COUNTER -ge 50 ]
+	then
+		# Stop waiting
+		break
+	fi
+done
+
+# The boot partition has been detected
+if [ -b $BOOT_PARTITION ]
+then
+	# Mount the boot partition
+	mkdir $BOOT_PARTITION_MOUNT_POINT
+	mount -t exfat $BOOT_PARTITION $BOOT_PARTITION_MOUNT_POINT
+	# The partition contains a init script
+	if [ -f $BOOT_PARTITION_MOUNT_POINT/$INIT_FILE ]
+	then
+		# Bind mount the firmware (needed for libhybris but breaks the stock recovery)
+		mkdir -p /lib/firmware
+		mount -o bind /firmware /lib/firmware
+		mkdir -p /vendor/firmware
+		mount -o bind /firmware /vendor/firmware
+		# Enable adbd (for debugging purposes)
+		start adbd
+		setprop sys.usb.config adb
+		setprop sys.usb.state adb
+		setprop sys.usb.ffs.ready 1
+		# To avoid semi-bricks, always set the boot device back to emmc
+		/system/bin/erasebootrecord
+		# Run the deviceinfo script (sets necessary, device-specific environment variables)
+		source /device-resources/deviceinfo
+		# Execute the init script (this one should never return)
+		/system/bin/sh $BOOT_PARTITION_MOUNT_POINT/$INIT_FILE
+		# Sync data to disk
+		sync
+		# Power the device off
+		echo o > /proc/sysrq-trigger
+	else
+		# Unmount the boot partition
+		umount $BOOT_PARTITION_MOUNT_POINT
+	fi
+fi
+# Execute the real recovery (to serve as both a fallback and to keep original recovery behavior intact)
+/system/bin/realrecovery "$@""
+
+It would then run the /boot/init script that was made to run a f2fs rootfs located at /boot/rootfs.f2fs:
+"#!/system/bin/sh
+
+# ---- Unified logging setup ----
+BOOT_LOG="/boot/init_debug_full.log"
+FALLBACK_LOG="/init_debug_full.log"
+
+# Ensure /boot is writable
+mountpoint -q /boot && mount -o remount,rw /boot 2>/dev/null
+
+# Pick single log file for everything
+if touch "$BOOT_LOG".wtest 2>/dev/null; then
+  LOGFILE="$BOOT_LOG"
+  rm -f "$BOOT_LOG".wtest
+else
+  LOGFILE="$FALLBACK_LOG"
+fi
+
+# Clear existing log
+> "$LOGFILE"
+
+# Unified logging function
+log() {
+  TS="$(/system/bin/uptime 2>/dev/null | cut -d' ' -f1 2>/dev/null)"
+  [ -z "$TS" ] && TS="T"
+  echo "[$TS] $*" | tee -a "$LOGFILE" >/dev/null
+}
+
+log "=== Starting Linux rootfs initialization ==="
+log "LOG FILE: $LOGFILE"
+log "BOOTLOADER LCD INFO: lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752"
+
+# ---- Mount rootfs image ----
+ROOTFS_IMG="/boot/boot/rootfs.f2fs"
+log "MOUNT: Mounting F2FS rootfs from $ROOTFS_IMG"
+if mount -t f2fs -o loop "$ROOTFS_IMG" /root 2>>"$LOGFILE"; then
+  log "MOUNT: Rootfs mounted successfully"
+else
+  log "ERROR: Failed to mount rootfs image: $ROOTFS_IMG"
+  exit 1
+fi
+
+# ---- Bind boot partition ----
+log "MOUNT: Bind mounting boot partition to /root/media"
+mkdir -p /root/media
+log "CREATED: /root/media directory"
+if mount -o bind /boot /root/media 2>>"$LOGFILE"; then
+  log "MOUNT: Bound /boot -> /root/media"
+else
+  log "WARNING: Failed to bind /boot -> /root/media"
+fi
+
+# ---- Graphics device setup ----
+log "=== GRAPHICS SETUP START ==="
+mkdir -p /root/dev/dri /root/dev/graphics
+log "CREATED: /root/dev/dri and /root/dev/graphics directories"
+
+# Bind mount DRI devices
+if [ -d /dev/dri ]; then
+  mount -o bind /dev/dri /root/dev/dri 2>>"$LOGFILE"
+  log "MOUNT: Bound /dev/dri -> /root/dev/dri"
+  ls -la /dev/dri 2>>"$LOGFILE" | while read line; do log "DRI DEVICE: $line"; done
+else
+  log "WARNING: /dev/dri not found on host"
+fi
+
+# Check for additional graphics devices
+for gfx_dev in /dev/mali* /dev/fb* /dev/graphics/*; do
+  if [ -e "$gfx_dev" ]; then
+    mkdir -p "/root$(dirname $gfx_dev)"
+    mount -o bind "$gfx_dev" "/root$gfx_dev" 2>>"$LOGFILE"
+    log "MOUNT: Bound $gfx_dev -> /root$gfx_dev"
+    log "GFX DEVICE: $(ls -la $gfx_dev)"
+  fi
+done
+log "=== GRAPHICS SETUP END ==="
+
+# ---- Config.xml handling (FIXED) ----
+log "=== CONFIG.XML SEARCH START ==="
+log "Searching for config.xml on SD card..."
+
+# Check if config.xml exists at /boot/config.xml directly
+if [ -f /boot/config.xml ]; then
+  log "FOUND: config.xml at /boot/config.xml"
+  mkdir -p /root/media/boot
+  log "CREATED: /root/media/boot directory"
+  cp -f /boot/config.xml /root/media/boot/config.xml 2>>"$LOGFILE"
+  log "COPY: /boot/config.xml -> /root/media/boot/config.xml"
+  log "CONFIG: Verified config.xml size: $(wc -c < /boot/config.xml) bytes"
+else
+  log "WARNING: config.xml not found at /boot/config.xml"
+  log "Available files in /boot:"
+  ls -la /boot | head -20 | while read line; do log "BOOT: $line"; done
+fi
+log "=== CONFIG.XML SEARCH END ==="
+
+# ---- Essential filesystem bind mounts ----
+log "=== FILESYSTEM BIND MOUNTS START ==="
+for f in dev dev/pts proc sys tmp device-resources $DEVICE_CUSTOM_ROOTFS_MOUNTS; do
+  log "PROCESSING: directory $f"
+  mkdir -p "/root/$f"
+  log "CREATED: /root/$f directory"
+  
+  if mount -o bind "/$f" "/root/$f" 2>>"$LOGFILE"; then
+    log "MOUNT: Successfully bound /$f -> /root/$f"
+  else
+    log "WARNING: Failed to bind /$f -> /root/$f"
+  fi
+done
+log "=== FILESYSTEM BIND MOUNTS END ==="
+
+# ---- Firmware and modules setup ----
+log "=== FIRMWARE SETUP START ==="
+mkdir -p /root/lib/firmware /root/vendor/firmware /root/firmware /root/lib/modules
+log "CREATED: firmware and modules directories"
+
+mount -o bind /lib/firmware /root/lib/firmware 2>>"$LOGFILE"
+mount -o bind /vendor/firmware /root/vendor/firmware 2>>"$LOGFILE"
+mount -o bind /firmware /root/firmware 2>>"$LOGFILE"
+mount -o bind /lib/modules /root/lib/modules 2>>"$LOGFILE"
+log "MOUNT: Bound all firmware and modules directories"
+log "=== FIRMWARE SETUP END ==="
+
+# ---- binderfs setup ----
+log "=== BINDERFS SETUP START ==="
+mkdir -p /root/dev/binderfs
+log "CREATED: /root/dev/binderfs directory"
+
+if [ -d /dev/binderfs ]; then
+  mount -o bind /dev/binderfs /root/dev/binderfs 2>>"$LOGFILE"
+  log "MOUNT: Bound /dev/binderfs -> /root/dev/binderfs"
+  
+  chroot /root /bin/sh -c "
+    ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+    ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+    ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+  " 2>>"$LOGFILE"
+  log "SYMLINK: Created binderfs device symlinks in chroot"
+else
+  log "WARNING: binderfs not found on host system"
+fi
+log "=== BINDERFS SETUP END ==="
+
+# ---- Environment setup with DEVICE_CODENAME ----
+log "=== ENVIRONMENT SETUP START ==="
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+export HOME=/root
+export SHELL=/bin/sh
+
+# Set DEVICE_CODENAME to make audio/display providers work
+# Choose one based on what you want to test:
+export DEVICE_CODENAME="rg35xx+"
+# export DEVICE_CODENAME="pocket2plus" DOES NOT WORK
+# No clue how it apparently worked but no one provided video evidence
+# https://github.com/GarlicOS/buildroot/compare/v2.0.1...v2.0.2
+# https://github.com/GarlicOS/buildroot/compare/v2.0.0...v2.0.2
+# https://github.com/search?q=repo%3AGarlicOS%2Fbuildroot%20DEVICE_CODENAME&type=code
+# worked for the pocket 3 using the 2plus apparently https://www.reddit.com/r/SBCGaming/comments/17ykvrh/i_tested_garlicos_on_the_retroid_pocket_3/
+
+log "ENVIRONMENT: Set PATH, HOME, SHELL"
+log "ENVIRONMENT: Set DEVICE_CODENAME=$DEVICE_CODENAME"
+
+# Set CPU governors
+count=0
+for policy_dir in /sys/devices/system/cpu/cpufreq/policy*; do
+  if [ -d "$policy_dir" ]; then
+    echo performance > "$policy_dir/scaling_governor" 2>>"$LOGFILE" && count=$((count+1))
+    log "CPU: Set $(basename "$policy_dir") governor to performance"
+  fi
+done
+log "CPU: Set $count governors to performance mode"
+log "=== ENVIRONMENT SETUP END ==="
+
+# ---- ROOTFS CONTENT AUDIT ----
+log "=== ROOTFS CONTENT AUDIT START ==="
+
+# Check for key executables
+for exec_path in /usr/bin/display /bin/display /sbin/display /usr/bin/audio /bin/audio /sbin/audio /usr/bin/gamepad /bin/gamepad /usr/bin/garlicui /bin/garlicui; do
+  if [ -f "/root$exec_path" ]; then
+    log "FOUND EXECUTABLE: $exec_path"
+    file_output=$(file "/root$exec_path" 2>/dev/null)
+    log "FILE TYPE: $file_output"
+    
+    if echo "$file_output" | grep -q "script"; then
+      log "SCRIPT CONTENT (first 10 lines):"
+      head -n 10 "/root$exec_path" | while read line; do
+        log "SCRIPT: $line"
+      done
+    else
+      log "BINARY STRINGS (graphics/audio related):"
+      strings "/root$exec_path" 2>/dev/null | grep -iE 'drm|kms|egl|gbm|fb|alsa|pulse|audio|sound' | head -10 | while read line; do
+        log "STRINGS: $line"
+      done
+    fi
+  else
+    log "MISSING: $exec_path"
+  fi
+done
+
+# Check audio devices in chroot
+log "AUDIO DEVICES IN CHROOT:"
+ls -la /root/dev/snd/ 2>>"$LOGFILE" | while read line; do log "AUDIO: $line"; done
+
+log "=== ROOTFS CONTENT AUDIT END ==="
+
+# ---- Pre-chroot verification ----
+log "=== PRE-CHROOT VERIFICATION START ==="
+if [ -r /proc/meminfo ]; then
+  avail=$(grep -m1 MemAvailable /proc/meminfo | cut -d: -f2 | tr -d ' ')
+  log "MEMORY: Available $avail"
+fi
+
+if [ ! -x /root/usr/bin/init ]; then
+  log "ERROR: /usr/bin/init missing or not executable"
+  exit 1
+fi
+log "INIT: /usr/bin/init verified executable"
+
+# Verify config.xml accessibility
+if [ -f /root/media/boot/config.xml ]; then
+  log "CONFIG: Verified config.xml accessible at /media/boot/config.xml in chroot"
+  log "CONFIG SIZE: $(wc -c < /root/media/boot/config.xml) bytes"
+else
+  log "ERROR: config.xml still not accessible in chroot"
+fi
+
+log "=== PRE-CHROOT VERIFICATION END ==="
+
+# ---- Final handoff with environment ----
+sync
+log "=== CHROOT HANDOFF ==="
+log "Environment variables being passed to chroot:"
+log "DEVICE_CODENAME=$DEVICE_CODENAME"
+log "PATH=$PATH"
+log "Executing chroot to /root with /usr/bin/init"
+log "=== END OF INIT SCRIPT (pre-chroot) ==="
+
+# Pass environment variables to chroot
+exec >>"$LOGFILE" 2>&1
+chroot /root /usr/bin/env DEVICE_CODENAME="$DEVICE_CODENAME" PATH="$PATH" HOME="$HOME" SHELL="$SHELL" /usr/bin/init
+
+# Should never reach here
+RC=$?
+log "ERROR: chroot returned unexpectedly with exit code $RC"
+exit $RC
+"
+
+I want to combine the recovery and init script, but made simpler and for void linux. Note that in /system/bin I have busybox and blkid binaries. Combine parts from both recovery and init to make one script to do the following:
+- Log every action to the sd card
+- start ueventd for device's kernel filesystem
+- Setup binderfs
+- Boot partition configuration
+- Wait for boot partition to get detected
+- When boot partition is detected
+1. Mount the boot partition, set selinux to permissive immediately
+2. Bind mount the firmware
+3. Enable adbd
+4. Set boot device to emmc
+5. unzip firmware files
+6. Load initramfs-6.12.11_1.img within mounted boot partition
+7. Boot
+
+The folder path's within ext3fs.img are:
+lost+found
+bin
+boot
+dev
+etc
+home
+lib
+lib32
+lib64
+media
+mnt
+opt
+proc
+root
+run
+sbin
+sys
+tmp
+usr
+var
+[SYS]
+
