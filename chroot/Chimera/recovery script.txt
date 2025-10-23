@@ -1,0 +1,441 @@
+#!/system/bin/sh
+# ---- Logging setup ----
+BOOT_LOG="/boot/chimera_boot.log"
+FALLBACK_LOG="/chimera_boot.log"
+# Try to use boot partition for logging
+if touch "$BOOT_LOG".test 2>/dev/null; then
+    LOGFILE="$BOOT_LOG"
+    rm -f "$BOOT_LOG".test
+else
+    LOGFILE="$FALLBACK_LOG"
+fi
+# Clear existing log
+> "$LOGFILE"
+# Logging function
+log() {
+    TS="$(/system/bin/uptime 2>/dev/null | cut -d' ' -f1 2>/dev/null)"
+    [ -z "$TS" ] && TS="T"
+    echo "[$TS] $*" | tee -a "$LOGFILE" >/dev/null
+}
+log "=== Chimera Linux aarch64 Boot Script Started ==="
+
+# ---- Start ueventd for device filesystem ----
+log "INIT: Starting ueventd for device node creation"
+if [ -f /system/bin/ueventd ]; then
+    /system/bin/ueventd &
+    sleep 2
+    log "INIT: ueventd started successfully"
+else
+    log "ERROR: ueventd not found"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# ---- Set SELinux to permissive immediately ----
+if [ -f /sys/fs/selinux/enforce ]; then
+    echo 0 > /sys/fs/selinux/enforce 2>/dev/null
+    log "SELINUX: Set to permissive mode"
+else
+    log "WARNING: SELinux enforce file not found"
+fi
+
+# ---- Setup binderfs ----
+log "INIT: Setting up binderfs"
+if [ -d /dev/binderfs ]; then
+    ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+    ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+    ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+    log "INIT: binderfs symlinks created"
+else
+    if mkdir -p /dev/binderfs 2>/dev/null; then
+        mount -t binder binder /dev/binderfs 2>/dev/null
+        chmod 755 /dev/binderfs 2>/dev/null
+        ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null
+        ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null
+        ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null
+        log "INIT: binderfs mounted and configured"
+    else
+        log "WARNING: Failed to setup binderfs"
+    fi
+fi
+
+# ---- Boot partition configuration ----
+BOOT_PARTITION_MOUNT_POINT=/boot
+BOOT_PARTITION=/dev/block/mmcblk1p1
+BOOT_PARTITION_WAIT_COUNTER=0
+ROOTFS_IMG="/boot/chimeraroot.img"
+log "BOOT: Waiting for boot partition $BOOT_PARTITION"
+
+# ---- Wait for boot partition detection ----
+while [ ! -b $BOOT_PARTITION ]; do
+    sleep 0.1
+    BOOT_PARTITION_WAIT_COUNTER=$((BOOT_PARTITION_WAIT_COUNTER + 1))
+    if [ $BOOT_PARTITION_WAIT_COUNTER -ge 50 ]; then
+        log "ERROR: Boot partition not detected after 5 seconds"
+        exec /system/bin/realrecovery "$@"
+    fi
+done
+log "BOOT: Boot partition $BOOT_PARTITION detected"
+
+# ---- Mount boot partition ----
+mkdir -p $BOOT_PARTITION_MOUNT_POINT
+if mount -t exfat $BOOT_PARTITION $BOOT_PARTITION_MOUNT_POINT; then
+    log "BOOT: Boot partition mounted at $BOOT_PARTITION_MOUNT_POINT"
+    
+    # Ensure boot is writable
+    mount -o remount,rw $BOOT_PARTITION_MOUNT_POINT 2>/dev/null
+    log "BOOT: Boot partition remounted as read-write"
+    
+    # Update log file location now that boot is mounted
+    if [ "$LOGFILE" = "$FALLBACK_LOG" ]; then
+        LOGFILE="$BOOT_LOG"
+        cat "$FALLBACK_LOG" > "$LOGFILE" 2>/dev/null
+        log "LOG: Switched to boot partition logging"
+    fi
+else
+    log "ERROR: Failed to mount boot partition"
+    exec /system/bin/realrecovery "$@"
+fi
+
+# ---- Check for required files ----
+if [ ! -f "$ROOTFS_IMG" ]; then
+    log "ERROR: Chimera Linux rootfs image not found: $ROOTFS_IMG"
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+log "CHIMERA: Found Chimera Linux rootfs: $ROOTFS_IMG"
+
+# ---- Check for chimera-offline directory ----
+if [ ! -d "/boot/chimera-offline" ]; then
+    log "ERROR: chimera-offline directory not found at /boot/chimera-offline"
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+log "CHIMERA: Found chimera-offline directory at /boot/chimera-offline"
+
+# ---- Mount chimeraroot.img rootfs ----
+mkdir -p /mnt/chimera
+if mount -o loop "$ROOTFS_IMG" /mnt/chimera; then
+    log "CHIMERA: Rootfs mounted successfully at /mnt/chimera"
+else
+    log "ERROR: Failed to mount Chimera Linux rootfs"
+    umount $BOOT_PARTITION_MOUNT_POINT
+    exec /system/bin/realrecovery "$@"
+fi
+
+# ---- Enable adbd for debugging ----
+log "ADB: Enabling adbd for debugging"
+start adbd 2>/dev/null || true
+setprop sys.usb.config adb 2>/dev/null || true
+setprop sys.usb.state adb 2>/dev/null || true
+setprop sys.usb.ffs.ready 1 2>/dev/null || true
+log "ADB: adbd enabled"
+
+# ---- Reset boot device to emmc (safety) ----
+/system/bin/erasebootrecord 2>/dev/null || true
+log "BOOT: Reset boot device to emmc"
+
+# ---- Chimera Linux chroot setup ----
+CHROOT_TARGET="/mnt/chimera"
+MOUNTED_PSEUDO=""
+
+log "CHROOT: Setting up Chimera Linux chroot environment"
+
+# Function to mount pseudo filesystems (chimera-chroot method)
+do_trymount() {
+    if mountpoint -q "${CHROOT_TARGET}/$1" > /dev/null 2>&1; then
+        log "MOUNT: $1 already mounted"
+        return 0
+    fi
+    if mount --rbind "/$1" "${CHROOT_TARGET}/$1"; then
+        mount --make-rslave "${CHROOT_TARGET}/$1" || log "WARNING: Failed to make $1 rslave"
+        MOUNTED_PSEUDO="${MOUNTED_PSEUDO} $1"
+        log "MOUNT: $1 mounted and added to cleanup list"
+    else
+        log "ERROR: Failed to mount $1"
+        return 1
+    fi
+}
+
+# Mount pseudo filesystems as per chimera-chroot
+mkdir -p "${CHROOT_TARGET}/dev" "${CHROOT_TARGET}/proc" "${CHROOT_TARGET}/sys" "${CHROOT_TARGET}/tmp"
+do_trymount dev || { log "ERROR: Failed to mount dev"; exec /system/bin/realrecovery "$@"; }
+do_trymount proc || { log "ERROR: Failed to mount proc"; exec /system/bin/realrecovery "$@"; }  
+do_trymount sys || { log "ERROR: Failed to mount sys"; exec /system/bin/realrecovery "$@"; }
+do_trymount tmp || { log "ERROR: Failed to mount tmp"; exec /system/bin/realrecovery "$@"; }
+
+# ---- Mount Android system directories for libhybris ----
+log "ANDROID: Mounting Android system directories"
+mkdir -p "${CHROOT_TARGET}/system" "${CHROOT_TARGET}/vendor"
+
+if mount --rbind /system "${CHROOT_TARGET}/system"; then
+    mount --make-rslave "${CHROOT_TARGET}/system" 2>/dev/null
+    MOUNTED_PSEUDO="${MOUNTED_PSEUDO} system"
+    log "ANDROID: /system mounted successfully"
+else
+    log "ERROR: Failed to mount /system"
+fi
+
+if [ -d /vendor ] && mount --rbind /vendor "${CHROOT_TARGET}/vendor"; then
+    mount --make-rslave "${CHROOT_TARGET}/vendor" 2>/dev/null
+    MOUNTED_PSEUDO="${MOUNTED_PSEUDO} vendor" 
+    log "ANDROID: /vendor mounted successfully"
+else
+    log "WARNING: /vendor not available or failed to mount"
+fi
+
+# ---- Mount chimera-offline directory ----
+log "SETUP: Mounting chimera-offline directory"
+mkdir -p "${CHROOT_TARGET}/mnt/sdcard"
+if mount --rbind /boot/chimera-offline "${CHROOT_TARGET}/mnt/sdcard"; then
+    mount --make-rslave "${CHROOT_TARGET}/mnt/sdcard" 2>/dev/null
+    MOUNTED_PSEUDO="${MOUNTED_PSEUDO} mnt/sdcard"
+    log "SETUP: chimera-offline mounted at /mnt/sdcard"
+else
+    log "ERROR: Failed to mount chimera-offline directory"
+fi
+
+# ---- Setup network configuration ----
+log "NETWORK: Setting up network configuration"
+mkdir -p "${CHROOT_TARGET}/etc"
+if [ -f /system/etc/resolv.conf ]; then
+    cp /system/etc/resolv.conf "${CHROOT_TARGET}/etc/resolv.conf" 2>/dev/null
+elif [ -f /etc/resolv.conf ]; then
+    cp /etc/resolv.conf "${CHROOT_TARGET}/etc/resolv.conf" 2>/dev/null
+else
+    cat > "${CHROOT_TARGET}/etc/resolv.conf" << 'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+nameserver 1.0.0.1
+EOF
+fi
+log "NETWORK: resolv.conf configured"
+
+# Create hosts file
+cat > "${CHROOT_TARGET}/etc/hosts" << 'EOF'  
+127.0.0.1 localhost
+::1 localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+log "NETWORK: hosts file created"
+
+# ---- Set device permissions for graphics and input ----
+log "PERMISSIONS: Setting device permissions for Wayland"
+chmod 666 /dev/dri/card0 2>/dev/null && log "PERMISSIONS: /dev/dri/card0 set to 666" || log "WARNING: /dev/dri/card0 not found"
+chmod 666 /dev/mali0 2>/dev/null && log "PERMISSIONS: /dev/mali0 set to 666" || log "WARNING: /dev/mali0 not found"
+chmod 664 /dev/input/event* 2>/dev/null && log "PERMISSIONS: Input devices set to 664" || log "WARNING: Input devices not found"
+
+# ---- Setup chroot logging to SD card ----
+log "LOGGING: Setting up chroot logging to SD card"
+mkdir -p "${CHROOT_TARGET}/var/log"
+CHROOT_LOG="/boot/chimera_chroot.log"
+> "$CHROOT_LOG"  # Clear chroot log
+
+# Create chroot execution script
+cat > "${CHROOT_TARGET}/tmp/chimera_setup.sh" << 'EOSCRIPT'
+#!/bin/sh
+# Chimera Linux setup script - runs inside chroot
+
+# Setup logging to SD card
+CHROOT_LOG="/mnt/sdcard/../chimera_chroot.log"
+log_chroot() {
+    echo "[$(date '+%H:%M:%S')] CHROOT: $*" | tee -a "$CHROOT_LOG"
+}
+
+log_chroot "=== Chimera Linux chroot setup started ==="
+
+# Set environment
+export SHELL=/bin/sh
+export HOME=/root
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PS1="(chimera) # "
+
+log_chroot "Environment variables set"
+
+# Check if we're in Chimera Linux
+if [ -f /etc/chimera-release ]; then
+    log_chroot "Confirmed: Running in Chimera Linux"
+    cat /etc/chimera-release | while read line; do
+        log_chroot "VERSION: $line"
+    done
+else
+    log_chroot "WARNING: /etc/chimera-release not found"
+fi
+
+# Install packages from chimera-offline
+log_chroot "=== Starting package installation ==="
+if [ -f /mnt/sdcard/scripts/install_packages.sh ]; then
+    log_chroot "Running package installation script"
+    /mnt/sdcard/scripts/install_packages.sh 2>&1 | while read line; do
+        log_chroot "INSTALL: $line"
+    done
+else
+    log_chroot "ERROR: Package installation script not found"
+fi
+
+# Setup Mali drivers
+log_chroot "=== Setting up Mali drivers ==="
+if [ -f /mnt/sdcard/scripts/setup_mali.sh ]; then
+    log_chroot "Running Mali driver setup script"
+    /mnt/sdcard/scripts/setup_mali.sh 2>&1 | while read line; do
+        log_chroot "MALI: $line"
+    done
+else
+    log_chroot "ERROR: Mali setup script not found"
+fi
+
+# Test graphics capabilities
+log_chroot "=== Testing graphics capabilities ==="
+
+# Test 1: Check DRM devices
+log_chroot "TEST: Checking DRM devices"
+if [ -c /dev/dri/card0 ]; then
+    log_chroot "TEST: ✓ /dev/dri/card0 found"
+    ls -la /dev/dri/ | while read line; do
+        log_chroot "DRM: $line"
+    done
+else
+    log_chroot "TEST: ✗ /dev/dri/card0 not found"
+fi
+
+# Test 2: Check Mali device
+if [ -c /dev/mali0 ]; then
+    log_chroot "TEST: ✓ /dev/mali0 found"
+else
+    log_chroot "TEST: ✗ /dev/mali0 not found"
+fi
+
+# Test 3: Check Mesa/EGL
+log_chroot "TEST: Checking Mesa installation"
+if command -v glxinfo >/dev/null 2>&1; then
+    glxinfo | head -20 | while read line; do
+        log_chroot "MESA: $line"
+    done
+elif [ -f /usr/lib/libEGL.so ]; then
+    log_chroot "TEST: ✓ Mesa EGL library found"
+else
+    log_chroot "TEST: ? Mesa libraries status unknown"
+fi
+
+# Test 4: Check Wayland compositor
+if command -v weston >/dev/null 2>&1; then
+    log_chroot "TEST: ✓ Weston compositor available"
+    weston --version 2>&1 | while read line; do
+        log_chroot "WESTON: $line"
+    done
+else
+    log_chroot "TEST: ✗ Weston compositor not found"
+fi
+
+# Test 5: Input device detection
+log_chroot "TEST: Detecting input devices"
+for device in /dev/input/event*; do
+    if [ -c "$device" ]; then
+        name=$(cat /sys/class/input/$(basename $device)/device/name 2>/dev/null || echo "Unknown")
+        log_chroot "INPUT: $device - $name"
+        if echo "$name" | grep -qi "touch\|tp\|screen\|finger"; then
+            log_chroot "INPUT: ✓ Touchscreen candidate: $device"
+        fi
+    fi
+done
+
+# Test 6: Run basic Wayland test (non-interactive)
+log_chroot "=== Running Wayland Graphics Test ==="
+if [ -f /mnt/sdcard/scripts/start_wayland.sh ]; then
+    log_chroot "Starting Wayland test environment"
+    
+    # Set up test environment
+    export XDG_RUNTIME_DIR=/tmp/wayland-test
+    export LIBHYBRIS_LD_LIBRARY_PATH=/system/lib64:/vendor/lib64
+    export LD_LIBRARY_PATH=/usr/lib/libhybris:/usr/lib:$LD_LIBRARY_PATH
+    export GBM_BACKEND=mali
+    export EGL_PLATFORM=wayland
+    
+    mkdir -p $XDG_RUNTIME_DIR
+    chmod 700 $XDG_RUNTIME_DIR
+    
+    # Quick compositor test (5 second run)
+    log_chroot "TEST: Starting 5-second Weston test"
+    timeout 5 weston --backend=drm-backend.so --log=/tmp/weston-test.log >/dev/null 2>&1 &
+    WESTON_PID=$!
+    
+    sleep 6
+    
+    if [ -f /tmp/weston-test.log ]; then
+        log_chroot "WESTON TEST LOG:"
+        cat /tmp/weston-test.log | while read line; do
+            log_chroot "WESTON: $line"
+        done
+    fi
+    
+    # Check if Wayland socket was created
+    if [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
+        log_chroot "TEST: ✓ Wayland compositor created socket successfully"
+    else
+        log_chroot "TEST: ✗ Wayland socket not created"
+    fi
+    
+    kill $WESTON_PID 2>/dev/null || true
+    
+    log_chroot "TEST: Wayland test completed"
+else
+    log_chroot "ERROR: Wayland startup script not found"
+fi
+
+log_chroot "=== Chimera Linux setup completed ==="
+log_chroot "Ready for manual Wayland testing with: /mnt/sdcard/scripts/start_wayland.sh"
+
+# Keep shell open for manual testing
+log_chroot "Entering interactive shell - use 'exit' to return to Android"
+exec /bin/sh
+EOSCRIPT
+
+chmod +x "${CHROOT_TARGET}/tmp/chimera_setup.sh"
+log "SCRIPT: Created chroot setup script"
+
+# ---- Execute chroot ----
+log "CHROOT: Entering Chimera Linux chroot"
+
+# Use chimera-chroot method 
+if PS1="(chimera) $PS1" chroot "$CHROOT_TARGET" /tmp/chimera_setup.sh; then
+    log "CHROOT: Chroot session completed successfully"
+    RC=0
+else
+    log "ERROR: Chroot session failed"
+    RC=1
+fi
+
+# ---- Cleanup function ----
+cleanup_mounts() {
+    log "CLEANUP: Starting mount cleanup"
+    sync
+    
+    for mnt in ${MOUNTED_PSEUDO}; do
+        [ -n "$mnt" ] || continue
+        log "CLEANUP: Unmounting $mnt"
+        umount -R -f "${CHROOT_TARGET}/$mnt" > /dev/null 2>&1 || true
+    done
+    
+    # Unmount main rootfs
+    umount /mnt/chimera > /dev/null 2>&1 || true
+    log "CLEANUP: Unmounted chimera rootfs"
+    
+    # Unmount boot partition  
+    umount $BOOT_PARTITION_MOUNT_POINT > /dev/null 2>&1 || true
+    log "CLEANUP: Unmounted boot partition"
+}
+
+# ---- Final cleanup and exit ----
+cleanup_mounts
+
+if [ $RC -eq 0 ]; then
+    log "SUCCESS: Chimera Linux session completed successfully"
+else
+    log "ERROR: Chimera Linux session failed, starting recovery"
+    exec /system/bin/realrecovery "$@"
+fi
+
+log "=== Chimera Linux boot script completed ==="
+exec /system/bin/realrecovery "$@"
