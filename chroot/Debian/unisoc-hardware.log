@@ -1,0 +1,298 @@
+03:15:48 - === Starting Hardware Device Configuration ===
+03:15:48 - Configuring UNISOC LTE Pipe Devices...
+03:15:48 -   ✓ Configured: /dev/spipe_lte0
+03:15:48 -   ✓ Configured: /dev/spipe_lte1
+03:15:48 -   ✓ Configured: /dev/spipe_lte10
+03:15:48 -   ✓ Configured: /dev/spipe_lte11
+03:15:48 -   ✓ Configured: /dev/spipe_lte12
+03:15:48 -   ✓ Configured: /dev/spipe_lte13
+03:15:48 -   ✓ Configured: /dev/spipe_lte14
+03:15:48 -   ✓ Configured: /dev/spipe_lte2
+03:15:48 -   ✓ Configured: /dev/spipe_lte3
+03:15:48 -   ✓ Configured: /dev/spipe_lte4
+03:15:48 -   ✓ Configured: /dev/spipe_lte5
+03:15:48 -   ✓ Configured: /dev/spipe_lte6
+03:15:48 -   ✓ Configured: /dev/spipe_lte7
+03:15:48 -   ✓ Configured: /dev/spipe_lte8
+03:15:48 -   ✓ Configured: /dev/spipe_lte9
+03:15:48 -   Total configured: 15
+03:15:48 - Configuring UNISOC LTE TTY Devices...
+03:15:48 -   ✓ Configured: /dev/stty_lte0
+03:15:48 -   ✓ Configured: /dev/stty_lte1
+03:15:48 -   ✓ Configured: /dev/stty_lte10
+03:15:48 -   ✓ Configured: /dev/stty_lte11
+03:15:48 -   ✓ Configured: /dev/stty_lte12
+03:15:48 -   ✓ Configured: /dev/stty_lte13
+03:15:48 -   ✓ Configured: /dev/stty_lte14
+03:15:48 -   ✓ Configured: /dev/stty_lte15
+03:15:48 -   ✓ Configured: /dev/stty_lte16
+03:15:48 -   ✓ Configured: /dev/stty_lte17
+03:15:48 -   ✓ Configured: /dev/stty_lte18
+03:15:48 -   ✓ Configured: /dev/stty_lte19
+03:15:48 -   ✓ Configured: /dev/stty_lte2
+03:15:48 -   ✓ Configured: /dev/stty_lte20
+03:15:48 -   ✓ Configured: /dev/stty_lte21
+03:15:48 -   ✓ Configured: /dev/stty_lte22
+03:15:48 -   ✓ Configured: /dev/stty_lte23
+03:15:48 -   ✓ Configured: /dev/stty_lte24
+03:15:48 -   ✓ Configured: /dev/stty_lte25
+03:15:48 -   ✓ Configured: /dev/stty_lte26
+03:15:48 -   ✓ Configured: /dev/stty_lte27
+03:15:48 -   ✓ Configured: /dev/stty_lte28
+03:15:48 -   ✓ Configured: /dev/stty_lte29
+03:15:48 -   ✓ Configured: /dev/stty_lte3
+03:15:48 -   ✓ Configured: /dev/stty_lte30
+03:15:48 -   ✓ Configured: /dev/stty_lte31
+03:15:48 -   ✓ Configured: /dev/stty_lte4
+03:15:48 -   ✓ Configured: /dev/stty_lte5
+03:15:48 -   ✓ Configured: /dev/stty_lte6
+03:15:48 -   ✓ Configured: /dev/stty_lte7
+03:15:48 -   ✓ Configured: /dev/stty_lte8
+03:15:48 -   ✓ Configured: /dev/stty_lte9
+03:15:48 -   Total configured: 32
+03:15:48 - Configuring UNISOC Log Devices...
+03:15:48 -   ✓ Configured: /dev/slog_gnss
+03:15:48 -   ✓ Configured: /dev/slog_lte
+03:15:48 -   ✓ Configured: /dev/slog_pm
+03:15:48 -   ✓ Configured: /dev/slog_wcn0
+03:15:48 -   ✓ Configured: /dev/slog_wcn1
+03:15:48 -   Total configured: 5
+03:15:48 -   ✓ Configured: /dev/sdiag_lte
+03:15:48 - Configuring UNISOC Power Management Pipes...
+03:15:48 -   ✓ Configured: /dev/spipe_pm0
+03:15:48 -   ✓ Configured: /dev/spipe_pm1
+03:15:48 -   Total configured: 2
+03:15:48 -   ✓ Configured: /dev/sctl_pm
+03:15:48 - Configuring TTY Gadget Serial Devices...
+03:15:48 -   ✓ Configured: /dev/ttyGS0
+03:15:48 -   ✓ Configured: /dev/ttyGS1
+03:15:48 -   ✓ Configured: /dev/ttyGS2
+03:15:48 -   ✓ Configured: /dev/ttyGS3
+03:15:48 -   ✓ Configured: /dev/ttyGS4
+03:15:48 -   ✓ Configured: /dev/ttyGS5
+03:15:48 -   ✓ Configured: /dev/ttyGS6
+03:15:48 -   ✓ Configured: /dev/ttyGS7
+03:15:48 -   Total TTY gadget devices configured: 8
+03:15:48 - Configuring Standard Serial Devices...
+03:15:48 -   ✓ Configured: /dev/ttyS1
+03:15:48 - Configuring GPIO Controller Devices...
+03:15:48 -   ✓ Configured: /dev/gpiochip0
+03:15:48 -   ✓ Configured: /dev/gpiochip1
+03:15:48 -   ✓ Configured: /dev/gpiochip2
+03:15:48 -   ✓ Configured: /dev/gpiochip3
+03:15:48 -   ✓ Configured: /dev/gpiochip4
+03:15:48 -   ✓ Configured: /dev/gpiochip5
+03:15:48 -   Total GPIO devices configured: 6
+03:15:48 - Configuring I2C Bus Devices...
+03:15:48 -   ✓ Configured: /dev/i2c-0
+03:15:48 -   ✓ Configured: /dev/i2c-1
+03:15:48 -   ✓ Configured: /dev/i2c-2
+03:15:48 -   ✓ Configured: /dev/i2c-3
+03:15:48 -   ✓ Configured: /dev/i2c-4
+03:15:48 -   ✓ Configured: /dev/i2c-5
+03:15:48 -   Total I2C devices configured: 6
+03:15:48 - Configuring IIO Sensor Devices...
+03:15:48 -   ✓ Configured: /dev/iio:device0
+03:15:48 -   ✓ Configured: /dev/iio:device1
+03:15:48 - Configuring Input Devices...
+03:15:48 -   ✓ Configured: /dev/input/event0
+03:15:48 -   ✓ Configured: /dev/input/event1
+03:15:48 -   ✓ Configured: /dev/input/event2
+03:15:48 -   ✓ Configured: /dev/input/event3
+03:15:48 -   ✓ Configured: /dev/input/event4
+03:15:48 -   ✓ Configured: /dev/input/event5
+03:15:48 -   ✓ Configured: /dev/input/event6
+03:15:48 -   ✓ Configured: /dev/input/js0
+03:15:48 -   ✓ Configured: /dev/input/mice
+03:15:48 -   Total input devices configured: 9
+03:15:48 - Configuring ALSA Audio Devices...
+03:15:48 -   ✓ Configured: /dev/snd/comprC0D11
+03:15:48 -   ✓ Configured: /dev/snd/comprC0D4
+03:15:48 -   ✓ Configured: /dev/snd/controlC0
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D0c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D0p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D10c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D10p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D12p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D13c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D14c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D15p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D16c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D17c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D1c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D1p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D2c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D3p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D49c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D49p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D53p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D5c
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D5p
+03:15:48 -   ✓ Configured: /dev/snd/pcmC0D6c
+03:15:49 -   ✓ Configured: /dev/snd/pcmC0D6p
+03:15:49 -   ✓ Configured: /dev/snd/pcmC0D7p
+03:15:49 -   ✓ Configured: /dev/snd/pcmC0D8c
+03:15:49 -   ✓ Configured: /dev/snd/pcmC0D9c
+03:15:49 -   ✓ Configured: /dev/snd/timer
+03:15:49 -   Total audio devices configured: 28
+03:15:49 - Configuring Graphics Devices...
+03:15:49 -   ✓ Configured: /dev/dri/card0
+03:15:49 - Configuring USB Devices...
+03:15:49 -   ✓ Configured: /dev/bus/usb/001/001
+03:15:49 -   Total USB devices configured: 1
+03:15:49 -   ✓ Configured: /dev/rtc0
+03:15:49 - Configuring Wireless/Cellular Devices...
+03:15:49 -   ✓ Configured: /dev/wcn
+03:15:49 -   ✓ Configured: /dev/wcn_op
+03:15:49 - Configuring GNSS Devices...
+03:15:49 -   ✓ Configured: /dev/gnss_dbg
+03:15:49 -   ✓ Configured: /dev/gnss_common_ctl
+03:15:49 -   ✓ Configured: /dev/gnss_pmnotify_ctl
+03:15:49 -   ✓ Configured: /dev/data0_gnss
+03:15:49 - Configuring Audio Pipe Devices...
+03:15:49 - Configuring Audio Pipe Devices...
+03:15:49 -   ✓ Configured: /dev/audio_pipe_bthal
+03:15:49 -   ✓ Configured: /dev/audio_pipe_effect
+03:15:49 -   ✓ Configured: /dev/audio_pipe_recordproc
+03:15:49 -   ✓ Configured: /dev/audio_pipe_voice
+03:15:49 -   Total configured: 4
+03:15:49 - Configuring Spreadtrum/UNISOC Specific Devices...
+03:15:49 -   ✓ Configured: /dev/sprd_vsp
+03:15:49 -   ✓ Configured: /dev/sprd_jpg
+03:15:49 -   ✓ Configured: /dev/sprd_uid
+03:15:49 -   ✓ Configured: /dev/sprd_cpp
+03:15:49 -   ✓ Configured: /dev/sprd_flash
+03:15:49 -   ✓ Configured: /dev/sprd_sensor
+03:15:49 -   ✓ Configured: /dev/gsp
+03:15:49 -   ✓ Configured: /dev/cptl
+03:15:49 -   ✓ Configured: /dev/mali0
+03:15:49 -   ✓ Configured: /dev/vdsp0
+03:15:49 - === Initializing Camera GPIOs ===
+03:15:49 -   ✓ Exported GPIO 119
+03:15:49 -   ✓ Exported GPIO 120
+03:15:49 -   ✓ Exported GPIO 121
+03:15:49 -   ✓ Exported GPIO 122
+03:15:49 -   ✓ Exported GPIO 123
+03:15:49 -   ✓ Exported GPIO 124
+03:15:49 -   ✓ Exported GPIO 125
+03:15:49 -   ✓ Exported GPIO 126
+03:15:49 -   Camera GPIO initialization complete
+03:15:49 - === Initializing DCAM (Digital Camera Controller) ===
+03:15:49 -   ✓ Found DCAM path: /sys/devices/platform/dcam-axi-dvfs
+03:15:50 -   ✓ Found DCAM path: /sys/devices/platform/dcam-if-dvfs
+03:15:50 - === Initializing V4L2 Camera System ===
+03:15:50 -   Loading camera kernel modules...
+03:15:50 -   ✓ Module sprd_sensor already loaded
+03:15:50 -   ✓ Module sprd_cpp already loaded
+03:15:50 -   ⚠ Could not load module: videodev
+03:15:51 -   ⚠ Camera platform device not found
+03:15:51 -   Triggering V4L2 device enumeration...
+03:15:51 -   Creating V4L2 video device nodes...
+03:15:51 -     Created: /dev/video0 (major: 81, minor: 0)
+03:15:51 -     Created: /dev/video1 (major: 81, minor: 1)
+03:15:51 -     Created: /dev/video2 (major: 81, minor: 2)
+03:15:51 -     Created: /dev/video3 (major: 81, minor: 3)
+03:15:51 -     Created: /dev/video4 (major: 81, minor: 4)
+03:15:51 -     Created: /dev/video5 (major: 81, minor: 5)
+03:15:51 -     Created: /dev/video6 (major: 81, minor: 6)
+03:15:51 -     Created: /dev/video7 (major: 81, minor: 7)
+03:15:51 -     Created: /dev/video8 (major: 81, minor: 8)
+03:15:51 -     Created: /dev/video9 (major: 81, minor: 9)
+03:15:51 -     Created: /dev/video10 (major: 81, minor: 10)
+03:15:51 -     Created: /dev/video11 (major: 81, minor: 11)
+03:15:51 -     Created: /dev/video12 (major: 81, minor: 12)
+03:15:51 -     Created: /dev/video13 (major: 81, minor: 13)
+03:15:51 -     Created: /dev/video14 (major: 81, minor: 14)
+03:15:51 -     Created: /dev/video15 (major: 81, minor: 15)
+03:15:51 -   Creating media controller devices...
+03:15:51 -     Created: /dev/media0 (major: 250, minor: 0)
+03:15:51 -     Created: /dev/media1 (major: 250, minor: 1)
+03:15:51 -     Created: /dev/media2 (major: 250, minor: 2)
+03:15:51 -     Created: /dev/media3 (major: 250, minor: 3)
+03:15:51 -   Creating V4L2 subdev nodes...
+03:15:51 -     Created: /dev/v4l-subdev0 (major: 81, minor: 128)
+03:15:51 -     Created: /dev/v4l-subdev1 (major: 81, minor: 129)
+03:15:51 -     Created: /dev/v4l-subdev2 (major: 81, minor: 130)
+03:15:51 -     Created: /dev/v4l-subdev3 (major: 81, minor: 131)
+03:15:51 -     Created: /dev/v4l-subdev4 (major: 81, minor: 132)
+03:15:51 -     Created: /dev/v4l-subdev5 (major: 81, minor: 133)
+03:15:51 -     Created: /dev/v4l-subdev6 (major: 81, minor: 134)
+03:15:51 -     Created: /dev/v4l-subdev7 (major: 81, minor: 135)
+03:15:51 -   Triggering udev device update...
+03:15:53 -   V4L2 Initialization Summary:
+03:15:53 -     Video devices: 16
+03:15:53 -     Media devices: 4
+03:15:53 -     Subdev devices: 8
+03:15:53 -   ✓ V4L2 camera system initialized successfully
+03:15:53 - Configuring V4L2 Camera Devices...
+03:15:53 -   ✓ Configured: /dev/video0
+03:15:53 -   ✓ Configured: /dev/video1
+03:15:53 -   ✓ Configured: /dev/video10
+03:15:53 -   ✓ Configured: /dev/video11
+03:15:53 -   ✓ Configured: /dev/video12
+03:15:53 -   ✓ Configured: /dev/video13
+03:15:53 -   ✓ Configured: /dev/video14
+03:15:53 -   ✓ Configured: /dev/video15
+03:15:53 -   ✓ Configured: /dev/video2
+03:15:53 -   ✓ Configured: /dev/video3
+03:15:53 -   ✓ Configured: /dev/video4
+03:15:53 -   ✓ Configured: /dev/video5
+03:15:53 -   ✓ Configured: /dev/video6
+03:15:53 -   ✓ Configured: /dev/video7
+03:15:53 -   ✓ Configured: /dev/video8
+03:15:53 -   ✓ Configured: /dev/video9
+03:15:53 -   ✓ Configured: /dev/media0
+03:15:53 -   ✓ Configured: /dev/media1
+03:15:53 -   ✓ Configured: /dev/media2
+03:15:53 -   ✓ Configured: /dev/media3
+03:15:53 -   ✓ Configured: /dev/v4l-subdev0
+03:15:53 -   ✓ Configured: /dev/v4l-subdev1
+03:15:53 -   ✓ Configured: /dev/v4l-subdev2
+03:15:53 -   ✓ Configured: /dev/v4l-subdev3
+03:15:53 -   ✓ Configured: /dev/v4l-subdev4
+03:15:53 -   ✓ Configured: /dev/v4l-subdev5
+03:15:53 -   ✓ Configured: /dev/v4l-subdev6
+03:15:53 -   ✓ Configured: /dev/v4l-subdev7
+03:15:53 -   Total V4L2 devices configured: 28
+03:15:53 - Configuring Bluetooth Devices...
+03:15:53 -   ✓ Configured: /dev/ttyBT0
+03:15:53 -   ✓ Configured: /dev/ttyBT1
+03:15:53 - Configuring Audio Pipe Command Devices...
+03:15:53 -   ✓ Configured: /dev/apipe-cmd-in
+03:15:53 -   ✓ Configured: /dev/apipe-cmd-out
+03:15:53 -   ✓ Configured: /dev/apipe-pcm
+03:15:53 - Configuring RS Communication Devices...
+03:15:53 -   ✓ Configured: /dev/rscom
+03:15:53 -   ✓ Configured: /dev/rsinput
+03:15:53 -   ✓ Configured: /dev/rstouch
+03:15:53 - Configuring Special Function Devices...
+03:15:53 -   ✓ Configured: /dev/fm
+03:15:53 -   ✓ Configured: /dev/autotest0
+03:15:53 -   ✓ Configured: /dev/retrostation_hdmi
+03:15:53 -   ✓ Configured: /dev/map_user
+03:15:53 -   ✓ Configured: /dev/ppp
+03:15:53 -   ✓ Configured: /dev/tun
+03:15:53 - Configuring Additional System Devices...
+03:15:53 -   ✓ Configured: /dev/uhid
+03:15:53 -   ✓ Configured: /dev/uinput
+03:15:53 -   ✓ Configured: /dev/rfkill
+03:15:53 -   ✓ Configured: /dev/fuse
+03:15:53 -   ✓ Configured: /dev/ion
+03:15:53 -   ✓ Configured: /dev/ashmem
+03:15:53 - === Hardware Configuration Completed at Thu Oct 23 03:15:53 UTC 2025 ===
+
+==========================================
+UNISOC Hardware Configuration Summary
+==========================================
+03:15:53 - UNISOC LTE devices: 47
+03:15:53 - Serial devices: 9
+03:15:53 - GPIO devices: 6
+03:15:53 - I2C devices: 6
+03:15:53 - Audio devices: 28
+03:15:53 - Input devices: 9
+03:15:53 - V4L2 video devices: 16
+03:15:53 - V4L2 media devices: 4
+03:15:53 - V4L2 subdev devices: 8
+
+Full log: /data/unisoc_hardware.log
+==========================================

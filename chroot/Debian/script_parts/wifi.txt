@@ -1,0 +1,29 @@
+    echo '======================================================='
+    echo 'TEST: WIFI'
+    echo '======================================================='
+    echo ''
+    
+    sleep 5
+    WIFI_IF=\$(ip link show 2>/dev/null | grep -o 'wlan[0-9]*' | head -1)
+    
+    if [ -n \"\$WIFI_IF\" ]; then
+        echo \"✓ WiFi interface: \$WIFI_IF\"
+        ip link set \"\$WIFI_IF\" up
+        sleep 3
+        ip addr show \"\$WIFI_IF\"
+        echo ''
+        
+        if command -v iw >/dev/null 2>&1; then
+            echo 'Scanning networks (abbreviated)...'
+            iw dev \"\$WIFI_IF\" scan 2>&1 | grep -E 'BSS|SSID|signal' | head -40
+            echo ''
+            NETWORKS=\$(iw dev \"\$WIFI_IF\" scan 2>/dev/null | grep -c 'SSID:')
+            echo \"Networks found: \$NETWORKS\"
+        fi
+        echo ''
+        echo '✓ WIFI TEST PASSED'
+    else
+        echo '✗ No WiFi interface'
+        echo '✗ WIFI TEST FAILED'
+    fi
+    echo ''
