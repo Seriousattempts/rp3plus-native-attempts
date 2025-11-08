@@ -1,0 +1,1051 @@
+[2025-11-08 02:27:32] =========================================================================
+[2025-11-08 02:27:32] === DEBIAN TRIXIE DRM GRAPHICS TESTING ===
+[2025-11-08 02:27:32] === Version 21.0 - GPU Rendering with Display Resource Management ===
+[2025-11-08 02:27:32] =========================================================================
+[2025-11-08 02:27:32] ℹ INFO: Device: Retroid Pocket 3 Plus
+[2025-11-08 02:27:32] ℹ INFO: Platform: UNISOC UMS512 with Mali-G52 GPU
+[2025-11-08 02:27:32] ℹ INFO: Display: 752x1336 @ 60Hz Portrait DSI
+[2025-11-08 02:27:32] ℹ INFO: DRM Device: /dev/dri/card0
+[2025-11-08 02:27:32] ℹ INFO: Mali Device: /dev/mali0
+[2025-11-08 02:27:32] ℹ INFO: Kernel: 4.14.193
+[2025-11-08 02:27:32] ℹ INFO: Rootfs: debian-trixie-aarch64-pd-v4.29.0
+[2025-11-08 02:27:33] ℹ INFO: Test Date: Saturday, November 08, 2025 at 02:27:33 GMT
+[2025-11-08 02:27:33] 
+[2025-11-08 02:27:33] 📜 HISTORY: V20.0 Status:
+[2025-11-08 02:27:33] 📜 HISTORY:   ✓ VirGL renderer available and configured
+[2025-11-08 02:27:33] 📜 HISTORY:   ✓ Zink driver available with Panfrost Vulkan ICD
+[2025-11-08 02:27:33] 📜 HISTORY:   ✓ Panfrost native Mali driver available
+[2025-11-08 02:27:33] 📜 HISTORY:   ✗ modetest blocked kmscube (resource conflict)
+[2025-11-08 02:27:33] 📜 HISTORY:   ✗ Script stopped during kmscube VirGL test
+[2025-11-08 02:27:33] 
+[2025-11-08 02:27:33] 📜 HISTORY: V21.0 Improvements:
+[2025-11-08 02:27:33] 📜 HISTORY:   → Skip modetest (already proven working in V17.0)
+[2025-11-08 02:27:33] 📜 HISTORY:   → Implement display resource checking (fuser)
+[2025-11-08 02:27:33] 📜 HISTORY:   → Force kill blocking processes after 30s timeout
+[2025-11-08 02:27:33] 📜 HISTORY:   → Test VirGL, Zink, Panfrost separately with 30s each
+[2025-11-08 02:27:33] 📜 HISTORY:   → Ensure proper cleanup between GPU tests
+[2025-11-08 02:27:33] 
+[2025-11-08 02:27:33] 📜 HISTORY: Previous modetest attempts (skipped in V21.0):
+[2025-11-08 02:27:34] 📜 HISTORY:   V17.0: modetest SUCCESS - diagonal stripes + color bars visible
+[2025-11-08 02:27:34] 📜 HISTORY:   V20.0: modetest ran but blocked subsequent kmscube tests
+[2025-11-08 02:27:34] 📜 HISTORY:   V21.0: Skipping - DRM baseline already confirmed
+[2025-11-08 02:27:34] 
+[2025-11-08 02:27:34] =========================================================================
+[2025-11-08 02:27:34] === PHASE 1: SD CARD MOUNT FOR PERSISTENT LOGGING ===
+[2025-11-08 02:27:34] =========================================================================
+[2025-11-08 02:27:34] → ATTEMPT: Checking if SD card is already mounted...
+[2025-11-08 02:27:34] → ATTEMPT: Attempting to mount SD card...
+[2025-11-08 02:27:34] ✓ SUCCESS: SD card mounted at: /sdcard
+[2025-11-08 02:27:34] ✓ SUCCESS: Log file relocated to SD card: /sdcard/logs/sway_test_20251108_022734.log
+[2025-11-08 02:27:34] ℹ INFO: Test output file: /sdcard/logs/sway_test_output_20251108_022734.txt
+[2025-11-08 02:27:35] 
+[2025-11-08 02:27:35] =========================================================================
+[2025-11-08 02:27:35] === PHASE 2: BLOCK DEVICE DETECTION ===
+[2025-11-08 02:27:35] =========================================================================
+[2025-11-08 02:27:35] ℹ INFO: Waiting for distro partition device to become available...
+[2025-11-08 02:27:35] 
+[2025-11-08 02:27:35] ℹ INFO: Waiting for distro partition: /dev/block/mmcblk0p77
+[2025-11-08 02:27:35] ✓ SUCCESS: Distro partition found: /dev/block/mmcblk0p77
+[2025-11-08 02:27:35] ℹ INFO: Block device verification: brw------- 1 root root 259,  70 2025-11-08 02:27 /dev/block/mmcblk0p77
+[2025-11-08 02:27:35] 
+[2025-11-08 02:27:35] =========================================================================
+[2025-11-08 02:27:35] === PHASE 3: DISTRO PARTITION MOUNTING ===
+[2025-11-08 02:27:35] =========================================================================
+[2025-11-08 02:27:35] ℹ INFO: Mounting Debian partition for chroot access...
+[2025-11-08 02:27:35] 
+[2025-11-08 02:27:35] ℹ INFO: Creating mount point: /mnt/distro
+[2025-11-08 02:27:36] ✓ SUCCESS: Mount point directory created: /mnt/distro
+[2025-11-08 02:27:36] → ATTEMPT: Mounting distro partition...
+[2025-11-08 02:27:36] ✓ SUCCESS: Distro partition mounted successfully
+[2025-11-08 02:27:36] ℹ INFO: Mount details: /dev/block/mmcblk0p77 on /mnt/distro type ext4 (rw,seclabel,relatime,data=ordered)
+[2025-11-08 02:27:36] 
+[2025-11-08 02:27:36] =========================================================================
+[2025-11-08 02:27:36] === PHASE 4: DEBIAN ROOTFS VERIFICATION ===
+[2025-11-08 02:27:36] =========================================================================
+[2025-11-08 02:27:36] ℹ INFO: Verifying Debian installation integrity...
+[2025-11-08 02:27:36] 
+[2025-11-08 02:27:36] ℹ INFO: Using rootfs path: /mnt/distro/debian-chroot
+[2025-11-08 02:27:36] ✓ SUCCESS: Debian rootfs directory exists
+[2025-11-08 02:27:36] ℹ INFO: Verifying critical system directories...
+[2025-11-08 02:27:36] ✓ SUCCESS:   /usr exists
+[2025-11-08 02:27:36] ✓ SUCCESS:   /usr/bin exists
+[2025-11-08 02:27:36] ✓ SUCCESS:   /usr/sbin exists
+[2025-11-08 02:27:37] ✓ SUCCESS:   /lib exists
+[2025-11-08 02:27:37] ✓ SUCCESS:   /etc exists
+[2025-11-08 02:27:37] ✓ SUCCESS:   /home exists
+[2025-11-08 02:27:37] 
+[2025-11-08 02:27:37] ℹ INFO: Disk usage statistics:
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/block/mmcblk0p77  54G  5.0G   48G  10% /mnt/distro
+[2025-11-08 02:27:37] 
+[2025-11-08 02:27:37] =========================================================================
+[2025-11-08 02:27:37] === PHASE 4.5: CLEANUP /boot DIRECTORY IN CHROOT ===
+[2025-11-08 02:27:37] =========================================================================
+[2025-11-08 02:27:37] ℹ INFO: Cleaning up /boot directory while keeping the folder...
+[2025-11-08 02:27:37] 
+[2025-11-08 02:27:37] → ATTEMPT: Removing all files in /boot...
+[2025-11-08 02:27:37] ℹ INFO: Files found in /boot: 0
+[2025-11-08 02:27:37] ℹ INFO: /boot already empty
+[2025-11-08 02:27:37] 
+[2025-11-08 02:27:37] =========================================================================
+[2025-11-08 02:27:37] === PHASE 4.7: SOCKO PARTITION & KERNEL MODULE LOADING ===
+[2025-11-08 02:27:38] =========================================================================
+[2025-11-08 02:27:38] ℹ INFO: Version 2.3: SOCKO partition mounting and hardware-specific module loading
+[2025-11-08 02:27:38] ℹ INFO: Loading Mali GPU and UNISOC hardware drivers from SOCKO partition
+[2025-11-08 02:27:38] 
+[2025-11-08 02:27:38] ✓ SUCCESS: SOCKO partition found: /dev/block/mmcblk0p52
+[2025-11-08 02:27:38] ℹ INFO: Block device info: brw------- 1 root root 259,  45 2025-11-08 02:27 /dev/block/mmcblk0p52
+[2025-11-08 02:27:38] 
+[2025-11-08 02:27:38] ℹ INFO: Loading kernel modules from host context (before chroot) for kernel-level operations
+[2025-11-08 02:27:38] ℹ INFO: These modules provide GPU, camera, and wireless hardware support
+[2025-11-08 02:27:38] 
+[2025-11-08 02:27:38] ℹ INFO: MODULE SOURCE: SOCKO Partition
+[2025-11-08 02:27:38] ℹ INFO: Version 2.3: Loading essential hardware drivers
+[2025-11-08 02:27:38] ℹ INFO: Excluded: sprd_vdsp.ko (known to cause stability issues)
+[2025-11-08 02:27:38] ℹ INFO: Creating SOCKO mount point: /mnt/socko_temp
+[2025-11-08 02:27:38] ℹ INFO: SOCKO partition device found
+[2025-11-08 02:27:38] → ATTEMPT: Detecting filesystem type...
+[2025-11-08 02:27:39] ⚠ WARNING: Could not detect filesystem, trying ext4 as default
+[2025-11-08 02:27:39] → ATTEMPT: Mounting SOCKO partition...
+[2025-11-08 02:27:39] ℹ INFO: Device: /dev/block/mmcblk0p52
+[2025-11-08 02:27:39] ℹ INFO: Mount point: /mnt/socko_temp
+[2025-11-08 02:27:39] ℹ INFO: Filesystem: ext4 (read-only for safety)
+[2025-11-08 02:27:39] ✓ SUCCESS: SOCKO mounted with filesystem type: ext4
+[2025-11-08 02:27:39] ✓ SUCCESS: SOCKO partition mounted successfully
+[2025-11-08 02:27:39] ℹ INFO: SOCKO contents:
+total 16M
+drwxr-xr-x  3 root root   4.0K 2023-07-04 09:27 .
+drwxr-xr-x 18 root system  380 2025-11-08 02:27 ..
+drwx------  2 root root    16K 2023-07-04 09:27 lost+found
+-rw-r--r--  1 root root    14M 2023-07-04 09:27 mali_gondul.ko
+-rw-r--r--  1 root root   2.6M 2023-07-04 09:27 mmdvfs.ko
+-rw-r--r--  1 root root   768K 2023-07-04 09:27 sprd_cpp.ko
+-rw-r--r--  1 root root   435K 2023-07-04 09:27 sprd_fd.ko
+-rw-r--r--  1 root root   214K 2023-07-04 09:27 sprd_flash_drv.ko
+-rw-r--r--  1 root root   824K 2023-07-04 09:27 sprd_fm.ko
+-rw-r--r--  1 root root   1.4M 2023-07-04 09:27 sprd_sensor.ko
+-rw-r--r--  1 root root   2.0M 2023-07-04 09:27 sprd_vdsp.ko
+-rw-r--r--  1 root root   748K 2023-07-04 09:27 sprdbt_tty.ko
+-rw-r--r--  1 root root   8.2M 2023-07-04 09:27 sprdwl_ng.ko
+[2025-11-08 02:27:39] ℹ INFO: Kernel modules (.ko files) in SOCKO: 10
+[2025-11-08 02:27:39] 
+[2025-11-08 02:27:39] ℹ INFO: Loading hardware-specific modules from SOCKO...
+[2025-11-08 02:27:39] ℹ INFO: Available modules in SOCKO partition:
+/mnt/socko_temp/sprdbt_tty.ko
+/mnt/socko_temp/sprd_fm.ko
+/mnt/socko_temp/sprd_fd.ko
+/mnt/socko_temp/sprd_vdsp.ko
+/mnt/socko_temp/sprdwl_ng.ko
+/mnt/socko_temp/mali_gondul.ko
+/mnt/socko_temp/sprd_sensor.ko
+/mnt/socko_temp/mmdvfs.ko
+/mnt/socko_temp/sprd_flash_drv.ko
+/mnt/socko_temp/sprd_cpp.ko
+[2025-11-08 02:27:39] 
+[2025-11-08 02:27:39] ℹ INFO: Processing selected hardware modules (8 total):
+[2025-11-08 02:27:40] ℹ INFO: Processing module: mmdvfs.ko
+[2025-11-08 02:27:40] ℹ INFO:   Module file found: /mnt/socko_temp/mmdvfs.ko
+[2025-11-08 02:27:40] ℹ INFO:   Module size: 2684KB (2749080 bytes)
+[2025-11-08 02:27:40] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:40] ✓ SUCCESS:   Module mmdvfs.ko loaded successfully
+[2025-11-08 02:27:40] ℹ INFO:   Verification: mmdvfs                110592  0 
+[2025-11-08 02:27:40] 
+[2025-11-08 02:27:40] ℹ INFO: Processing module: mali_gondul.ko
+[2025-11-08 02:27:40] ℹ INFO:   Module file found: /mnt/socko_temp/mali_gondul.ko
+[2025-11-08 02:27:40] ℹ INFO:   Module size: 14721KB (15074504 bytes)
+[2025-11-08 02:27:40] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:41] ✓ SUCCESS:   Module mali_gondul.ko loaded successfully
+[2025-11-08 02:27:41] ℹ INFO:   Verification: mali_gondul           532480  0 
+[2025-11-08 02:27:41] 
+[2025-11-08 02:27:41] ℹ INFO: Processing module: sprd_cpp.ko
+[2025-11-08 02:27:41] ℹ INFO:   Module file found: /mnt/socko_temp/sprd_cpp.ko
+[2025-11-08 02:27:41] ℹ INFO:   Module size: 768KB (786824 bytes)
+[2025-11-08 02:27:41] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:41] ✓ SUCCESS:   Module sprd_cpp.ko loaded successfully
+[2025-11-08 02:27:41] ℹ INFO:   Verification: sprd_cpp               45056  0 
+[2025-11-08 02:27:41] 
+[2025-11-08 02:27:42] ℹ INFO: Processing module: sprd_sensor.ko
+[2025-11-08 02:27:42] ℹ INFO:   Module file found: /mnt/socko_temp/sprd_sensor.ko
+[2025-11-08 02:27:42] ℹ INFO:   Module size: 1488KB (1524512 bytes)
+[2025-11-08 02:27:42] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:42] ✓ SUCCESS:   Module sprd_sensor.ko loaded successfully
+[2025-11-08 02:27:42] ℹ INFO:   Verification: sprd_sensor            90112  0 
+[2025-11-08 02:27:42] 
+[2025-11-08 02:27:42] ℹ INFO: Processing module: sprd_flash_drv.ko
+[2025-11-08 02:27:42] ℹ INFO:   Module file found: /mnt/socko_temp/sprd_flash_drv.ko
+[2025-11-08 02:27:42] ℹ INFO:   Module size: 213KB (218968 bytes)
+[2025-11-08 02:27:42] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:42] ✓ SUCCESS:   Module sprd_flash_drv.ko loaded successfully
+[2025-11-08 02:27:43] ℹ INFO:   Verification: sprd_flash_drv         16384  0 
+[2025-11-08 02:27:43] 
+[2025-11-08 02:27:43] ℹ INFO: Processing module: sprdbt_tty.ko
+[2025-11-08 02:27:43] ℹ INFO:   Module file found: /mnt/socko_temp/sprdbt_tty.ko
+[2025-11-08 02:27:43] ℹ INFO:   Module size: 748KB (766328 bytes)
+[2025-11-08 02:27:43] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:43] ✓ SUCCESS:   Module sprdbt_tty.ko loaded successfully
+[2025-11-08 02:27:43] ℹ INFO:   Verification: sprdbt_tty             36864  0 
+[2025-11-08 02:27:43] 
+[2025-11-08 02:27:43] ℹ INFO: Processing module: sprd_fm.ko
+[2025-11-08 02:27:43] ℹ INFO:   Module file found: /mnt/socko_temp/sprd_fm.ko
+[2025-11-08 02:27:43] ℹ INFO:   Module size: 824KB (844032 bytes)
+[2025-11-08 02:27:44] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:44] ✓ SUCCESS:   Module sprd_fm.ko loaded successfully
+[2025-11-08 02:27:44] ℹ INFO:   Verification: sprd_fm                53248  0 
+[2025-11-08 02:27:44] 
+[2025-11-08 02:27:44] ℹ INFO: Processing module: sprdwl_ng.ko
+[2025-11-08 02:27:44] ℹ INFO:   Module file found: /mnt/socko_temp/sprdwl_ng.ko
+[2025-11-08 02:27:44] ℹ INFO:   Module size: 8456KB (8659056 bytes)
+[2025-11-08 02:27:44] → ATTEMPT:   Loading module with insmod...
+[2025-11-08 02:27:48] ✓ SUCCESS:   Module sprdwl_ng.ko loaded successfully
+[2025-11-08 02:27:48] ℹ INFO:   Verification: sprdwl_ng             327680  0 
+[2025-11-08 02:27:48] 
+[2025-11-08 02:27:48] ℹ INFO: Unmounting SOCKO partition...
+[2025-11-08 02:27:48] ✓ SUCCESS: SOCKO partition unmounted
+[2025-11-08 02:27:48] 
+[2025-11-08 02:27:48] ℹ INFO: MODULE LOADING SUMMARY
+[2025-11-08 02:27:48] ℹ INFO: Total modules successfully loaded: 8
+[2025-11-08 02:27:48] ℹ INFO: Total modules that failed to load: 0
+[2025-11-08 02:27:48] ℹ INFO: Total modules skipped (already loaded): 0
+[2025-11-08 02:27:48] 
+[2025-11-08 02:27:48] ✓ SUCCESS: Hardware module loading completed with 8 modules
+[2025-11-08 02:27:49] 
+[2025-11-08 02:27:49] =========================================================================
+[2025-11-08 02:27:49] === PHASE 6: PSEUDO FILESYSTEM MOUNTING ===
+[2025-11-08 02:27:49] =========================================================================
+[2025-11-08 02:27:49] ℹ INFO: Version 2.3: Comprehensive pseudo filesystem setup with auto-detection
+[2025-11-08 02:27:49] ℹ INFO: Mounting pseudo filesystems for chroot environment...
+[2025-11-08 02:27:49] 
+[2025-11-08 02:27:49] → ATTEMPT: Mounting /proc...
+[2025-11-08 02:27:49] ✓ SUCCESS: /proc mounted successfully
+[2025-11-08 02:27:49] ℹ INFO: Process information accessible in chroot
+[2025-11-08 02:27:49] 
+[2025-11-08 02:27:49] → ATTEMPT: Mounting /sys...
+[2025-11-08 02:27:49] ✓ SUCCESS: /sys mounted successfully
+[2025-11-08 02:27:49] ℹ INFO: System hardware information accessible in chroot
+[2025-11-08 02:27:50] 
+[2025-11-08 02:27:50] → ATTEMPT: Bind mounting /dev...
+[2025-11-08 02:27:50] ✓ SUCCESS: /dev bind mounted successfully
+[2025-11-08 02:27:50] ℹ INFO: Device nodes available: 176 entries
+[2025-11-08 02:27:50] 
+[2025-11-08 02:27:50] → ATTEMPT: Mounting /dev/pts...
+[2025-11-08 02:27:50] ✓ SUCCESS: /dev/pts mounted successfully
+[2025-11-08 02:27:50] ℹ INFO: Pseudo-terminal support enabled
+[2025-11-08 02:27:50] 
+[2025-11-08 02:27:50] → ATTEMPT: Mounting /dev/shm...
+[2025-11-08 02:27:50] ✓ SUCCESS: /dev/shm mounted successfully
+[2025-11-08 02:27:50] ℹ INFO: Shared memory support enabled
+[2025-11-08 02:27:50] 
+[2025-11-08 02:27:51] → ATTEMPT: Mounting /tmp...
+[2025-11-08 02:27:51] ✓ SUCCESS: /tmp mounted as tmpfs
+[2025-11-08 02:27:51] ℹ INFO: Temporary file storage enabled
+[2025-11-08 02:27:51] 
+[2025-11-08 02:27:51] → ATTEMPT: Mounting /run...
+[2025-11-08 02:27:51] ✓ SUCCESS: /run mounted as tmpfs
+[2025-11-08 02:27:51] ℹ INFO: Runtime data directory enabled
+[2025-11-08 02:27:51] 
+[2025-11-08 02:27:51] → ATTEMPT: Creating /tmp/runtime for XDG_RUNTIME_DIR...
+[2025-11-08 02:27:51] ✓ SUCCESS: /tmp/runtime created with proper permissions (700)
+[2025-11-08 02:27:51] ℹ INFO: VNC runtime directory ready
+[2025-11-08 02:27:51] 
+[2025-11-08 02:27:51] ℹ INFO: Verifying critical device nodes for VNC operation...
+[2025-11-08 02:27:51] ✓ SUCCESS:   /dev/null exists
+[2025-11-08 02:27:52] ✓ SUCCESS:   /dev/zero exists
+[2025-11-08 02:27:52] ✓ SUCCESS:   /dev/random exists
+[2025-11-08 02:27:52] ✓ SUCCESS:   /dev/urandom exists
+[2025-11-08 02:27:52] ℹ INFO: Device node status: 4 OK, 0 missing
+[2025-11-08 02:27:52] 
+[2025-11-08 02:27:52] ✓ SUCCESS: Total filesystems mounted in chroot: 7
+[2025-11-08 02:27:52] 
+[2025-11-08 02:27:52] =========================================================================
+[2025-11-08 02:27:52] === PHASE 6.5: PRE-HARDWARE SETUP FILE MANAGEMENT ===
+[2025-11-08 02:27:52] =========================================================================
+[2025-11-08 02:27:52] ℹ INFO: Cleaning up old files and deploying new setup-unisoc-hardware script
+[2025-11-08 02:27:52] 
+[2025-11-08 02:27:52] → ATTEMPT: Removing old installation scripts...
+[2025-11-08 02:27:52] ℹ INFO: /root/install-unisoc-service.sh not found (already removed or never existed)
+[2025-11-08 02:27:52] ℹ INFO: /root/install-packages.sh not found (already removed or never existed)
+[2025-11-08 02:27:52] ℹ INFO: /usr/local/bin/setup-unisoc-hardware not found (already removed or never existed)
+[2025-11-08 02:27:52] ℹ INFO: Cleanup summary: 0 removed, 3 not found
+[2025-11-08 02:27:53] 
+[2025-11-08 02:27:53] → ATTEMPT: Deploying new setup-unisoc-hardware script from SD card...
+[2025-11-08 02:27:53] ✓ SUCCESS: Found source script: /sdcard/logs/setup-unisoc-hardware
+[2025-11-08 02:27:53] ✓ SUCCESS: Copied setup-unisoc-hardware to /usr/local/bin/
+[2025-11-08 02:27:53] ✓ SUCCESS: Set executable permissions
+[2025-11-08 02:27:53] ✓ SUCCESS: Deployment verification passed
+[2025-11-08 02:27:53] ℹ INFO: Script size: 12645 bytes
+[2025-11-08 02:27:53] 
+[2025-11-08 02:27:53] =========================================================================
+[2025-11-08 02:27:53] === PHASE 7: UNISOC HARDWARE SETUP ===
+[2025-11-08 02:27:53] =========================================================================
+[2025-11-08 02:27:53] ℹ INFO: Version 2.3: Running setup-unisoc-hardware on HOST for device configuration
+[2025-11-08 02:27:53] ℹ INFO: Running ON HOST to access Android /dev devices directly
+[2025-11-08 02:27:53] ℹ INFO: This configures all UNISOC-specific hardware and creates video devices
+[2025-11-08 02:27:53] 
+[2025-11-08 02:27:54] → ATTEMPT: Checking for setup-unisoc-hardware script...
+[2025-11-08 02:27:54] ✓ SUCCESS: Hardware setup script found: /usr/local/bin/setup-unisoc-hardware
+[2025-11-08 02:27:54] ✓ SUCCESS: Script is executable
+[2025-11-08 02:27:54] 
+[2025-11-08 02:27:54] → ATTEMPT: Running UNISOC hardware setup ON HOST (accessing real /dev)...
+[2025-11-08 02:27:54] ℹ INFO: This may take 15-25 seconds to complete...
+02:27:54 - === Starting Hardware Device Configuration ===
+02:27:54 - Configuring UNISOC LTE Pipe Devices...
+02:27:54 -   ✓ Configured: /dev/spipe_lte0
+02:27:54 -   ✓ Configured: /dev/spipe_lte1
+02:27:54 -   ✓ Configured: /dev/spipe_lte10
+02:27:54 -   ✓ Configured: /dev/spipe_lte11
+02:27:54 -   ✓ Configured: /dev/spipe_lte12
+02:27:54 -   ✓ Configured: /dev/spipe_lte13
+02:27:54 -   ✓ Configured: /dev/spipe_lte14
+02:27:54 -   ✓ Configured: /dev/spipe_lte2
+02:27:54 -   ✓ Configured: /dev/spipe_lte3
+02:27:55 -   ✓ Configured: /dev/spipe_lte4
+02:27:55 -   ✓ Configured: /dev/spipe_lte5
+02:27:55 -   ✓ Configured: /dev/spipe_lte6
+02:27:55 -   ✓ Configured: /dev/spipe_lte7
+02:27:55 -   ✓ Configured: /dev/spipe_lte8
+02:27:55 -   ✓ Configured: /dev/spipe_lte9
+02:27:55 -   Total configured: 15
+02:27:55 - Configuring UNISOC LTE TTY Devices...
+02:27:55 -   ✓ Configured: /dev/stty_lte0
+02:27:55 -   ✓ Configured: /dev/stty_lte1
+02:27:55 -   ✓ Configured: /dev/stty_lte10
+02:27:55 -   ✓ Configured: /dev/stty_lte11
+02:27:55 -   ✓ Configured: /dev/stty_lte12
+02:27:55 -   ✓ Configured: /dev/stty_lte13
+02:27:55 -   ✓ Configured: /dev/stty_lte14
+02:27:55 -   ✓ Configured: /dev/stty_lte15
+02:27:55 -   ✓ Configured: /dev/stty_lte16
+02:27:55 -   ✓ Configured: /dev/stty_lte17
+02:27:55 -   ✓ Configured: /dev/stty_lte18
+02:27:56 -   ✓ Configured: /dev/stty_lte19
+02:27:56 -   ✓ Configured: /dev/stty_lte2
+02:27:56 -   ✓ Configured: /dev/stty_lte20
+02:27:56 -   ✓ Configured: /dev/stty_lte21
+02:27:56 -   ✓ Configured: /dev/stty_lte22
+02:27:56 -   ✓ Configured: /dev/stty_lte23
+02:27:56 -   ✓ Configured: /dev/stty_lte24
+02:27:56 -   ✓ Configured: /dev/stty_lte25
+02:27:56 -   ✓ Configured: /dev/stty_lte26
+02:27:56 -   ✓ Configured: /dev/stty_lte27
+02:27:56 -   ✓ Configured: /dev/stty_lte28
+02:27:56 -   ✓ Configured: /dev/stty_lte29
+02:27:56 -   ✓ Configured: /dev/stty_lte3
+02:27:56 -   ✓ Configured: /dev/stty_lte30
+02:27:56 -   ✓ Configured: /dev/stty_lte31
+02:27:56 -   ✓ Configured: /dev/stty_lte4
+02:27:56 -   ✓ Configured: /dev/stty_lte5
+02:27:57 -   ✓ Configured: /dev/stty_lte6
+02:27:57 -   ✓ Configured: /dev/stty_lte7
+02:27:57 -   ✓ Configured: /dev/stty_lte8
+02:27:57 -   ✓ Configured: /dev/stty_lte9
+02:27:57 -   Total configured: 32
+02:27:57 - Configuring UNISOC Log Devices...
+02:27:57 -   ✓ Configured: /dev/slog_gnss
+02:27:57 -   ✓ Configured: /dev/slog_lte
+02:27:57 -   ✓ Configured: /dev/slog_pm
+02:27:57 -   ✓ Configured: /dev/slog_wcn0
+02:27:57 -   ✓ Configured: /dev/slog_wcn1
+02:27:57 -   Total configured: 5
+02:27:57 -   ✓ Configured: /dev/sdiag_lte
+02:27:57 - Configuring UNISOC Power Management Pipes...
+02:27:57 -   ✓ Configured: /dev/spipe_pm0
+02:27:57 -   ✓ Configured: /dev/spipe_pm1
+02:27:57 -   Total configured: 2
+02:27:57 -   ✓ Configured: /dev/sctl_pm
+02:27:57 - Configuring TTY Gadget Serial Devices...
+02:27:57 -   ✓ Configured: /dev/ttyGS0
+02:27:58 -   ✓ Configured: /dev/ttyGS1
+02:27:58 -   ✓ Configured: /dev/ttyGS2
+02:27:58 -   ✓ Configured: /dev/ttyGS3
+02:27:58 -   ✓ Configured: /dev/ttyGS4
+02:27:58 -   ✓ Configured: /dev/ttyGS5
+02:27:58 -   ✓ Configured: /dev/ttyGS6
+02:27:58 -   ✓ Configured: /dev/ttyGS7
+02:27:58 -   Total TTY gadget devices configured: 8
+02:27:58 - Configuring Standard Serial Devices...
+02:27:58 -   ✓ Configured: /dev/ttyS0
+02:27:58 -   ✓ Configured: /dev/ttyS1
+02:27:58 - Configuring GPIO Controller Devices...
+02:27:58 -   ✓ Configured: /dev/gpiochip0
+02:27:58 -   ✓ Configured: /dev/gpiochip1
+02:27:58 -   ✓ Configured: /dev/gpiochip2
+02:27:58 -   ✓ Configured: /dev/gpiochip3
+02:27:58 -   ✓ Configured: /dev/gpiochip4
+02:27:58 -   ✓ Configured: /dev/gpiochip5
+02:27:58 -   Total GPIO devices configured: 6
+02:27:58 - Configuring I2C Bus Devices...
+02:27:59 -   ✓ Configured: /dev/i2c-0
+02:27:59 -   ✓ Configured: /dev/i2c-1
+02:27:59 -   ✓ Configured: /dev/i2c-2
+02:27:59 -   ✓ Configured: /dev/i2c-3
+02:27:59 -   ✓ Configured: /dev/i2c-4
+02:27:59 -   ✓ Configured: /dev/i2c-5
+02:27:59 -   Total I2C devices configured: 6
+02:27:59 - Configuring IIO Sensor Devices...
+02:27:59 -   ✓ Configured: /dev/iio:device0
+02:27:59 -   ✓ Configured: /dev/iio:device1
+02:27:59 - Configuring Input Devices...
+02:27:59 -   ✓ Configured: /dev/input/event0
+02:27:59 -   ✓ Configured: /dev/input/event1
+02:27:59 -   ✓ Configured: /dev/input/event2
+02:27:59 -   ✓ Configured: /dev/input/event3
+02:27:59 -   ✓ Configured: /dev/input/event4
+02:27:59 -   ✓ Configured: /dev/input/mice
+02:27:59 -   Total input devices configured: 6
+02:27:59 - Configuring ALSA Audio Devices...
+02:28:00 -   ✓ Configured: /dev/snd/comprC0D11
+02:28:00 -   ✓ Configured: /dev/snd/comprC0D4
+02:28:00 -   ✓ Configured: /dev/snd/controlC0
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D0c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D0p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D10c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D10p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D12p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D13c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D14c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D15p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D16c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D17c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D1c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D1p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D2c
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D3p
+02:28:00 -   ✓ Configured: /dev/snd/pcmC0D49c
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D49p
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D53p
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D5c
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D5p
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D6c
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D6p
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D7p
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D8c
+02:28:01 -   ✓ Configured: /dev/snd/pcmC0D9c
+02:28:01 -   ✓ Configured: /dev/snd/timer
+02:28:01 -   Total audio devices configured: 28
+02:28:01 - Configuring Graphics Devices...
+02:28:01 -   ✓ Configured: /dev/dri/card0
+02:28:01 - Configuring USB Devices...
+02:28:01 -   ✓ Configured: /dev/bus/usb/001/001
+02:28:01 -   Total USB devices configured: 1
+02:28:01 -   ✓ Configured: /dev/rtc0
+02:28:01 - Configuring Wireless/Cellular Devices...
+02:28:01 -   ✓ Configured: /dev/wcn
+02:28:01 -   ✓ Configured: /dev/wcn_op
+02:28:02 - Configuring GNSS Devices...
+02:28:02 -   ✓ Configured: /dev/gnss_dbg
+02:28:02 -   ✓ Configured: /dev/gnss_common_ctl
+02:28:02 -   ✓ Configured: /dev/gnss_pmnotify_ctl
+02:28:02 -   ✓ Configured: /dev/data0_gnss
+02:28:02 - Configuring Audio Pipe Devices...
+02:28:02 - Configuring Audio Pipe Devices...
+02:28:02 -   ✓ Configured: /dev/audio_pipe_bthal
+02:28:02 -   ✓ Configured: /dev/audio_pipe_effect
+02:28:02 -   ✓ Configured: /dev/audio_pipe_recordproc
+02:28:02 -   ✓ Configured: /dev/audio_pipe_voice
+02:28:02 -   Total configured: 4
+02:28:02 - Configuring Spreadtrum/UNISOC Specific Devices...
+02:28:02 -   ✓ Configured: /dev/sprd_vsp
+02:28:02 -   ✓ Configured: /dev/sprd_jpg
+02:28:02 -   ✓ Configured: /dev/sprd_uid
+02:28:02 -   ✓ Configured: /dev/sprd_cpp
+02:28:02 -   ✓ Configured: /dev/sprd_flash
+02:28:02 -   ✓ Configured: /dev/sprd_sensor
+02:28:02 -   ✓ Configured: /dev/gsp
+02:28:03 -   ✓ Configured: /dev/cptl
+02:28:03 -   ✓ Configured: /dev/mali0
+02:28:03 - === Initializing Camera GPIOs ===
+02:28:03 -   ✓ Exported GPIO 119
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio119/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 120
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio120/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 121
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio121/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 122
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio122/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 123
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio123/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 124
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio124/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 125
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio125/direction: Permission denied
+02:28:03 -   ✓ Exported GPIO 126
+/mnt/distro/debian-chroot/usr/local/bin/setup-unisoc-hardware[318]: can't create /sys/class/gpio/gpio126/direction: Permission denied
+02:28:03 -   Camera GPIO initialization complete
+02:28:03 - === Initializing DCAM (Digital Camera Controller) ===
+02:28:03 -   ✓ Found DCAM path: /sys/devices/platform/dcam-axi-dvfs
+02:28:03 -   ✓ Found DCAM path: /sys/devices/platform/dcam-if-dvfs
+02:28:03 - === Initializing V4L2 Camera System ===
+02:28:03 -   ⚠ Camera platform device not found
+02:28:03 -   Triggering V4L2 device enumeration...
+02:28:03 -   Creating V4L2 video device nodes...
+02:28:03 -     Created: /dev/video0
+02:28:03 -     Created: /dev/video1
+02:28:03 -     Created: /dev/video2
+02:28:03 -     Created: /dev/video3
+02:28:04 -     Created: /dev/video4
+02:28:04 -     Created: /dev/video5
+02:28:04 -     Created: /dev/video6
+02:28:04 -     Created: /dev/video7
+02:28:04 -     Created: /dev/video8
+02:28:04 -     Created: /dev/video9
+02:28:04 -     Created: /dev/video10
+02:28:04 -     Created: /dev/video11
+02:28:04 -     Created: /dev/video12
+02:28:04 -     Created: /dev/video13
+02:28:04 -     Created: /dev/video14
+02:28:04 -     Created: /dev/video15
+02:28:05 -   Creating media controller devices...
+02:28:05 -     Created: /dev/media0
+02:28:05 -     Created: /dev/media1
+02:28:05 -     Created: /dev/media2
+02:28:05 -     Created: /dev/media3
+02:28:05 -   Creating V4L2 subdev nodes...
+02:28:05 -     Created: /dev/v4l-subdev0
+02:28:05 -     Created: /dev/v4l-subdev1
+02:28:05 -     Created: /dev/v4l-subdev2
+02:28:05 -     Created: /dev/v4l-subdev3
+02:28:05 -     Created: /dev/v4l-subdev4
+02:28:05 -     Created: /dev/v4l-subdev5
+02:28:05 -     Created: /dev/v4l-subdev6
+02:28:06 -     Created: /dev/v4l-subdev7
+02:28:08 -   V4L2 Initialization Summary:
+02:28:08 -     Video devices: 16
+02:28:08 -     Media devices: 4
+02:28:08 -     Subdev devices: 8
+02:28:08 -   ✓ V4L2 camera system initialized successfully
+02:28:08 - Configuring V4L2 Camera Devices...
+02:28:08 -   ✓ Configured: /dev/video0
+02:28:08 -   ✓ Configured: /dev/video1
+02:28:08 -   ✓ Configured: /dev/video10
+02:28:08 -   ✓ Configured: /dev/video11
+02:28:08 -   ✓ Configured: /dev/video12
+02:28:08 -   ✓ Configured: /dev/video13
+02:28:08 -   ✓ Configured: /dev/video14
+02:28:08 -   ✓ Configured: /dev/video15
+02:28:08 -   ✓ Configured: /dev/video2
+02:28:08 -   ✓ Configured: /dev/video3
+02:28:08 -   ✓ Configured: /dev/video4
+02:28:09 -   ✓ Configured: /dev/video5
+02:28:09 -   ✓ Configured: /dev/video6
+02:28:09 -   ✓ Configured: /dev/video7
+02:28:09 -   ✓ Configured: /dev/video8
+02:28:09 -   ✓ Configured: /dev/video9
+02:28:09 -   ✓ Configured: /dev/media0
+02:28:09 -   ✓ Configured: /dev/media1
+02:28:09 -   ✓ Configured: /dev/media2
+02:28:09 -   ✓ Configured: /dev/media3
+02:28:09 -   ✓ Configured: /dev/v4l-subdev0
+02:28:09 -   ✓ Configured: /dev/v4l-subdev1
+02:28:09 -   ✓ Configured: /dev/v4l-subdev2
+02:28:09 -   ✓ Configured: /dev/v4l-subdev3
+02:28:09 -   ✓ Configured: /dev/v4l-subdev4
+02:28:09 -   ✓ Configured: /dev/v4l-subdev5
+02:28:09 -   ✓ Configured: /dev/v4l-subdev6
+02:28:09 -   ✓ Configured: /dev/v4l-subdev7
+02:28:09 -   Total V4L2 devices configured: 28
+02:28:10 - Configuring Bluetooth Devices...
+02:28:10 -   ✓ Configured: /dev/ttyBT0
+02:28:10 -   ✓ Configured: /dev/ttyBT1
+02:28:10 - Configuring Audio Pipe Command Devices...
+02:28:10 -   ✓ Configured: /dev/apipe-cmd-in
+02:28:10 -   ✓ Configured: /dev/apipe-cmd-out
+02:28:10 -   ✓ Configured: /dev/apipe-pcm
+02:28:10 - Configuring RS Communication Devices...
+02:28:10 -   ✓ Configured: /dev/rstouch
+02:28:10 - Configuring Special Function Devices...
+02:28:10 -   ✓ Configured: /dev/fm
+02:28:10 -   ✓ Configured: /dev/autotest0
+02:28:10 -   ✓ Configured: /dev/retrostation_hdmi
+02:28:10 -   ✓ Configured: /dev/map_user
+02:28:10 -   ✓ Configured: /dev/ppp
+02:28:10 -   ✓ Configured: /dev/tun
+02:28:10 - Configuring Additional System Devices...
+02:28:10 -   ✓ Configured: /dev/uhid
+02:28:10 -   ✓ Configured: /dev/uinput
+02:28:10 -   ✓ Configured: /dev/rfkill
+02:28:11 -   ✓ Configured: /dev/fuse
+02:28:11 -   ✓ Configured: /dev/ion
+02:28:11 -   ✓ Configured: /dev/ashmem
+02:28:11 - === Hardware Configuration Completed at Sat Nov  8 02:28:11 GMT 2025 ===
+
+==========================================
+UNISOC Hardware Configuration Summary
+==========================================
+02:28:11 - UNISOC LTE devices: 47
+02:28:11 - Serial devices: 10
+02:28:11 - GPIO devices: 6
+02:28:11 - I2C devices: 6
+02:28:11 - Audio devices: 28
+02:28:11 - Input devices: 6
+02:28:11 - V4L2 video devices: 16
+02:28:11 - V4L2 media devices: 4
+02:28:11 - V4L2 subdev devices: 8
+
+Full log: /data/unisoc_hardware.log
+==========================================
+[2025-11-08 02:28:11] ✓ SUCCESS: Hardware setup completed successfully
+[2025-11-08 02:28:11] ✓ SUCCESS: Hardware setup script execution finished
+[2025-11-08 02:28:11] ℹ INFO: Execution time: 17 seconds
+[2025-11-08 02:28:11] 
+[2025-11-08 02:28:12] ℹ INFO: HARDWARE CONFIGURATION VERIFICATION
+[2025-11-08 02:28:12] ℹ INFO: Verifying device configuration on host:
+[2025-11-08 02:28:12] ℹ INFO:   UNISOC LTE pipes configured: 15
+[2025-11-08 02:28:12] ℹ INFO:   UNISOC LTE TTY configured: 32
+[2025-11-08 02:28:12] ℹ INFO:   GPIO chips accessible: 6
+[2025-11-08 02:28:12] ℹ INFO:   I2C devices accessible: 6
+[2025-11-08 02:28:12] ℹ INFO:   Video devices created: 16
+[2025-11-08 02:28:12] ℹ INFO:   ION devices created: 1
+[2025-11-08 02:28:12] ✓ SUCCESS:   Mali GPU device created: /dev/mali0
+[2025-11-08 02:28:12] ℹ INFO:     Device info: crw-rw-rw- 1 root root 10,  21 2025-11-08 02:27 /dev/mali0
+[2025-11-08 02:28:12] ℹ INFO:   Hardware setup log created: /data/unisoc_hardware.log
+[2025-11-08 02:28:12] ℹ INFO:   Last 10 lines of hardware log:
+[2025-11-08 02:28:12] ℹ INFO:     02:28:11 - === Hardware Configuration Completed at Sat Nov  8 02:28:11 GMT 2025 ===
+[2025-11-08 02:28:12] ℹ INFO:     02:28:11 - UNISOC LTE devices: 47
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - Serial devices: 10
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - GPIO devices: 6
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - I2C devices: 6
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - Audio devices: 28
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - Input devices: 6
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - V4L2 video devices: 16
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - V4L2 media devices: 4
+[2025-11-08 02:28:13] ℹ INFO:     02:28:11 - V4L2 subdev devices: 8
+[2025-11-08 02:28:13] 
+[2025-11-08 02:28:13] =========================================================================
+[2025-11-08 02:28:13] === PHASE 8: /dev REFRESH & BINDERFS INTEGRATION ===
+[2025-11-08 02:28:13] =========================================================================
+[2025-11-08 02:28:13] ℹ INFO: Version 2.3: Remounting /dev and setting up binderfs AFTER hardware setup
+[2025-11-08 02:28:13] ℹ INFO: This ensures all newly created devices are visible in chroot
+[2025-11-08 02:28:13] 
+[2025-11-08 02:28:13] → ATTEMPT: Unmounting /dev to refresh with newly created devices...
+umount: /mnt/distro/debian-chroot/dev: Device or resource busy
+[2025-11-08 02:28:13] → ATTEMPT: Remounting /dev with all hardware devices...
+[2025-11-08 02:28:14] ✓ SUCCESS: /dev remounted successfully
+[2025-11-08 02:28:14] ℹ INFO: Device nodes now available: 205 entries
+[2025-11-08 02:28:14] 
+[2025-11-08 02:28:14] ℹ INFO: KEY DEVICE VERIFICATION IN CHROOT
+[2025-11-08 02:28:14] ℹ INFO: Verifying key devices in chroot environment:
+[2025-11-08 02:28:14] ✓ SUCCESS:   /dev/dri/card0 visible (DRM device)
+[2025-11-08 02:28:14] ✓ SUCCESS:   /dev/video0 visible (V4L2 camera)
+[2025-11-08 02:28:14] ℹ INFO:   /dev/mali0 exists on host
+[2025-11-08 02:28:14] ✓ SUCCESS:   /dev/mali0 visible in chroot (Mali GPU direct access)
+[2025-11-08 02:28:14] ℹ INFO:     Device: crw-rw-rw- 1 root root 10,  21 2025-11-08 02:27 /mnt/distro/debian-chroot/dev/mali0
+[2025-11-08 02:28:14] ℹ INFO:   Video devices visible: 16
+[2025-11-08 02:28:14] 
+[2025-11-08 02:28:14] ℹ INFO: BINDERFS ANDROID HARDWARE INTEGRATION
+[2025-11-08 02:28:14] ℹ INFO: Setting up binderfs for Android hardware integration
+[2025-11-08 02:28:14] ℹ INFO: This enables binder IPC for Android hardware services
+[2025-11-08 02:28:14] 
+[2025-11-08 02:28:15] → ATTEMPT: Creating binderfs mount point...
+[2025-11-08 02:28:15] ✓ SUCCESS: binderfs directory created: /mnt/distro/debian-chroot/dev/binderfs
+[2025-11-08 02:28:15] → ATTEMPT: Mounting binderfs...
+[2025-11-08 02:28:15] ✓ SUCCESS: binderfs mounted successfully
+[2025-11-08 02:28:15] ℹ INFO: Mount verification: binder on /dev/binderfs type binder (rw,relatime,max=1048576,stats=global)
+binder on /mnt/distro/debian-chroot/dev/binderfs type binder (rw,relatime,max=1048576)
+binder on /dev/binderfs type binder (rw,relatime,max=1048576)
+binder on /mnt/distro/debian-chroot/dev/binderfs type binder (rw,relatime,max=1048576)
+binder on /dev/binderfs type binder (rw,relatime,max=1048576)
+[2025-11-08 02:28:15] 
+[2025-11-08 02:28:15] → ATTEMPT: Setting proper permissions for binder devices...
+[2025-11-08 02:28:15] ✓ SUCCESS: binder permissions set: 
+[2025-11-08 02:28:15] ✓ SUCCESS: hwbinder permissions set: 
+[2025-11-08 02:28:15] ✓ SUCCESS: vndbinder permissions set: 
+[2025-11-08 02:28:15] ℹ INFO: Binder device permissions set: 3/3
+[2025-11-08 02:28:15] 
+[2025-11-08 02:28:15] → ATTEMPT: Creating symbolic links for binder devices in /dev...
+[2025-11-08 02:28:16] ✓ SUCCESS: Created symlink: /dev/binder -> /dev/binderfs/binder
+[2025-11-08 02:28:16] ✓ SUCCESS: Created symlink: /dev/hwbinder -> /dev/binderfs/hwbinder
+[2025-11-08 02:28:16] ✓ SUCCESS: Created symlink: /dev/vndbinder -> /dev/binderfs/vndbinder
+[2025-11-08 02:28:16] ℹ INFO: Symlinks created: 3/3
+[2025-11-08 02:28:16] 
+[2025-11-08 02:28:16] ℹ INFO: binderfs setup complete, verifying structure:
+total 0
+drwxr-xr-x  2 root root        0 2025-11-08 02:28 .
+drwxr-xr-x 15 root root     4140 2025-11-08 02:28 ..
+crw-rw-rw-  1 root root 506,   5 2025-11-08 02:28 binder
+crw-------  1 root root 506,   4 2025-11-08 02:28 binder-control
+crw-rw-rw-  1 root root 506,   6 2025-11-08 02:28 hwbinder
+crw-rw-rw-  1 root root 506,   7 2025-11-08 02:28 vndbinder
+[2025-11-08 02:28:16] 
+[2025-11-08 02:28:16] ℹ INFO: Symlinks in /dev:
+lrwxrwxrwx 1 root   root         20 2025-11-08 02:28 binder -> /dev/binderfs/binder
+drwxr-xr-x 2 root   root          0 2025-11-08 02:28 binderfs
+lrwxrwxrwx 1 root   root         22 2025-11-08 02:28 hwbinder -> /dev/binderfs/hwbinder
+lrwxrwxrwx 1 root   root         23 2025-11-08 02:28 vndbinder -> /dev/binderfs/vndbinder
+[2025-11-08 02:28:16] 
+[2025-11-08 02:28:16] ℹ INFO: /dev DEVICE ACCESSIBILITY TESTING (AUTO-DETECTION)
+[2025-11-08 02:28:16] ℹ INFO: Detecting all available device nodes in chroot context
+[2025-11-08 02:28:16] 
+[2025-11-08 02:28:16] → ATTEMPT: Running comprehensive device accessibility scan...
+=== Comprehensive /dev Device Detection ===
+
+--- Character Devices Detected ---
+Total character devices: 223
+
+--- DRM/GPU Devices ---
+/dev/dri/card0
+DRM devices found: 1
+crw-rw-rw-. 1 root cron 226, 0 Nov  8 02:27 /dev/dri/card0
+
+--- Video Devices ---
+/dev/video0
+/dev/video1
+/dev/video10
+/dev/video11
+/dev/video12
+/dev/video13
+/dev/video14
+/dev/video15
+/dev/video2
+/dev/video3
+/dev/video4
+/dev/video5
+/dev/video6
+/dev/video7
+/dev/video8
+/dev/video9
+Video devices found: 16
+crw-rw-rw-. 1 root root 81,  0 Nov  8 02:28 /dev/video0
+crw-rw-rw-. 1 root root 81,  1 Nov  8 02:28 /dev/video1
+crw-rw-rw-. 1 root root 81, 10 Nov  8 02:28 /dev/video10
+crw-rw-rw-. 1 root root 81, 11 Nov  8 02:28 /dev/video11
+crw-rw-rw-. 1 root root 81, 12 Nov  8 02:28 /dev/video12
+crw-rw-rw-. 1 root root 81, 13 Nov  8 02:28 /dev/video13
+crw-rw-rw-. 1 root root 81, 14 Nov  8 02:28 /dev/video14
+crw-rw-rw-. 1 root root 81, 15 Nov  8 02:28 /dev/video15
+crw-rw-rw-. 1 root root 81,  2 Nov  8 02:28 /dev/video2
+crw-rw-rw-. 1 root root 81,  3 Nov  8 02:28 /dev/video3
+
+--- Input Devices ---
+/dev/input/event0
+/dev/input/event1
+/dev/input/event2
+/dev/input/event3
+/dev/input/event4
+/dev/input/mice
+Input devices found: 6
+crw-rw-rw-. 1 root console 13, 64 Nov  8 02:27 /dev/input/event0
+crw-rw-rw-. 1 root console 13, 65 Nov  8 02:27 /dev/input/event1
+crw-rw-rw-. 1 root console 13, 66 Nov  8 02:27 /dev/input/event2
+crw-rw-rw-. 1 root console 13, 67 Nov  8 02:27 /dev/input/event3
+crw-rw-rw-. 1 root console 13, 68 Nov  8 02:27 /dev/input/event4
+crw-rw-rw-. 1 root console 13, 63 Nov  8 02:27 /dev/input/mice
+
+--- Framebuffer Devices ---
+No framebuffer devices found
+
+--- Binder Devices ---
+✓ /dev/binder exists
+lrwxrwxrwx. 1 root root 20 Nov  8 02:28 /dev/binder -> /dev/binderfs/binder
+✓ /dev/hwbinder exists
+lrwxrwxrwx. 1 root root 22 Nov  8 02:28 /dev/hwbinder -> /dev/binderfs/hwbinder
+✓ /dev/vndbinder exists
+lrwxrwxrwx. 1 root root 23 Nov  8 02:28 /dev/vndbinder -> /dev/binderfs/vndbinder
+
+--- binderfs Content ---
+binderfs entries: 4
+total 0
+drwxr-xr-x.  2 root root      0 Nov  8 02:28 .
+drwxr-xr-x. 15 root root   4140 Nov  8 02:28 ..
+crw-rw-rw-.  1 root root 506, 5 Nov  8 02:28 binder
+crw-------.  1 root root 506, 4 Nov  8 02:28 binder-control
+crw-rw-rw-.  1 root root 506, 6 Nov  8 02:28 hwbinder
+crw-rw-rw-.  1 root root 506, 7 Nov  8 02:28 vndbinder
+
+--- Mali GPU Devices ---
+✓ /dev/mali0 exists
+crw-rw-rw-. 1 root root 10, 21 Nov  8 02:27 /dev/mali0
+
+--- ION Memory Devices ---
+/dev/ion
+ION devices found: 1
+crw-rw-rw-. 1 root root 10, 63 Nov  8 02:27 /dev/ion
+
+--- Essential System Devices ---
+✓ /dev/null
+✓ /dev/zero
+✓ /dev/random
+✓ /dev/urandom
+✓ /dev/tty
+
+=== Device Detection Complete ===
+[2025-11-08 02:28:17] ✓ SUCCESS: /dev device detection completed
+[2025-11-08 02:28:17] 
+[2025-11-08 02:28:17] =========================================================================
+[2025-11-08 02:28:17] === PHASE 9: BIND MOUNTING SD CARD TO CHROOT ===
+[2025-11-08 02:28:17] =========================================================================
+[2025-11-08 02:28:17] ℹ INFO: Making SD card accessible within chroot environment
+[2025-11-08 02:28:17] 
+[2025-11-08 02:28:17] ✓ SUCCESS: SD card bind mounted successfully
+[2025-11-08 02:28:17] ℹ INFO: SD card accessible at /sdcard (27 items)
+[2025-11-08 02:28:17] ℹ INFO: SD card content sample:
+[2025-11-08 02:28:17] ℹ INFO:   - 133_Eevee_blkwht_cry.mp3
+[2025-11-08 02:28:17] ℹ INFO:   - 76.sh
+[2025-11-08 02:28:17] ℹ INFO:   - 77.sh
+[2025-11-08 02:28:18] ℹ INFO:   - 777.sh
+[2025-11-08 02:28:18] ℹ INFO:   - 888.sh
+[2025-11-08 02:28:18] 
+[2025-11-08 02:28:18] =========================================================================
+[2025-11-08 02:28:18] === PHASE 9.5: MESA INSTALLATION PREPARATION ===
+[2025-11-08 02:28:18] =========================================================================
+[2025-11-08 02:28:18] ℹ INFO: Mesa 25.3.0 Android container installation
+[2025-11-08 02:28:18] 
+[2025-11-08 02:28:18] ℹ INFO: Checking for Mesa tarball: 
+[2025-11-08 02:28:18] ⚠ WARNING: Mesa tarball not found on SD card
+[2025-11-08 02:28:18] ℹ INFO: Expected location: /sdcard/
+[2025-11-08 02:28:18] ℹ INFO: Mesa installation will be skipped
+[2025-11-08 02:28:18] ℹ INFO: To install Mesa, place tarball on SD card root
+[2025-11-08 02:28:18] 
+[2025-11-08 02:28:18] =========================================================================
+[2025-11-08 02:28:18] === PHASE 10: MESA 25.3.0 INSTALLATION ===
+[2025-11-08 02:28:18] =========================================================================
+[2025-11-08 02:28:18] ℹ INFO: Installing Mesa Android container drivers
+[2025-11-08 02:28:19] 
+[2025-11-08 02:28:19] ℹ INFO: Mesa tarball not available, skipping installation
+[2025-11-08 02:28:19] ℹ INFO: To install Mesa, ensure tarball is on SD card before running script
+[2025-11-08 02:28:19] 
+[2025-11-08 02:28:19] =========================================================================
+[2025-11-08 02:28:19] === PHASE 12: PRE-TEST DISPLAY RESOURCE CLEANUP (V21.0) ===
+[2025-11-08 02:28:19] =========================================================================
+[2025-11-08 02:28:19] ℹ INFO: Ensuring display is free before GPU rendering tests
+[2025-11-08 02:28:19] 
+[2025-11-08 02:28:19] 📜 HISTORY: Why this phase is critical:
+[2025-11-08 02:28:19] 📜 HISTORY:   V20.0: modetest held display resources, blocking kmscube
+[2025-11-08 02:28:19] 📜 HISTORY:   V21.0: Clear any existing display locks before starting
+[2025-11-08 02:28:19] 
+[2025-11-08 02:28:19] → ATTEMPT: Checking and clearing display resources...
+[2025-11-08 02:28:19] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:19] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:19] ✓ SUCCESS: Display resources cleared and ready
+[2025-11-08 02:28:20] 
+[2025-11-08 02:28:20] =========================================================================
+[2025-11-08 02:28:20] === PHASE 13: KMSCUBE WITH VIRGL RENDERER - 30 SECOND TEST (V21.0) ===
+[2025-11-08 02:28:20] =========================================================================
+[2025-11-08 02:28:20] ℹ INFO: Testing kmscube with VirGL GPU virtualization renderer
+[2025-11-08 02:28:20] ℹ INFO: VirGL path: OpenGL → VirGL → DRM/KMS
+[2025-11-08 02:28:20] ℹ INFO: Duration: 30 seconds (extended from previous 3s tests)
+[2025-11-08 02:28:20] 
+[2025-11-08 02:28:20] 📜 HISTORY: kmscube + VirGL history:
+[2025-11-08 02:28:20] 📜 HISTORY:   V15-V16: kmscube segfaulted (no VirGL)
+[2025-11-08 02:28:20] 📜 HISTORY:   V20.0: VirGL configured but test not completed (resource conflict)
+[2025-11-08 02:28:20] 📜 HISTORY:   V21.0: Testing with clean display resources
+[2025-11-08 02:28:20] 
+[2025-11-08 02:28:20] → ATTEMPT: Ensuring display is free before VirGL test...
+[2025-11-08 02:28:20] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:20] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:20] → ATTEMPT: Running kmscube with VirGL renderer (30 seconds)...
+=========================================================================
+=== KMSCUBE WITH VIRGL RENDERER (30 SECOND TEST) ===
+=========================================================================
+
+VirGL Configuration:
+  MESA_LOADER_DRIVER_OVERRIDE: virgl
+  GALLIUM_DRIVER: virpipe
+  LIBGL_ALWAYS_SOFTWARE: 0 (hardware mode)
+  Target Device: /dev/dri/card0
+  Expected Path: OpenGL → VirGL → DRM
+
+✓ kmscube binary available: /usr/bin/kmscube
+
+**********************************************************************
+*** STARTING KMSCUBE WITH VIRGL ***
+*** Duration: 30 seconds ***
+*** Watch physical display for 3D rotating cube ***
+*** VirGL provides GPU virtualization layer ***
+**********************************************************************
+
+Starting in 2 seconds...
+========== kmscube VirGL output ==========
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+lost connection to rendering server on 8 read -1 22
+-bash: line 104:  3406 Aborted                 timeout 30 kmscube -D /dev/dri/card0 2>&1
+========== end output ==========
+
+kmscube VirGL test completed after 1 seconds
+Exit code: 134
+
+⚠ UNEXPECTED EXIT: 134
+
+  Runtime: 1 seconds
+  Check output above for error details
+
+=========================================================================
+[2025-11-08 02:28:24] ✓ SUCCESS: kmscube VirGL test completed
+[2025-11-08 02:28:24] ℹ INFO: Releasing display resources after VirGL test...
+[2025-11-08 02:28:26] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:27] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:27] 
+[2025-11-08 02:28:27] =========================================================================
+[2025-11-08 02:28:27] === PHASE 14: KMSCUBE WITH ZINK DRIVER - 30 SECOND TEST (V21.0) ===
+[2025-11-08 02:28:27] =========================================================================
+[2025-11-08 02:28:27] ℹ INFO: Testing kmscube with Zink OpenGL-over-Vulkan translation
+[2025-11-08 02:28:27] ℹ INFO: Zink path: OpenGL → Zink → Vulkan/Panfrost → Mali kernel
+[2025-11-08 02:28:27] ℹ INFO: Duration: 30 seconds
+[2025-11-08 02:28:27] 
+[2025-11-08 02:28:27] 📜 HISTORY: kmscube + Zink history:
+[2025-11-08 02:28:27] 📜 HISTORY:   V20.0: Zink + Panfrost Vulkan ICD configured but not tested
+[2025-11-08 02:28:27] 📜 HISTORY:   V21.0: Testing with clean display resources
+[2025-11-08 02:28:27] 
+[2025-11-08 02:28:27] → ATTEMPT: Ensuring display is free before Zink test...
+[2025-11-08 02:28:27] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:27] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:28] → ATTEMPT: Running kmscube with Zink driver (30 seconds)...
+=========================================================================
+=== KMSCUBE WITH ZINK DRIVER (30 SECOND TEST) ===
+=========================================================================
+
+Zink Configuration:
+  MESA_LOADER_DRIVER_OVERRIDE: zink
+  GALLIUM_DRIVER: zink
+  VK_ICD_FILENAMES: panfrost_icd.aarch64.json
+  Expected Path: OpenGL → Zink → Vulkan → Panfrost → Mali
+
+✓ kmscube binary available
+
+**********************************************************************
+*** STARTING KMSCUBE WITH ZINK ***
+*** Duration: 30 seconds ***
+*** Watch physical display for 3D rotating cube ***
+*** Zink translates OpenGL to Vulkan for Panfrost ***
+**********************************************************************
+
+Starting in 2 seconds...
+========== kmscube Zink output ==========
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+-bash: line 98:  3511 Segmentation fault      timeout 30 kmscube -D /dev/dri/card0 2>&1
+========== end output ==========
+
+kmscube Zink test completed after 0 seconds
+Exit code: 139
+
+✗ SEGMENTATION FAULT with Zink (exit 139)
+
+  Crash after 0 seconds
+  Zink/Panfrost Vulkan incompatibility
+
+=========================================================================
+[2025-11-08 02:28:30] ✓ SUCCESS: kmscube Zink test completed
+[2025-11-08 02:28:30] ℹ INFO: Releasing display resources after Zink test...
+[2025-11-08 02:28:32] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:32] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:32] 
+[2025-11-08 02:28:32] =========================================================================
+[2025-11-08 02:28:32] === PHASE 15: KMSCUBE WITH PANFROST DIRECT - 30 SECOND TEST (V21.0) ===
+[2025-11-08 02:28:32] =========================================================================
+[2025-11-08 02:28:32] ℹ INFO: Testing kmscube with native Panfrost Mali driver
+[2025-11-08 02:28:32] ℹ INFO: Panfrost path: OpenGL → Panfrost → Mali kernel (mali_gondul)
+[2025-11-08 02:28:32] ℹ INFO: Duration: 30 seconds
+[2025-11-08 02:28:33] 
+[2025-11-08 02:28:33] 📜 HISTORY: kmscube + Panfrost history:
+[2025-11-08 02:28:33] 📜 HISTORY:   V18: Panfrost driver detected but not tested with kmscube
+[2025-11-08 02:28:33] 📜 HISTORY:   V20.0: Configured but test blocked by resource conflict
+[2025-11-08 02:28:33] 📜 HISTORY:   V21.0: Testing with clean display resources
+[2025-11-08 02:28:33] 
+[2025-11-08 02:28:33] → ATTEMPT: Ensuring display is free before Panfrost test...
+[2025-11-08 02:28:33] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:33] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:33] → ATTEMPT: Running kmscube with Panfrost native driver (30 seconds)...
+=========================================================================
+=== KMSCUBE WITH PANFROST DIRECT (30 SECOND TEST) ===
+=========================================================================
+
+Panfrost Configuration:
+  MESA_LOADER_DRIVER_OVERRIDE: panfrost
+  GALLIUM_DRIVER: panfrost
+  PAN_MESA_DEBUG: 1
+  Expected Path: OpenGL → Panfrost (native) → mali_gondul kernel module
+
+✓ kmscube binary available
+
+**********************************************************************
+*** STARTING KMSCUBE WITH PANFROST NATIVE DRIVER ***
+*** Duration: 30 seconds ***
+*** Watch physical display for 3D rotating cube ***
+*** This is direct Mali G52 GPU rendering via open-source driver ***
+**********************************************************************
+
+Starting in 2 seconds...
+========== kmscube Panfrost output ==========
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+libGL: Can't open configuration file /etc/drirc: No such file or directory.
+libGL: Can't open configuration file /home/p3plus/.drirc: No such file or directory.
+-bash: line 100:  3619 Segmentation fault      timeout 30 kmscube -D /dev/dri/card0 2>&1
+========== end output ==========
+
+kmscube Panfrost test completed after 0 seconds
+Exit code: 139
+
+✗ SEGMENTATION FAULT with Panfrost (exit 139)
+
+  Crash after 0 seconds
+  Panfrost incompatible with mali_gondul r27p0-01eac0
+  May need different kernel module version
+
+=========================================================================
+[2025-11-08 02:28:35] ✓ SUCCESS: kmscube Panfrost test completed
+[2025-11-08 02:28:35] ℹ INFO: Final display resource cleanup...
+[2025-11-08 02:28:35] ℹ INFO: Checking display resource availability: /dev/dri/card0
+[2025-11-08 02:28:36] ✓ SUCCESS: Display device is free
+[2025-11-08 02:28:36] 
+[2025-11-08 02:28:36] =========================================================================
+[2025-11-08 02:28:36] === FINAL TEST SUMMARY (V21.0 GPU RENDERING) ===
+[2025-11-08 02:28:36] =========================================================================
+
+=========================================================================
+=== V21.0 GPU RENDERING RESULTS ===
+=========================================================================
+
+Focus: 30-second GPU rendering tests with display resource management
+
+GPU Rendering Test Results:
+
+GPU tests completed: 3/3
+
+Tested GPU Rendering Paths:
+  1. VirGL: OpenGL → VirGL virtualization → DRM
+  2. Zink: OpenGL → Zink → Vulkan → Panfrost → Mali
+  3. Panfrost: OpenGL → Panfrost (native) → Mali kernel
+
+Baseline Status (from V17.0):
+  ✓ DRM display working (modetest rendered visual patterns)
+  ✓ CPU rendering functional
+
+V21.0 Improvements:
+  ✓ Display resource checking with fuser
+  ✓ Automatic force-kill after 30s timeout
+  ✓ Proper cleanup between GPU tests
+  ✓ Extended test duration (30s vs previous 3-5s)
+
+Logs: /sdcard/logs/sway_test_20251108_022734.log
+=========================================================================
+[2025-11-08 02:28:36] =========================================================================
+[2025-11-08 02:28:37] === V21.0 GPU RENDERING TESTS COMPLETE ===
+[2025-11-08 02:28:37] =========================================================================
