@@ -66,7 +66,20 @@ install_pkg openssl
 install_pkg libblkid1
 install_pkg wine
 install_pkg steam-devices
-
+install_pkg libglvnd-dev
+install_pkg libxkbcommon-dev
+install_pkg meson
+install_pkg cmake
+install_pkg libvulkan-dev
+install_pkg libglm-dev
+install_pkg libpango1.0-dev
+install_pkg libcairo2-dev
+install_pkg libxml2-dev
+install_pkg gcc
+install_pkg g++
+install_pkg extrepo
+install_pkg libselinux1
+install_pkg strace
 
 log_msg "Note: mdevd and mdev-conf not needed on Debian (uses udev)"
 
@@ -164,6 +177,7 @@ install_pkg libdrm2
 install_pkg libdrm-dev
 install_pkg libdrm-tests
 install_pkg mesa-utils
+install_pkg libglx-mesa0
 install_pkg libgl1-mesa-dev
 install_pkg libgl1-mesa-dri
 install_pkg libgl1
@@ -172,11 +186,14 @@ install_pkg libegl1-mesa
 install_pkg libgbm1
 install_pkg mesa-utils-extra
 install_pkg kmscube
-
-# Panfrost driver for ARM Mali GPU
-log_msg "=== Installing Panfrost Driver for ARM Mali GPU ==="
+install_pkg libgbm-dev
+install_pkg libegl1-mesa-dev
+install_pkg libgles2-mesa-dev
 install_pkg mesa-vulkan-drivers
-log_msg "Panfrost vulkan driver installed for ARM Mali GPU support (included in mesa-vulkan-drivers)"
+install_pkg mesa-vdpau-drivers
+install_pkg drm-info
+install_pkg libvirglrenderer-dev
+install_pkg libvirglrenderer1
 
 # Vulkan support
 log_msg "=== Installing Vulkan Support ==="
@@ -184,54 +201,27 @@ install_pkg vulkan-validationlayers
 install_pkg libvulkan1
 install_pkg vulkan-tools
 
-# SDL2 for graphics applications
-install_pkg libsdl2-2.0-0
-install_pkg libsdl2-dev
+# OpenBox
+log_msg "=== Installing Openbox ==="
+install_pkg openbox
 
-# X.org and Display Drivers
-log_msg "=== Installing X.org Server and Display Drivers ==="
-install_pkg xserver-xorg
-install_pkg xvfb
-install_pkg libvirglrenderer1
-log_msg "Note: modesetting driver is built into xserver-xorg-core"
-install_pkg xserver-xorg-input-evdev
-install_pkg xserver-xorg-input-libinput
-install_pkg xinit
-install_pkg x11-xserver-utils
-install_pkg x11-utils
-log_msg "=== Installing X11 Utilities ==="
-install_pkg xauth
-install_pkg x11-xkb-utils
-install_pkg xdotool
-install_pkg wmctrl
-install_pkg conky-all
+# LightDM
+log_msg "=== Installing LightDM ==="
+install_pkg lightdm
 
 # Wayland
-log_msg "=== Installing Wayland ==="
-log_msg "Note: mkrundir not needed on Debian (handled by systemd)"
-install_pkg elogind
 install_pkg libwayland-client0
 install_pkg libwayland-server0
 install_pkg cage
 install_pkg greetd
 install_pkg wlgreet
-install_pkg wayland
-
-
-# Sway
-log_msg "=== Installing Sway ==="
-install_pkg sway
-install_pkg sway-backgrounds
-install_pkg swaybg
-install_pkg swayidle
-install_pkg swaylock
-install_pkg xdg-desktop-portal-wlr
-install_pkg swappy
-install_pkg grim
-install_pkg slurp
-install_pkg mako-notifier
-install_pkg libnotify4
-
+install_pkg libwayland-dev
+install_pkg wayland-utils
+install_pkg wayland-protocols
+install_pkg libweston-14-0
+install_pkg libweston-14-dev
+install_pkg imv
+install_pkg wl-clipboard
 
 # Weston
 log_msg "=== Installing Weston ==="
@@ -239,14 +229,22 @@ install_pkg weston
 install_pkg seatd
 install_pkg fonts-dejavu
 
-# Fluxbox Window Manager and Related Packages
-log_msg "=== Installing Fluxbox Window Manager ==="
-install_pkg fluxbox
-install_pkg xterm
-install_pkg xfonts-terminus
-install_pkg fonts-dejavu
-install_pkg fonts-liberation
-install_pkg fonts-noto
+# Wayfire
+log_msg "=== Installing Wayfire ==="
+install_pkg wayfire
+install_pkg wayfire-dev
+
+# wlroots requirement
+log_msg "=== Installing wlroots ==="
+install_pkg xorg
+install_pkg xvfb
+install_pkg wayvnc
+install_pkg wlr-randr
+install_pkg sway
+install_pkg libwlroots-0.18
+install_pkg libwlroots-0.18-dev
+install_pkg libwlroots-0.18-examples
+install_pkg vncviewer
 
 # Network Configuration (for ppp, tun devices)
 log_msg "=== Installing Network Packages ==="
@@ -293,7 +291,6 @@ install_pkg i2c-tools
 log_msg "=== Installing GPIO Packages ==="
 install_pkg libgpiod2
 install_pkg libgpiod-dev
-log_msg "Note: gpiod tools are included in libgpiod2 package"
 install_pkg python3
 install_pkg python3-dev
 install_pkg python3-pip
@@ -330,11 +327,13 @@ log_msg "Note: hwclock is provided by util-linux (already installed)"
 
 # Bluetooth utilities and tools
 log_msg "=== Installing Bluetooth ==="
+install_pkg bluetooth
 install_pkg bluez
 install_pkg bluez-obexd
 install_pkg bluez-meshd
 install_pkg bluez-alsa-utils
 install_pkg libopenobex2
+install_pkg bluetoothctl
 
 # File Manager and Desktop Utilities
 log_msg "=== Installing Desktop Applications ==="
@@ -370,6 +369,24 @@ install_pkg tar
 install_pkg gzip
 install_pkg bzip2
 install_pkg xz-utils
+
+# Joystick configuration
+log_msg "=== Installing Joystick Tools ==="
+install_pkg joystick
+install_pkg joystick-dbgsym
+install_pkg xserver-xorg-input-joystick
+install_pkg xserver-xorg-input-joystick-dbgsym
+install_pkg xserver-xorg-input-joystick-dev
+install_pkg evtest
+install_pkg xboxdrv
+install_pkg xboxdrv-dbgsym
+install_pkg antimicro
+
+# Browsers
+log_msg "=== Installing Web Browsers ==="
+install_pkg firefox
+install_pkg chromium
+install_pkg torbrowser-launcher
 
 log_msg "=== Package Installation Completed at $(date) ==="
 log_msg "Check $LOG_FILE for detailed installation log"

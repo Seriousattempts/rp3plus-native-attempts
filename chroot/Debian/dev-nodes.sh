@@ -447,7 +447,7 @@ setup_device_safe "/dev/vndbinder" "root" "666"
 # Add current user to essential device access groups
 echo "Adding $CURRENT_USER to essential device access groups..." | tee -a "$LOG_FILE"
 
-essential_groups="root audio video input dialout plugdev netdev bluetooth disk tty adm sudo users render kvm"
+essential_groups="root audio video input dialout plugdev netdev bluetooth disk tty adm sudo users render kvm render"
 for group in $essential_groups; do
     add_user_to_group_safe "$CURRENT_USER" "$group"
 done

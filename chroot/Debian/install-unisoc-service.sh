@@ -2,6 +2,10 @@
 # UNISOC Hardware Service Installation Script
 # Compatible with both systemd and SysV init systems
 
+# Set PATH explicitly for chroot environment
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+
 echo "=== Installing UNISOC Hardware Service ==="
 
 # Detect init system

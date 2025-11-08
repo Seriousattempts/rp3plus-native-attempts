@@ -1,0 +1,1359 @@
+#!/system/bin/sh
+
+# =========================================================================
+# Debian Trixie Comprehensive Hardware Test Script
+# Device: Retroid Pocket 3 Plus (UMS512 / Mali-G52)
+# Version: 5.0 - Fixed Debian Paths & Mesa Installation
+# =========================================================================
+
+# === PARTITION CONFIGURATION ===
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+DISTRO_MOUNT="/mnt/distro"
+DISTRO_ROOT="/mnt/distro/debian-chroot"
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT=""
+TEMP_DIR=""
+VENDOR_MOUNT=""
+VENDOR_IMG=""
+VENDOR_LOOP=""
+LOGFILE="/tmp/debian_v5_test.log"
+TEST_OUTPUT=""
+PACKAGE_LIST=""
+DEBIAN_USER="p3plus"
+MESA_TARBALL="mesa-for-android-container_25.3.0-devel-20250725_debian_arm64.tar.gz"
+
+# === LOGGING SETUP ===
+> "$LOGFILE"
+log() {
+    TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'TIME')"
+    echo "[$TIMESTAMP] $*" | tee -a "$LOGFILE"
+}
+
+log_separator() {
+    log "========================================================================="
+}
+
+log_subsection() {
+    log "-------------------------------------------------------------------------"
+}
+
+log_success() {
+    log "✓ SUCCESS: $*"
+}
+
+log_error() {
+    log "✗ ERROR: $*"
+}
+
+log_warning() {
+    log "⚠ WARNING: $*"
+}
+
+log_info() {
+    log "ℹ INFO: $*"
+}
+
+log_attempt() {
+    log "→ ATTEMPT: $*"
+}
+
+log_separator
+log "=== Debian Trixie Comprehensive Hardware Test Script ==="
+log "=== Version 5.0 - Fixed Debian Paths & Mesa Installation ==="
+log_separator
+log_info "Device: Retroid Pocket 3 Plus"
+log_info "Platform: UNISOC UMS512 with Mali-G52 GPU"
+log_info "Kernel: $(uname -r)"
+log_info "Architecture: $(uname -m)"
+log_info "Hostname: $(hostname)"
+log_info "Test Date: $(date '+%A, %B %d, %Y at %H:%M:%S %Z')"
+log ""
+
+log_info "Version 5.0 Changes:"
+log_info "  - Fixed PATH to use Debian binaries only (not Android vendor)"
+log_info "  - Previous issue: /vendor/bin contaminating chroot PATH"
+log_info "  - Added Mesa 25.3.0 installation from SD card tarball"
+log_info "  - Added panfrost_icd.aarch64.json verification"
+log_info "  - Excluded sprd_vdsp.ko module (per user request)"
+log_info "  - Vendor partition used only for kernel module loading"
+log ""
+
+# === SD CARD MOUNT FOR PERSISTENT LOGGING ===
+log_separator
+log "=== PHASE 1: SD CARD MOUNT FOR PERSISTENT LOGGING ==="
+log_separator
+
+log_info "Checking if SD card is already mounted..."
+if grep -q "$BOOT_PARTITION" /proc/mounts 2>/dev/null; then
+    SD_MOUNT=$(grep "$BOOT_PARTITION" /proc/mounts | awk '{print $2}' | head -1)
+    log_success "SD card already mounted at: $SD_MOUNT"
+    log_info "Mount details: $(mount | grep $BOOT_PARTITION)"
+else
+    log_info "SD card not mounted, attempting mount..."
+    MOUNT_ATTEMPTS=0
+    
+    for mp in /sdcard /boot /mnt/boot /mnt/sdcard; do
+        MOUNT_ATTEMPTS=$((MOUNT_ATTEMPTS + 1))
+        log_attempt "Attempt $MOUNT_ATTEMPTS: Trying mount point $mp..."
+        
+        mkdir -p "$mp" 2>/dev/null
+        if [ ! -d "$mp" ]; then
+            log_warning "Failed to create directory $mp"
+            continue
+        fi
+        
+        log_info "Directory $mp created successfully"
+        log_attempt "Attempting mount with filesystem type: exfat"
+        
+        if mount -t exfat "$BOOT_PARTITION" "$mp" 2>&1 | tee -a "$LOGFILE"; then
+            SD_MOUNT="$mp"
+            log_success "SD card successfully mounted at: $SD_MOUNT"
+            log_info "Mount verification: $(mount | grep $BOOT_PARTITION)"
+            break
+        else
+            log_warning "Mount attempt failed for $mp"
+        fi
+    done
+    
+    if [ -z "$SD_MOUNT" ]; then
+        SD_MOUNT="/tmp/boot_fallback"
+        mkdir -p "$SD_MOUNT"
+        log_error "All mount attempts failed"
+        log_warning "Using fallback location: $SD_MOUNT"
+        log_warning "Logs will NOT persist after reboot - stored in RAM only"
+    fi
+fi
+
+log ""
+log_info "Creating logs directory structure..."
+mkdir -p "$SD_MOUNT/logs" 2>/dev/null
+
+if [ -d "$SD_MOUNT/logs" ]; then
+    log_success "Logs directory created: $SD_MOUNT/logs"
+    log_info "Directory permissions: $(ls -ld $SD_MOUNT/logs)"
+else
+    log_error "Failed to create logs directory"
+fi
+
+# Relocate log to SD card with timestamp
+if [ "$SD_MOUNT" != "/tmp/boot_fallback" ] && [ -w "$SD_MOUNT/logs" ]; then
+    NEW_LOG="${SD_MOUNT}/logs/debian_v5_$(date +%Y%m%d_%H%M%S).log"
+    log_info "Attempting to relocate log file to: $NEW_LOG"
+    
+    if cat "$LOGFILE" > "$NEW_LOG" 2>/dev/null; then
+        LOGFILE="$NEW_LOG"
+        log_success "Log file successfully relocated to SD card"
+        log_info "Active log file: $LOGFILE"
+    else
+        log_error "Failed to relocate log file, continuing with temporary location"
+    fi
+else
+    log_warning "SD card logs directory not writable"
+    log_warning "Log remains in memory at: $LOGFILE"
+fi
+
+TEST_OUTPUT="${SD_MOUNT}/logs/debian_hardware_report_$(date +%Y%m%d_%H%M%S).txt"
+PACKAGE_LIST="${SD_MOUNT}/logs/debian_packages_$(date +%Y%m%d_%H%M%S).txt"
+
+log_info "Test output file: $TEST_OUTPUT"
+log_info "Package list file: $PACKAGE_LIST"
+log ""
+
+# === WAIT FOR BLOCK DEVICES ===
+log_separator
+log "=== PHASE 2: BLOCK DEVICE DETECTION ==="
+log_separator
+
+log_info "Waiting for super partition: $SUPER_PARTITION"
+WAIT=0
+WAIT_MAX=50
+
+while [ ! -b "$SUPER_PARTITION" ] && [ $WAIT -lt $WAIT_MAX ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+    if [ $((WAIT % 10)) -eq 0 ]; then
+        log_info "Still waiting... (${WAIT}/${WAIT_MAX})"
+    fi
+done
+
+if [ ! -b "$SUPER_PARTITION" ]; then
+    log_error "Super partition not found after ${WAIT_MAX} attempts"
+    log_error "Device node: $SUPER_PARTITION"
+    log_info "Available block devices in /dev/block/:"
+    ls -la /dev/block/ | grep mmcblk0 | tee -a "$LOGFILE"
+    log_info "Exiting to recovery..."
+    sync
+    exec /system/bin/realrecovery "$@"
+fi
+
+log_success "Super partition found: $SUPER_PARTITION"
+log_info "Block device info: $(ls -l $SUPER_PARTITION)"
+
+log ""
+log_info "Waiting for distro partition: $DISTRO_PARTITION"
+WAIT=0
+
+while [ ! -b "$DISTRO_PARTITION" ] && [ $WAIT -lt $WAIT_MAX ]; do
+    sleep 0.1
+    WAIT=$((WAIT + 1))
+    if [ $((WAIT % 10)) -eq 0 ]; then
+        log_info "Still waiting... (${WAIT}/${WAIT_MAX})"
+    fi
+done
+
+if [ ! -b "$DISTRO_PARTITION" ]; then
+    log_error "Distro partition not found after ${WAIT_MAX} attempts"
+    log_error "Device node: $DISTRO_PARTITION"
+    log_info "Exiting to recovery..."
+    sync
+    exec /system/bin/realrecovery "$@"
+fi
+
+log_success "Distro partition found: $DISTRO_PARTITION"
+log_info "Block device info: $(ls -l $DISTRO_PARTITION)"
+
+log ""
+log_info "Version 4.0+ Fix: Using corrected SOCKO partition path"
+log_info "Previous attempts used: /dev/block/mmcblk0p49 (incorrect)"
+log_info "Correct SOCKO partition: $SOCKO_PARTITION"
+if [ ! -b "$SOCKO_PARTITION" ]; then
+    log_warning "SOCKO partition not found: $SOCKO_PARTITION"
+    log_warning "Hardware module loading may be limited"
+else
+    log_success "SOCKO partition found: $SOCKO_PARTITION"
+    log_info "Block device info: $(ls -l $SOCKO_PARTITION)"
+fi
+log ""
+
+# === MOUNT DISTRO PARTITION ===
+log_separator
+log "=== PHASE 3: DISTRO PARTITION MOUNTING ==="
+log_separator
+
+log_info "Creating mount point: $DISTRO_MOUNT"
+mkdir -p "$DISTRO_MOUNT" 2>/dev/null
+
+if [ -d "$DISTRO_MOUNT" ]; then
+    log_success "Mount point created: $DISTRO_MOUNT"
+else
+    log_error "Failed to create mount point: $DISTRO_MOUNT"
+    log_info "Exiting to recovery..."
+    sync
+    exec /system/bin/realrecovery "$@"
+fi
+
+log_info "Attempting to mount distro partition..."
+log_info "Source: $DISTRO_PARTITION"
+log_info "Target: $DISTRO_MOUNT"
+
+if mount "$DISTRO_PARTITION" "$DISTRO_MOUNT" 2>&1 | tee -a "$LOGFILE"; then
+    log_success "Distro partition mounted successfully"
+    
+    MOUNT_INFO=$(mount | grep "$DISTRO_PARTITION")
+    log_info "Mount details: $MOUNT_INFO"
+    
+    FS_TYPE=$(echo "$MOUNT_INFO" | awk '{print $5}')
+    MOUNT_OPTS=$(echo "$MOUNT_INFO" | sed 's/.*(\(.*\))/\1/')
+    
+    log_info "Filesystem type: ${FS_TYPE:-Unknown}"
+    log_info "Mount options: ${MOUNT_OPTS:-Unknown}"
+    
+    log ""
+    log_info "Verifying mount accessibility..."
+    if ls "$DISTRO_MOUNT" >/dev/null 2>&1; then
+        log_success "Mount point is accessible"
+    else
+        log_error "Mount point is not accessible"
+    fi
+else
+    log_error "Failed to mount distro partition"
+    log_info "Checking partition filesystem..."
+    blkid "$DISTRO_PARTITION" 2>&1 | tee -a "$LOGFILE"
+    log_info "Exiting to recovery..."
+    sync
+    exec /system/bin/realrecovery "$@"
+fi
+log ""
+
+# === INSPECT PARTITION 77 ===
+log_separator
+log "=== PHASE 4: PARTITION 77 INSPECTION (Debian Rootfs) ==="
+log_separator
+
+log_info "Gathering partition information..."
+log ""
+log_info "Mount point contents (top level):"
+log_subsection
+ls -lah "$DISTRO_MOUNT" 2>&1 | tee -a "$LOGFILE"
+log_subsection
+
+log ""
+log_info "Disk usage statistics:"
+df -h "$DISTRO_MOUNT" 2>&1 | tee -a "$LOGFILE"
+log ""
+
+# === VERIFY DEBIAN ROOTFS ===
+log_separator
+log "=== PHASE 5: DEBIAN ROOTFS VERIFICATION ==="
+log_separator
+
+log_info "Using rootfs path: $DISTRO_ROOT"
+log_info "Verifying rootfs existence..."
+
+if [ ! -d "$DISTRO_ROOT" ]; then
+    log_error "Debian rootfs not found at: $DISTRO_ROOT"
+    log_info "Contents of $DISTRO_MOUNT:"
+    find "$DISTRO_MOUNT" -maxdepth 2 -type d 2>&1 | tee -a "$LOGFILE"
+    umount "$DISTRO_MOUNT" 2>/dev/null
+    sync
+    exec /system/bin/realrecovery "$@"
+fi
+
+log_success "Debian rootfs directory exists"
+
+log ""
+log_info "Verifying critical rootfs directories..."
+CRITICAL_DIRS="etc usr var home root boot dev proc sys tmp run"
+MISSING_DIRS=""
+
+for dir in $CRITICAL_DIRS; do
+    if [ -d "$DISTRO_ROOT/$dir" ]; then
+        log_success "Found: /$dir"
+    else
+        log_warning "Missing: /$dir"
+        MISSING_DIRS="$MISSING_DIRS $dir"
+    fi
+done
+
+if [ -n "$MISSING_DIRS" ]; then
+    log_warning "Some directories are missing:$MISSING_DIRS"
+    log_info "This may indicate an incomplete installation"
+else
+    log_success "All critical directories present"
+fi
+
+log ""
+log_info "Checking Debian binary paths..."
+log_subsection
+log_info "Debian uses /usr/bin instead of /bin (usrmerge)"
+if [ -d "$DISTRO_ROOT/bin" ]; then
+    BIN_COUNT=$(find "$DISTRO_ROOT/bin" -maxdepth 1 -type f 2>/dev/null | wc -l)
+    log_info "/bin exists with $BIN_COUNT+ entries"
+fi
+
+if [ -d "$DISTRO_ROOT/usr/bin" ]; then
+    USRBIN_COUNT=$(find "$DISTRO_ROOT/usr/bin" -maxdepth 1 -type f 2>/dev/null | head -100 | wc -l)
+    if [ "$USRBIN_COUNT" -eq 100 ]; then
+        log_success "/usr/bin has 100+ binaries"
+    else
+        log_success "/usr/bin has $USRBIN_COUNT binaries"
+    fi
+else
+    log_error "/usr/bin not found - critical issue"
+fi
+
+# Check for bash (su will be used with proper environment)
+if [ -f "$DISTRO_ROOT/usr/bin/bash" ]; then
+    log_success "bash found at /usr/bin/bash"
+    BASH_SIZE=$(stat -c%s "$DISTRO_ROOT/usr/bin/bash" 2>/dev/null)
+    log_info "bash binary size: $BASH_SIZE bytes"
+    SHELL_CMD="/usr/bin/bash"
+elif [ -f "$DISTRO_ROOT/bin/bash" ]; then
+    log_success "bash found at /bin/bash"
+    SHELL_CMD="/bin/bash"
+else
+    log_warning "bash not found, using sh"
+    SHELL_CMD="/bin/sh"
+fi
+log_info "Will use shell: $SHELL_CMD"
+log_subsection
+
+log ""
+log_info "Checking user configuration..."
+log_info "Using user '$DEBIAN_USER' from /home/$DEBIAN_USER"
+if [ -d "$DISTRO_ROOT/home/$DEBIAN_USER" ]; then
+    log_success "User home directory exists: /home/$DEBIAN_USER"
+else
+    log_warning "User home directory not found: /home/$DEBIAN_USER"
+fi
+
+if grep -q "^$DEBIAN_USER:" "$DISTRO_ROOT/etc/passwd" 2>/dev/null; then
+    USER_INFO=$(grep "^$DEBIAN_USER:" "$DISTRO_ROOT/etc/passwd")
+    log_success "User exists in /etc/passwd"
+    log_info "User entry: $USER_INFO"
+else
+    log_warning "User '$DEBIAN_USER' not found in /etc/passwd"
+fi
+
+log ""
+log_info "Rootfs statistics:"
+DIR_COUNT=$(find "$DISTRO_ROOT" -type d 2>/dev/null | wc -l)
+FILE_COUNT=$(find "$DISTRO_ROOT" -type f 2>/dev/null | wc -l)
+log_info "Total directories: $DIR_COUNT"
+log_info "Total files: $FILE_COUNT"
+log ""
+
+# === MESA TARBALL CHECK AND TRANSFER ===
+log_separator
+log "=== PHASE 5B: MESA INSTALLATION PREPARATION ==="
+log_separator
+log_info "Version 5.0 Addition: Mesa 25.3.0 Android container installation"
+log ""
+
+log_info "Checking for Mesa tarball: $MESA_TARBALL"
+MESA_SD_PATH="$SD_MOUNT/$MESA_TARBALL"
+MESA_DISTRO_PATH="$DISTRO_ROOT/$MESA_TARBALL"
+
+if [ -f "$MESA_DISTRO_PATH" ]; then
+    MESA_SIZE=$(stat -c%s "$MESA_DISTRO_PATH" 2>/dev/null || echo "0")
+    MESA_MB=$((MESA_SIZE / 1024 / 1024))
+    log_success "Mesa tarball already in Debian root: ${MESA_MB}MB"
+    log_info "Location: $MESA_DISTRO_PATH"
+elif [ -f "$MESA_SD_PATH" ]; then
+    MESA_SIZE=$(stat -c%s "$MESA_SD_PATH" 2>/dev/null || echo "0")
+    MESA_MB=$((MESA_SIZE / 1024 / 1024))
+    log_info "Mesa tarball found on SD card: ${MESA_MB}MB"
+    log_info "Source: $MESA_SD_PATH"
+    log_info "Destination: $MESA_DISTRO_PATH"
+    
+    log_attempt "Copying Mesa tarball to Debian root..."
+    COPY_START=$(date +%s)
+    
+    if cp "$MESA_SD_PATH" "$MESA_DISTRO_PATH" 2>&1 | tee -a "$LOGFILE"; then
+        COPY_END=$(date +%s)
+        COPY_TIME=$((COPY_END - COPY_START))
+        log_success "Mesa tarball copied successfully"
+        log_info "Copy time: ${COPY_TIME} seconds"
+        
+        # Verify copy
+        if [ -f "$MESA_DISTRO_PATH" ]; then
+            COPIED_SIZE=$(stat -c%s "$MESA_DISTRO_PATH" 2>/dev/null || echo "0")
+            COPIED_MB=$((COPIED_SIZE / 1024 / 1024))
+            log_success "Verified: ${COPIED_MB}MB copied"
+        else
+            log_error "Copy verification failed"
+        fi
+    else
+        log_error "Failed to copy Mesa tarball"
+        log_warning "Mesa installation will be skipped"
+    fi
+else
+    log_warning "Mesa tarball not found on SD card"
+    log_info "Expected location: $MESA_SD_PATH"
+    log_info "Mesa installation will be skipped"
+    log_info "To install Mesa, place tarball on SD card root"
+fi
+log ""
+
+# === TEMPORARY DIRECTORY HANDLING ===
+log_info "Version 4.0+ Fix: Checking for existing temporary directory"
+TEMP_DIR="$DISTRO_MOUNT/super_temp"
+
+if [ -d "$TEMP_DIR" ]; then
+    TEMP_SIZE=$(du -sk "$TEMP_DIR" 2>/dev/null | awk '{print $1}')
+    log_warning "Temporary directory already exists: $TEMP_DIR"
+    log_info "Existing size: ${TEMP_SIZE}KB"
+    log_info "Reusing existing temporary directory"
+    
+    # Check for existing vendor image
+    if [ -f "$TEMP_DIR/vendor.img" ]; then
+        VENDOR_IMG="$TEMP_DIR/vendor.img"
+        IMG_SIZE=$(stat -c%s "$VENDOR_IMG" 2>/dev/null || echo "0")
+        IMG_MB=$((IMG_SIZE / 1024 / 1024))
+        log_warning "Existing vendor image found: ${IMG_MB}MB"
+        log_info "Will attempt to reuse existing vendor image"
+    fi
+else
+    log_info "Creating new temporary directory: $TEMP_DIR"
+    mkdir -p "$TEMP_DIR" 2>/dev/null
+    
+    if [ -d "$TEMP_DIR" ]; then
+        log_success "Temporary directory created"
+    else
+        log_error "Failed to create temporary directory"
+    fi
+fi
+log ""
+
+# === MOUNT PSEUDO FILESYSTEMS ===
+log_separator
+log "=== PHASE 6: PSEUDO FILESYSTEM MOUNTING ==="
+log_separator
+
+log_info "Version 4.0+ Fix: Checking virtual filesystem existence before creation"
+log_info "Mounting pseudo filesystems for chroot environment..."
+log ""
+
+# /proc
+log_attempt "Mounting /proc filesystem..."
+mkdir -p "$DISTRO_ROOT/proc" 2>/dev/null
+if mount | grep -q "$DISTRO_ROOT/proc"; then
+    log_warning "/proc already mounted, skipping"
+elif mount -t proc proc "$DISTRO_ROOT/proc" 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/proc mounted successfully"
+    log_info "Mount verification: $(mount | grep 'proc on' | grep "$DISTRO_ROOT/proc")"
+else
+    log_error "Failed to mount /proc"
+fi
+log ""
+
+# /sys
+log_attempt "Mounting /sys filesystem..."
+mkdir -p "$DISTRO_ROOT/sys" 2>/dev/null
+if mount | grep -q "$DISTRO_ROOT/sys"; then
+    log_warning "/sys already mounted, skipping"
+elif mount -t sysfs sysfs "$DISTRO_ROOT/sys" 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/sys mounted successfully"
+    log_info "Mount verification: $(mount | grep 'sysfs on' | grep "$DISTRO_ROOT/sys")"
+else
+    log_error "Failed to mount /sys"
+fi
+log ""
+
+# /dev
+log_attempt "Bind mounting /dev filesystem..."
+mkdir -p "$DISTRO_ROOT/dev" 2>/dev/null
+if mount | grep -q "$DISTRO_ROOT/dev"; then
+    log_warning "/dev already mounted, skipping"
+elif mount --bind /dev "$DISTRO_ROOT/dev" 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/dev bind mounted successfully"
+    DEV_COUNT=$(ls "$DISTRO_ROOT/dev" 2>/dev/null | wc -l)
+    log_info "Device nodes available: $DEV_COUNT entries"
+else
+    log_error "Failed to bind mount /dev"
+fi
+log ""
+
+# /dev/pts
+log_attempt "Mounting /dev/pts filesystem..."
+mkdir -p "$DISTRO_ROOT/dev/pts" 2>/dev/null
+if mount | grep -q "$DISTRO_ROOT/dev/pts"; then
+    log_warning "/dev/pts already mounted, skipping"
+elif mount -t devpts devpts "$DISTRO_ROOT/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/dev/pts mounted successfully"
+    log_info "Mount options: noexec,nosuid,gid=5,mode=620"
+else
+    log_error "Failed to mount /dev/pts"
+fi
+log ""
+
+# /dev/shm
+log_attempt "Mounting /dev/shm filesystem..."
+log_info "Version 4.0+ Fix: Checking if /dev/shm exists in chroot"
+if [ ! -d "$DISTRO_ROOT/dev/shm" ]; then
+    log_info "Creating /dev/shm directory"
+    mkdir -p "$DISTRO_ROOT/dev/shm" 2>/dev/null
+fi
+
+if mount | grep -q "$DISTRO_ROOT/dev/shm"; then
+    log_warning "/dev/shm already mounted, skipping"
+elif mount -t tmpfs tmpfs "$DISTRO_ROOT/dev/shm" -o nosuid,nodev 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/dev/shm mounted successfully"
+    log_info "Mount options: nosuid,nodev"
+else
+    log_warning "Failed to mount /dev/shm (optional, may not be critical)"
+fi
+log ""
+
+# /tmp
+log_attempt "Mounting /tmp filesystem..."
+mkdir -p "$DISTRO_ROOT/tmp" 2>/dev/null
+if mount | grep -q "$DISTRO_ROOT/tmp"; then
+    log_warning "/tmp already mounted, skipping"
+elif mount -t tmpfs tmpfs "$DISTRO_ROOT/tmp" -o nosuid,nodev 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/tmp mounted as tmpfs"
+    log_info "Mount options: nosuid,nodev"
+else
+    log_warning "/tmp mount failed, will use existing directory"
+fi
+log ""
+
+# /run
+log_attempt "Mounting /run filesystem..."
+log_info "Version 4.0+ Fix: /run is a tmpfs in RAM, creating if needed"
+if [ ! -d "$DISTRO_ROOT/run" ]; then
+    log_info "Creating /run directory"
+    mkdir -p "$DISTRO_ROOT/run" 2>/dev/null
+fi
+
+if mount | grep -q "$DISTRO_ROOT/run"; then
+    log_warning "/run already mounted, skipping"
+elif [ -d "/run" ] && mount --bind /run "$DISTRO_ROOT/run" 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/run bind mounted from host"
+else
+    log_info "Host /run unavailable, creating tmpfs"
+    if mount -t tmpfs tmpfs "$DISTRO_ROOT/run" -o nosuid,nodev,mode=0755 2>&1 | tee -a "$LOGFILE"; then
+        log_success "/run mounted as tmpfs"
+    else
+        log_warning "/run mount failed (optional)"
+    fi
+fi
+log ""
+
+# /run/shm (if needed by Debian)
+log_attempt "Checking /run/shm (Debian runtime requirement)..."
+if [ ! -d "$DISTRO_ROOT/run/shm" ]; then
+    log_info "Creating /run/shm directory"
+    mkdir -p "$DISTRO_ROOT/run/shm" 2>/dev/null
+fi
+
+if mount | grep -q "$DISTRO_ROOT/run/shm"; then
+    log_warning "/run/shm already mounted, skipping"
+elif mount -t tmpfs tmpfs "$DISTRO_ROOT/run/shm" -o nosuid,nodev 2>&1 | tee -a "$LOGFILE"; then
+    log_success "/run/shm mounted as tmpfs"
+else
+    log_info "/run/shm mount failed (may not be required)"
+fi
+log ""
+
+log_info "Pseudo filesystem mounting summary:"
+MOUNTED_COUNT=$(mount | grep "$DISTRO_ROOT" | wc -l)
+log_info "Total filesystems mounted in chroot: $MOUNTED_COUNT"
+log ""
+
+# === EXTRACT AND MOUNT VENDOR FROM SUPER PARTITION ===
+log_separator
+log "=== PHASE 7: VENDOR PARTITION EXTRACTION ==="
+log_separator
+
+VENDOR_IMG="${TEMP_DIR}/vendor.img"
+
+if [ -f "$VENDOR_IMG" ]; then
+    IMG_SIZE=$(stat -c%s "$VENDOR_IMG" 2>/dev/null || echo "0")
+    IMG_MB=$((IMG_SIZE / 1024 / 1024))
+    log_info "Using existing vendor image: ${IMG_MB}MB"
+    log_info "Skipping extraction to save time"
+else
+    log_info "Extracting vendor partition from super partition..."
+    log_info "Super partition device: $SUPER_PARTITION"
+
+    # Vendor partition location in super (sector addresses)
+    VENDOR_START=3436544
+    VENDOR_SIZE=3700976
+
+    log_info "Vendor partition specifications:"
+    log_info "  Start sector: $VENDOR_START"
+    log_info "  Size (sectors): $VENDOR_SIZE"
+    log_info "  Block size: 4096 bytes"
+    log_info "  Skip blocks: $((VENDOR_START / 8))"
+    log_info "  Count blocks: $((VENDOR_SIZE / 8))"
+
+    log_info "Target image file: $VENDOR_IMG"
+    log ""
+
+    log_attempt "Starting dd extraction (this may take a moment)..."
+    DD_START=$(date +%s)
+
+    if dd if="$SUPER_PARTITION" of="$VENDOR_IMG" bs=4096 skip=$((VENDOR_START / 8)) count=$((VENDOR_SIZE / 8)) 2>&1 | tee -a "$LOGFILE"; then
+        DD_END=$(date +%s)
+        DD_TIME=$((DD_END - DD_START))
+        
+        log_success "Vendor image extracted successfully"
+        log_info "Extraction time: ${DD_TIME} seconds"
+        
+        if [ -f "$VENDOR_IMG" ]; then
+            IMG_BYTES=$(stat -c%s "$VENDOR_IMG" 2>/dev/null || echo "0")
+            IMG_MB=$((IMG_BYTES / 1024 / 1024))
+            log_info "Image file size: ${IMG_MB}MB ($IMG_BYTES bytes)"
+            log_info "Image file location: $VENDOR_IMG"
+        else
+            log_error "Image file not found after extraction"
+        fi
+    else
+        log_error "Failed to extract vendor image"
+        log_warning "Vendor partition will not be available"
+    fi
+fi
+log ""
+
+# Mount vendor image via loop device
+if [ -f "$VENDOR_IMG" ]; then
+    log_attempt "Mounting vendor image via loop device..."
+    
+    VENDOR_LOOP=$(losetup -f 2>/dev/null)
+    if [ -z "$VENDOR_LOOP" ]; then
+        log_error "No free loop device available"
+        log_info "Current loop devices:"
+        losetup -a 2>&1 | tee -a "$LOGFILE"
+    else
+        log_info "Using loop device: $VENDOR_LOOP"
+        
+        log_attempt "Attaching image to loop device..."
+        if losetup "$VENDOR_LOOP" "$VENDOR_IMG" 2>&1 | tee -a "$LOGFILE"; then
+            log_success "Loop device attached successfully"
+            
+            VENDOR_MOUNT="$DISTRO_MOUNT/vendor_temp"
+            log_info "Creating vendor mount point: $VENDOR_MOUNT"
+            mkdir -p "$VENDOR_MOUNT" 2>/dev/null
+            
+            log_attempt "Mounting vendor partition (ext4, read-only)..."
+            if mount -t ext4 -o ro "$VENDOR_LOOP" "$VENDOR_MOUNT" 2>&1 | tee -a "$LOGFILE"; then
+                log_success "Vendor partition mounted successfully"
+                log_info "Mount point: $VENDOR_MOUNT"
+                log_info "Mount verification: $(mount | grep $VENDOR_LOOP)"
+                
+                log ""
+                log_info "Vendor partition contents (top level):"
+                log_subsection
+                ls -lah "$VENDOR_MOUNT" 2>&1 | head -20 | tee -a "$LOGFILE"
+                log_subsection
+                
+                VENDOR_FILES=$(find "$VENDOR_MOUNT" -type f 2>/dev/null | wc -l)
+                log_info "Vendor files count: $VENDOR_FILES"
+            else
+                log_error "Failed to mount vendor partition"
+                log_attempt "Checking filesystem type..."
+                file "$VENDOR_LOOP" 2>&1 | tee -a "$LOGFILE"
+                blkid "$VENDOR_LOOP" 2>&1 | tee -a "$LOGFILE"
+                losetup -d "$VENDOR_LOOP" 2>/dev/null
+                VENDOR_LOOP=""
+            fi
+        else
+            log_error "Failed to attach loop device"
+            VENDOR_LOOP=""
+        fi
+    fi
+else
+    log_warning "Vendor image file not available, skipping mount"
+fi
+log ""
+
+# === LOAD KERNEL MODULES (HOST CONTEXT) ===
+log_separator
+log "=== PHASE 8: KERNEL MODULE LOADING ==="
+log_separator
+
+log_info "Loading kernel modules from host context (before chroot)..."
+log_info "Modules must be loaded outside chroot for kernel-level operations"
+log_info "Version 5.0: Vendor used ONLY for kernel modules, not PATH contamination"
+log ""
+
+TOTAL_LOADED=0
+TOTAL_FAILED=0
+TOTAL_SKIPPED=0
+
+# Load modules from SOCKO partition
+log_subsection
+log_info "MODULE SOURCE 1: SOCKO Partition"
+log_info "Version 4.0+ Critical Fix: Corrected partition path to $SOCKO_PARTITION"
+log_info "Version 5.0 Fix: Excluded sprd_vdsp.ko per user request"
+log_subsection
+
+SOCKO_MOUNT="/mnt/socko_temp"
+log_info "Creating SOCKO mount point: $SOCKO_MOUNT"
+mkdir -p "$SOCKO_MOUNT" 2>/dev/null
+
+if [ -b "$SOCKO_PARTITION" ]; then
+    log_info "SOCKO partition device found"
+    log_attempt "Detecting filesystem type..."
+    SOCKO_FS=$(blkid "$SOCKO_PARTITION" 2>/dev/null | grep -o 'TYPE="[^"]*"' | cut -d'"' -f2)
+    if [ -n "$SOCKO_FS" ]; then
+        log_info "Detected filesystem: $SOCKO_FS"
+    else
+        log_warning "Could not detect filesystem, trying ext4"
+        SOCKO_FS="ext4"
+    fi
+    
+    log_attempt "Mounting SOCKO partition..."
+    log_info "Device: $SOCKO_PARTITION"
+    log_info "Mount point: $SOCKO_MOUNT"
+    log_info "Filesystem: $SOCKO_FS (read-only)"
+    
+    SOCKO_MOUNTED=0
+    # Try with detected filesystem
+    if mount -t "$SOCKO_FS" -o ro "$SOCKO_PARTITION" "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE"; then
+        SOCKO_MOUNTED=1
+    else
+        log_warning "Mount with $SOCKO_FS failed, trying auto-detection..."
+        if mount -o ro "$SOCKO_PARTITION" "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE"; then
+            SOCKO_MOUNTED=1
+        fi
+    fi
+    
+    if [ "$SOCKO_MOUNTED" -eq 1 ]; then
+        log_success "SOCKO partition mounted successfully"
+        log_info "SOCKO contents:"
+        ls -lah "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE"
+        
+        SOCKO_FILE_COUNT=$(find "$SOCKO_MOUNT" -type f -name "*.ko" 2>/dev/null | wc -l)
+        log_info "Kernel modules in SOCKO: $SOCKO_FILE_COUNT"
+        
+        if [ "$SOCKO_FILE_COUNT" -gt 0 ]; then
+            log ""
+            log_info "Loading hardware-specific modules from SOCKO..."
+            log_info "Available modules:"
+            find "$SOCKO_MOUNT" -type f -name "*.ko" 2>&1 | tee -a "$LOGFILE"
+            log ""
+            
+            # Mali GPU and SPRD hardware modules - NOTE: sprd_vdsp.ko EXCLUDED
+            SOCKO_MODS="mmdvfs.ko mali_gondul.ko sprd_cpp.ko sprd_sensor.ko sprd_flash_drv.ko sprdbt_tty.ko sprd_fm.ko sprdwl_ng.ko"
+            
+            for mod in $SOCKO_MODS; do
+                MOD_NAME=$(echo $mod | sed 's/.ko//')
+                MOD_PATH=$(find "$SOCKO_MOUNT" -name "$mod" 2>/dev/null | head -1)
+                
+                if [ -n "$MOD_PATH" ]; then
+                    MOD_SIZE=$(stat -c%s "$MOD_PATH" 2>/dev/null || echo "0")
+                    MOD_KB=$((MOD_SIZE / 1024))
+                    log_info "Processing module: $mod"
+                    log_info "  Module file found: $MOD_PATH"
+                    log_info "  Module size: ${MOD_KB}KB ($MOD_SIZE bytes)"
+                    
+                    # Check if already loaded
+                    if lsmod | grep -q "^$MOD_NAME "; then
+                        log_warning "  Module $MOD_NAME already loaded, skipping"
+                        TOTAL_SKIPPED=$((TOTAL_SKIPPED + 1))
+                        continue
+                    fi
+                    
+                    log_attempt "  Loading module..."
+                    if insmod "$MOD_PATH" 2>&1 | tee -a "$LOGFILE"; then
+                        log_success "  Module $mod loaded successfully"
+                        TOTAL_LOADED=$((TOTAL_LOADED + 1))
+                        
+                        # Verify it's loaded
+                        if lsmod | grep -q "^$MOD_NAME "; then
+                            MODULE_INFO=$(lsmod | grep "^$MOD_NAME ")
+                            log_info "  Verification: $MODULE_INFO"
+                        fi
+                    else
+                        log_error "  Failed to load module $mod"
+                        log_info "  Checking dmesg for errors..."
+                        dmesg | tail -3 | tee -a "$LOGFILE"
+                        TOTAL_FAILED=$((TOTAL_FAILED + 1))
+                    fi
+                    log ""
+                fi
+            done
+        else
+            log_warning "SOCKO partition has no kernel modules (.ko files)"
+        fi
+        
+        log_info "Unmounting SOCKO partition..."
+        umount "$SOCKO_MOUNT" 2>/dev/null
+        log_success "SOCKO partition unmounted"
+    else
+        log_error "Failed to mount SOCKO partition with all attempts"
+        log_info "Checking partition contents with dd..."
+        dd if="$SOCKO_PARTITION" bs=512 count=1 2>&1 | hexdump -C | head -10 | tee -a "$LOGFILE"
+    fi
+else
+    log_warning "SOCKO partition device not available"
+    log_info "Hardware module loading will be limited"
+fi
+
+log ""
+log_subsection
+log_info "MODULE SOURCE 2: Vendor Partition"
+log_subsection
+
+if [ -n "$VENDOR_LOOP" ] && [ -d "$VENDOR_MOUNT" ]; then
+    log_info "Checking vendor partition for modules..."
+    log_info "Module path: $VENDOR_MOUNT/lib/modules"
+    
+    if [ -d "$VENDOR_MOUNT/lib/modules" ]; then
+        log_success "Vendor modules directory found"
+        log_info "Directory contents:"
+        find "$VENDOR_MOUNT/lib/modules" -type f -name "*.ko" 2>&1 | tee -a "$LOGFILE"
+        
+        log ""
+        log_info "Loading Android integration modules..."
+        
+        VENDOR_MODS="incrementalfs.ko kheaders.ko"
+        
+        for mod in $VENDOR_MODS; do
+            MOD_NAME=$(echo $mod | sed 's/.ko//')
+            log_info "Processing module: $mod"
+            
+            MOD_PATH=$(find "$VENDOR_MOUNT/lib/modules" -name "$mod" 2>/dev/null | head -1)
+            
+            if [ -n "$MOD_PATH" ]; then
+                MOD_SIZE=$(stat -c%s "$MOD_PATH" 2>/dev/null || echo "0")
+                MOD_KB=$((MOD_SIZE / 1024))
+                log_info "  Module file found: $MOD_PATH"
+                log_info "  Module size: ${MOD_KB}KB ($MOD_SIZE bytes)"
+                
+                # Check if already loaded
+                if lsmod | grep -q "^$MOD_NAME "; then
+                    log_warning "  Module $MOD_NAME already loaded, skipping"
+                    TOTAL_SKIPPED=$((TOTAL_SKIPPED + 1))
+                    continue
+                fi
+                
+                log_attempt "  Loading module..."
+                if insmod "$MOD_PATH" 2>&1 | tee -a "$LOGFILE"; then
+                    log_success "  Module $mod loaded successfully"
+                    TOTAL_LOADED=$((TOTAL_LOADED + 1))
+                    
+                    # Verify it's loaded
+                    if lsmod | grep -q "^$MOD_NAME "; then
+                        MODULE_INFO=$(lsmod | grep "^$MOD_NAME ")
+                        log_info "  Verification: $MODULE_INFO"
+                    fi
+                else
+                    log_error "  Failed to load module $mod"
+                    TOTAL_FAILED=$((TOTAL_FAILED + 1))
+                fi
+            else
+                log_warning "  Module $mod not found in vendor partition"
+                TOTAL_SKIPPED=$((TOTAL_SKIPPED + 1))
+            fi
+            log ""
+        done
+    else
+        log_warning "Vendor modules directory not found"
+    fi
+else
+    log_warning "Vendor partition not available for module loading"
+fi
+
+log ""
+log_subsection
+log_info "MODULE LOADING SUMMARY"
+log_subsection
+log_success "Successfully loaded: $TOTAL_LOADED modules"
+log_error "Failed to load: $TOTAL_FAILED modules"
+log_info "Skipped (already loaded or not found): $TOTAL_SKIPPED modules"
+
+log ""
+log_info "Currently loaded kernel modules (first 30):"
+log_subsection
+lsmod | head -31 | tee -a "$LOGFILE"
+log_subsection
+TOTAL_MODS=$(lsmod | tail -n +2 | wc -l)
+log_info "Total modules in kernel: $TOTAL_MODS"
+log ""
+
+# === BIND MOUNT SD CARD (NO VENDOR MOUNT TO AVOID PATH ISSUES) ===
+log_separator
+log "=== PHASE 9: BIND MOUNTING SD CARD TO CHROOT ==="
+log_separator
+log_info "Version 5.0 Change: Vendor NOT mounted to avoid PATH contamination"
+log_info "Vendor was used only for kernel module loading (already completed)"
+log ""
+
+log_info "Preparing to bind mount SD card..."
+log_info "Source: $SD_MOUNT"
+log_info "Target: $DISTRO_ROOT/sdcard"
+
+mkdir -p "$DISTRO_ROOT/sdcard" 2>/dev/null
+if [ -d "$DISTRO_ROOT/sdcard" ]; then
+    log_success "SD card directory created in chroot"
+    
+    log_attempt "Bind mounting SD card..."
+    if mount | grep -q "$DISTRO_ROOT/sdcard"; then
+        log_warning "SD card already mounted, skipping"
+    elif mount --bind "$SD_MOUNT" "$DISTRO_ROOT/sdcard" 2>&1 | tee -a "$LOGFILE"; then
+        log_success "SD card bind mounted successfully"
+        log_info "Mount verification: $(mount | grep sdcard | grep $DISTRO_ROOT)"
+        log_info "Accessible in chroot at: /sdcard"
+        
+        log ""
+        log_info "Verifying SD card access from chroot location..."
+        if ls "$DISTRO_ROOT/sdcard" >/dev/null 2>&1; then
+            SDCARD_ITEMS=$(ls "$DISTRO_ROOT/sdcard" 2>/dev/null | wc -l)
+            log_success "SD card accessible ($SDCARD_ITEMS items)"
+            log_info "Log files will be accessible from chroot"
+        else
+            log_warning "SD card may not be accessible from chroot"
+        fi
+    else
+        log_error "Failed to bind mount SD card"
+        log_warning "Chroot will not have direct access to SD card"
+    fi
+else
+    log_error "Failed to create sdcard directory in chroot"
+fi
+log ""
+
+# === MESA INSTALLATION IN CHROOT ===
+log_separator
+log "=== PHASE 10: MESA 25.3.0 INSTALLATION ==="
+log_separator
+log_info "Version 5.0 Major Addition: Installing Mesa Android container drivers"
+log ""
+
+if [ -f "$MESA_DISTRO_PATH" ]; then
+    log_success "Mesa tarball available for installation"
+    log_info "Tarball location: /$MESA_TARBALL"
+    log ""
+    
+    log_attempt "Extracting Mesa tarball to root filesystem..."
+    log_info "Version 5.0 Fix: Using clean Debian PATH (no Android vendor contamination)"
+    EXTRACT_START=$(date +%s)
+    
+    # Extract with explicit Debian PATH
+    chroot "$DISTRO_ROOT" /usr/bin/env -i \
+        PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        HOME="/root" \
+        LANG="C.UTF-8" \
+        /usr/bin/tar -zxvf "/$MESA_TARBALL" -C / 2>&1 | tee -a "$LOGFILE" | tail -20
+    
+    EXTRACT_RESULT=$?
+    EXTRACT_END=$(date +%s)
+    EXTRACT_TIME=$((EXTRACT_END - EXTRACT_START))
+    
+    if [ $EXTRACT_RESULT -eq 0 ]; then
+        log_success "Mesa tarball extracted successfully"
+        log_info "Extraction time: ${EXTRACT_TIME} seconds"
+        log ""
+        
+        log_attempt "Running ldconfig to update library cache..."
+        chroot "$DISTRO_ROOT" /usr/bin/env -i \
+            PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            /usr/sbin/ldconfig 2>&1 | tee -a "$LOGFILE"
+        
+        if [ $? -eq 0 ]; then
+            log_success "ldconfig completed successfully"
+        else
+            log_warning "ldconfig completed with warnings (may be non-critical)"
+        fi
+        log ""
+        
+        log_attempt "Verifying Mesa installation by searching for panfrost_icd.aarch64.json..."
+        PANFROST_ICD=$(chroot "$DISTRO_ROOT" /usr/bin/find /usr -name "panfrost_icd.aarch64.json" 2>/dev/null)
+        
+        if [ -n "$PANFROST_ICD" ]; then
+            log_success "Panfrost ICD found: $PANFROST_ICD"
+            log_success "Mesa installation verified successfully"
+            log ""
+            
+            log_attempt "Cleaning up Mesa tarball..."
+            rm -f "$MESA_DISTRO_PATH" 2>&1 | tee -a "$LOGFILE"
+            
+            if [ ! -f "$MESA_DISTRO_PATH" ]; then
+                log_success "Mesa tarball removed successfully"
+                FREED_MB=$MESA_MB
+                log_info "Freed space: ${FREED_MB}MB"
+            else
+                log_warning "Failed to remove Mesa tarball (not critical)"
+            fi
+        else
+            log_error "Panfrost ICD not found - Mesa installation may have failed"
+            log_info "Keeping tarball for troubleshooting: /$MESA_TARBALL"
+            log_info "Searching for any ICD files..."
+            chroot "$DISTRO_ROOT" /usr/bin/find /usr -name "*_icd*.json" 2>&1 | head -10 | tee -a "$LOGFILE"
+        fi
+    else
+        log_error "Mesa tarball extraction failed"
+        log_info "Error code: $EXTRACT_RESULT"
+        log_info "Keeping tarball for retry: /$MESA_TARBALL"
+    fi
+else
+    log_info "Mesa tarball not available, skipping installation"
+    log_info "To install Mesa, ensure tarball is on SD card before running script"
+fi
+log ""
+
+# === DIRECT HARDWARE TESTING ===
+log_separator
+log "=== PHASE 11: DIRECT HARDWARE TESTING (CLEAN DEBIAN PATH) ==="
+log_separator
+log_info "Version 4.0+: Testing hardware directly without script files"
+log_info "Version 5.0 Critical Fix: Using ONLY Debian binaries, no Android vendor PATH"
+log ""
+
+# Initialize test output
+echo "=========================================================================" > "$TEST_OUTPUT"
+echo "=== DEBIAN TRIXIE HARDWARE TEST ===" >> "$TEST_OUTPUT"
+echo "=== Version 5.0 - Clean Debian Environment ===" >> "$TEST_OUTPUT"
+echo "=========================================================================" >> "$TEST_OUTPUT"
+echo "" >> "$TEST_OUTPUT"
+echo "Test started: $(date)" >> "$TEST_OUTPUT"
+echo "Device: Retroid Pocket 3 Plus (UMS512 / Mali-G52)" >> "$TEST_OUTPUT"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running WiFi hardware detection..."
+echo "=== WIFI HARDWARE TEST ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    if command -v iw >/dev/null 2>&1; then
+        echo '✓ iw command available'
+        echo ''
+        echo 'Wireless devices:'
+        iw dev 2>&1 || echo 'No devices found'
+        echo ''
+        echo 'Network interfaces:'
+        ip link show 2>&1 | grep -A 2 wlan || echo 'No wlan interfaces'
+    else
+        echo '✗ iw command not found'
+    fi
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "WiFi test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running Bluetooth hardware detection..."
+echo "=== BLUETOOTH HARDWARE TEST ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    if [ -d /sys/class/bluetooth ]; then
+        echo '✓ Bluetooth hardware detected'
+        ls -la /sys/class/bluetooth/
+    else
+        echo '✗ No bluetooth hardware found'
+    fi
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "Bluetooth test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running CPU information gathering..."
+echo "=== CPU INFORMATION ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    if command -v lscpu >/dev/null 2>&1; then
+        lscpu 2>&1 | head -30
+    else
+        echo \"CPU cores: \$(grep -c processor /proc/cpuinfo)\"
+        cat /proc/cpuinfo | head -50
+    fi
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "CPU test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running GPU hardware detection..."
+echo "=== GPU INFORMATION (Mali-G52) ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    GPU_PATH='/sys/devices/platform/soc/soc:mm/60000000.gpu'
+    if [ -d \"\$GPU_PATH\" ]; then
+        echo '✓ Mali GPU detected'
+        [ -f \"\$GPU_PATH/gpuinfo\" ] && echo \"GPU Info: \$(cat \$GPU_PATH/gpuinfo)\"
+        [ -f \"\$GPU_PATH/clock\" ] && echo \"GPU Clock: \$(cat \$GPU_PATH/clock) Hz\"
+    else
+        echo '✗ Mali GPU sysfs not found'
+    fi
+    echo ''
+    [ -d /dev/dri ] && echo '✓ DRM device directory exists' && ls -la /dev/dri/
+    [ -c /dev/mali0 ] && echo '✓ /dev/mali0 present' || echo '✗ /dev/mali0 not found'
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "GPU test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running memory information gathering..."
+echo "=== MEMORY INFORMATION ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    free -h
+    echo ''
+    echo 'Memory details:'
+    cat /proc/meminfo | head -10
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "Memory test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running storage information gathering..."
+echo "=== STORAGE INFORMATION ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    df -h | grep -v tmpfs | grep -v udev | grep -v devtmpfs
+    echo ''
+    if command -v lsblk >/dev/null 2>&1; then
+        lsblk 2>&1 | head -20
+    fi
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "Storage test completed"
+echo "" >> "$TEST_OUTPUT"
+
+log_attempt "Running OS information gathering..."
+echo "=== OPERATING SYSTEM INFORMATION ===" >> "$TEST_OUTPUT"
+chroot "$DISTRO_ROOT" /usr/bin/env -i \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" \
+    /usr/bin/bash -c "
+    [ -f /etc/os-release ] && cat /etc/os-release
+    echo ''
+    echo \"Kernel: \$(uname -a)\"
+    echo \"Debian version: \$(cat /etc/debian_version 2>/dev/null || echo N/A)\"
+" 2>&1 | tee -a "$TEST_OUTPUT" | tee -a "$LOGFILE"
+log_success "OS information gathered"
+echo "" >> "$TEST_OUTPUT"
+
+echo "=========================================================================" >> "$TEST_OUTPUT"
+echo "=== HARDWARE TEST SUMMARY ===" >> "$TEST_OUTPUT"
+echo "=========================================================================" >> "$TEST_OUTPUT"
+echo "Test completed: $(date)" >> "$TEST_OUTPUT"
+
+TEST_SIZE=$(stat -c%s "$TEST_OUTPUT" 2>/dev/null || echo "0")
+TEST_KB=$((TEST_SIZE / 1024))
+log_success "Hardware testing completed"
+log_info "Test output size: ${TEST_KB}KB"
+log_info "Test output saved to: $TEST_OUTPUT"
+log ""
+
+# === PACKAGE LISTING ===
+log_separator
+log "=== PHASE 12: DEBIAN PACKAGE INVENTORY ==="
+log_separator
+
+log_info "Generating package list using direct dpkg database access..."
+log ""
+
+echo "=========================================================================" > "$PACKAGE_LIST"
+echo "=== DEBIAN TRIXIE INSTALLED PACKAGES ===" >> "$PACKAGE_LIST"
+echo "=========================================================================" >> "$PACKAGE_LIST"
+echo "" >> "$PACKAGE_LIST"
+echo "Generated: $(date)" >> "$PACKAGE_LIST"
+echo "" >> "$PACKAGE_LIST"
+
+if [ -f "$DISTRO_ROOT/var/lib/dpkg/status" ]; then
+    TOTAL_PACKAGES=$(grep -c "^Package:" "$DISTRO_ROOT/var/lib/dpkg/status")
+    log_success "Found dpkg database: $TOTAL_PACKAGES packages"
+    
+    echo "Total installed packages: $TOTAL_PACKAGES" >> "$PACKAGE_LIST"
+    echo "" >> "$PACKAGE_LIST"
+    echo "=== Package List ===" >> "$PACKAGE_LIST"
+    echo "" >> "$PACKAGE_LIST"
+    
+    grep -E "^(Package|Version|Architecture):" "$DISTRO_ROOT/var/lib/dpkg/status" | head -300 >> "$PACKAGE_LIST"
+    
+    PKG_SIZE=$(stat -c%s "$PACKAGE_LIST" 2>/dev/null || echo "0")
+    PKG_KB=$((PKG_SIZE / 1024))
+    log_success "Package list generated: ${PKG_KB}KB"
+    log_info "Package list saved to: $PACKAGE_LIST"
+else
+    log_error "dpkg database not found"
+    echo "ERROR: dpkg database not found" >> "$PACKAGE_LIST"
+fi
+log ""
+
+# === CLEANUP ===
+log_separator
+log "=== PHASE 13: COMPREHENSIVE CLEANUP ==="
+log_separator
+
+log_info "Beginning cleanup process..."
+log_info "Unmounting all filesystems in reverse order..."
+log ""
+
+# Unmount bind mounts
+log_attempt "Unmounting bind mounts..."
+umount "$DISTRO_ROOT/sdcard" 2>&1 | tee -a "$LOGFILE" && log_success "SD card unmounted from chroot" || log_info "SD card already unmounted"
+
+log ""
+log_attempt "Unmounting pseudo filesystems..."
+umount "$DISTRO_ROOT/run/shm" 2>&1 | tee -a "$LOGFILE" && log_success "/run/shm unmounted" || log_info "/run/shm already unmounted"
+umount "$DISTRO_ROOT/run" 2>&1 | tee -a "$LOGFILE" && log_success "/run unmounted" || log_info "/run already unmounted"
+umount "$DISTRO_ROOT/tmp" 2>&1 | tee -a "$LOGFILE" && log_success "/tmp unmounted" || log_info "/tmp already unmounted"
+umount "$DISTRO_ROOT/dev/shm" 2>&1 | tee -a "$LOGFILE" && log_success "/dev/shm unmounted" || log_info "/dev/shm already unmounted"
+umount "$DISTRO_ROOT/dev/pts" 2>&1 | tee -a "$LOGFILE" && log_success "/dev/pts unmounted" || log_info "/dev/pts already unmounted"
+umount "$DISTRO_ROOT/dev" 2>&1 | tee -a "$LOGFILE" && log_success "/dev unmounted" || log_info "/dev already unmounted"
+umount "$DISTRO_ROOT/sys" 2>&1 | tee -a "$LOGFILE" && log_success "/sys unmounted" || log_info "/sys already unmounted"
+umount "$DISTRO_ROOT/proc" 2>&1 | tee -a "$LOGFILE" && log_success "/proc unmounted" || log_info "/proc already unmounted"
+
+log ""
+log_attempt "Unmounting vendor partition..."
+if [ -n "$VENDOR_LOOP" ]; then
+    umount "$VENDOR_MOUNT" 2>&1 | tee -a "$LOGFILE" && log_success "Vendor partition unmounted" || log_info "Vendor already unmounted"
+    
+    log_attempt "Detaching loop device: $VENDOR_LOOP"
+    losetup -d "$VENDOR_LOOP" 2>&1 | tee -a "$LOGFILE" && log_success "Loop device detached" || log_info "Loop device already detached"
+else
+    log_info "No vendor loop device to detach"
+fi
+
+log ""
+log_attempt "Cleaning up temporary files..."
+log_info "Version 4.0+ Fix: Ensuring complete cleanup of /super_temp"
+if [ -d "$TEMP_DIR" ]; then
+    TEMP_SIZE_KB=$(du -sk "$TEMP_DIR" 2>/dev/null | awk '{print $1}')
+    log_info "Temporary directory size: ${TEMP_SIZE_KB}KB"
+    log_info "Temporary directory contents:"
+    ls -lah "$TEMP_DIR" 2>&1 | tee -a "$LOGFILE"
+    
+    log_attempt "Removing vendor image and temporary files..."
+    rm -f "$TEMP_DIR/vendor.img" 2>&1 | tee -a "$LOGFILE" && log_success "Vendor image removed"
+    
+    log_attempt "Removing temporary directory..."
+    rm -rf "$TEMP_DIR" 2>&1 | tee -a "$LOGFILE" && log_success "Temporary directory removed" || log_warning "Failed to remove temporary directory"
+    
+    # Verify removal
+    if [ ! -d "$TEMP_DIR" ]; then
+        log_success "Temporary directory completely removed"
+    else
+        log_warning "Temporary directory still exists, forcing removal..."
+        rm -rf "$TEMP_DIR"
+    fi
+else
+    log_info "No temporary directory to clean"
+fi
+
+log ""
+log_attempt "Unmounting SOCKO partition..."
+umount "$SOCKO_MOUNT" 2>&1 | tee -a "$LOGFILE" && log_success "SOCKO unmounted" || log_info "SOCKO already unmounted"
+
+log ""
+log_attempt "Unmounting distro partition..."
+umount "$DISTRO_MOUNT" 2>&1 | tee -a "$LOGFILE" && log_success "Distro partition unmounted" || log_warning "Distro partition unmount had issues"
+
+log ""
+log_info "Syncing filesystems to ensure all data is written..."
+sync
+log_success "Filesystem sync complete"
+
+log ""
+log_info "Verifying cleanup..."
+REMAINING_MOUNTS=$(mount | grep -c "$DISTRO_ROOT" 2>/dev/null || echo "0")
+log_info "Remaining mounts in chroot: $REMAINING_MOUNTS"
+
+if [ "$REMAINING_MOUNTS" -eq 0 ]; then
+    log_success "All chroot mounts cleaned up successfully"
+else
+    log_warning "Some mounts may still be active:"
+    mount | grep "$DISTRO_ROOT" | tee -a "$LOGFILE"
+fi
+
+log ""
+
+# === SESSION COMPLETE ===
+log_separator
+log "=== SESSION COMPLETE ==="
+log_separator
+log ""
+log_success "All phases completed successfully"
+log ""
+log_info "Generated Files:"
+log_info "  Main log:         $LOGFILE"
+log_info "  Hardware report:  $TEST_OUTPUT"
+log_info "  Package list:     $PACKAGE_LIST"
+log ""
+
+if [ -f "$LOGFILE" ]; then
+    LOG_SIZE_KB=$(stat -c%s "$LOGFILE" 2>/dev/null | awk '{print int($1/1024)}' || echo "0")
+    log_info "Main log size: ${LOG_SIZE_KB}KB"
+fi
+
+if [ -f "$TEST_OUTPUT" ]; then
+    TEST_SIZE_KB=$(stat -c%s "$TEST_OUTPUT" 2>/dev/null | awk '{print int($1/1024)}' || echo "0")
+    log_info "Hardware report size: ${TEST_SIZE_KB}KB"
+fi
+
+if [ -f "$PACKAGE_LIST" ]; then
+    PKG_SIZE_KB=$(stat -c%s "$PACKAGE_LIST" 2>/dev/null | awk '{print int($1/1024)}' || echo "0")
+    log_info "Package list size: ${PKG_SIZE_KB}KB"
+fi
+
+log ""
+log_info "All logs are located in: $SD_MOUNT/logs/"
+log ""
+log_separator
+log_info "Exiting to recovery in 5 seconds..."
+log_separator
+log ""
+
+sleep 5
+
+exec /system/bin/realrecovery "$@"
