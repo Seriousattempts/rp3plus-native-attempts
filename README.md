@@ -12,7 +12,8 @@
   8. [GarlicOS](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/8)
   9. [Ubuntu twrp](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/9)
   10. [Chimera/Void](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/10)
-  11. [Alpine](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag//11)
-  12. [Debian](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag//12)
+  11. [Alpine](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/11)
+  12. [Debian](https://github.com/Seriousattempts/rp3plus-native-attempts/releases/tag/12)
+  13. [init](https://github.com/Seriousattempts/rp3plus-native-attempts/blob/main/README.md)
 
 
