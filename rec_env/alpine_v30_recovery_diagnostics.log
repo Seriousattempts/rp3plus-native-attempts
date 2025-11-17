@@ -1,0 +1,1373 @@
+[17:05:31] 
+[17:05:31] ================================================================
+[17:05:31] ALPINE v30 – /mnt/alphybris + /mnt/alpine_root RECOVERY DIAGNOSTICS
+[17:05:31] ================================================================
+[17:05:31] Start Time: Mon Nov 17 17:05:31 GMT 2025
+[17:05:31] 
+[17:05:31] SECTION: Logging target setup (/sdcard if available)
+[17:05:31]   INFO: Found boot block device /dev/block/mmcblk1p1
+[17:05:31]   TEST: Mount boot partition at /sdcard
+[17:05:31]   CMD : mkdir -p "/sdcard"
+[17:05:32]   CMD : mount -t exfat "/dev/block/mmcblk1p1" "/sdcard" || echo "  WARN: mount failed"
+[17:05:32]   CMD : mount -o remount,rw "/sdcard" 2>/dev/null || echo "  WARN: remount rw failed"
+[17:05:32]   TEST: Switch to SD logging if writable
+[17:05:32]   CMD : touch "/sdcard/test.tmp" || echo "  WARN: cannot write to /sdcard"
+[17:05:32]   RESULT: Logging moved to /sdcard/alpine_v30_recovery_diagnostics.log
+[17:05:32] 
+[17:05:32] ========================================
+[17:05:32] STAGE 0: Mount debugfs (for hardware debugging)
+[17:05:32] ========================================
+[17:05:32]   TEST: mount -t debugfs none /sys/kernel/debug
+[17:05:32]   CMD : mount -t debugfs none /sys/kernel/debug 2>&1 || echo '  WARN: debugfs mount failed'
+mount: 'none'->'/sys/kernel/debug': No such file or directory
+  WARN: debugfs mount failed
+[17:05:33]   RESULT: debugfs not available (kernel may not support it)
+[17:05:33] 
+[17:05:33] ========================================
+[17:05:33] STAGE 1: Init process (PID 1) & dmesg (hardware)
+[17:05:33] ========================================
+[17:05:33] 1.1: Inspect init process (PID 1)
+[17:05:33]   TEST: ps -p 1 -o pid,ppid,user,args
+[17:05:33]   CMD : ps -p 1 -o pid,ppid,user,args
+   PID   PPID USER         ARGS                       
+     1      0 root         init second_stage
+[17:05:33]   RESULT: Init executable: /system/bin/init
+[17:05:33]   RESULT: Init cmdline: /system/bin/init second_stage
+[17:05:33] 
+[17:05:33] 1.2: List children of PID 1
+[17:05:33]   TEST: ps -o pid,ppid,args | busybox awk '$2 == 1'
+[17:05:33]   CMD : ps -o pid,ppid,args | busybox awk '$2 == 1'
+   237      1 init subcontext u:r:vendor_init:s0 15
+   238      1 ueventd
+   253      1 charger
+   254      1 sh /system/bin/recovery
+   381      1 busybox tar -xf /mnt/alphybris/var/lib/lxc/android/vendor.img -C /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:33] 
+[17:05:34] 1.3: Scan dmesg for init-related messages
+[17:05:34] --- Checking dmesg for init lines ---
+[17:05:34]   CMD : dmesg | grep -i 'init' || echo '  NO init LINES FOUND IN dmesg'
+[    0.000000] random: get_random_bytes called from start_kernel+0x98/0x470 with crng_init=0
+[    0.000000] Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=
+[    0.000000] .init : 0x        (ptrval) - 0x        (ptrval)   (  2752 KB)
+[    0.000000] SELinux:  Initializing.
+[    0.292000] SCSI subsystem initialized
+[    0.406322] Trying to unpack rootfs image as initramfs...
+[    0.889008] hw perfevents: no interrupt-affinity property for /pmu, guessing.
+[    0.892966] audit: type=2000 audit(0.891:1): state=initialized audit_enabled=0 res=1
+[    0.893101] Initialise system trusted keyrings
+[    0.895617] fuse init (API version 7.26)
+[    0.983491] RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_mcu_module_init():264]register main sensor:0
+[    0.984947] [drm] dpu plane init ok
+[    0.984959] [drm] sprd_crtc_init() ok
+[    0.985433] [drm] Initialized sprd 1.0.0 20180501 for display-subsystem on minor 0
+[    0.993858] RetroidPocket [drivers/misc/retrostation/gpio.c:rs_gpio_sysfs_init():127]done!
+[    0.993932] RetroidPocket [drivers/misc/retrostation/gpio.c:rs_gpio_init():190]rs_gpio_init done!
+[    1.099425] IR NEC protocol handler initialized
+[    1.099428] IR RC5(x/sz) protocol handler initialized
+[    1.099429] IR RC6 protocol handler initialized
+[    1.099431] IR JVC protocol handler initialized
+[    1.099433] IR Sony protocol handler initialized
+[    1.099435] IR SANYO protocol handler initialized
+[    1.099437] IR MCE Keyboard/mouse protocol handler initialized
+[    1.099438] IR XMP protocol handler initialized
+[    1.104524] eta355e_init
+[    1.269020] Initializing XFRM netlink socket
+[    1.314044] mmc0: init cq
+[    1.376431] random: fast init done
+[    1.615054] RetroidPocket [drivers/misc/retrostation/hdmi.c:hdmi_init():787][hdmi] hdmi_init done!
+[    1.615060] otg_wakelock_init: No USB transceiver found
+[    1.778626] run init
+[    1.781800] magiskinit: open '/proc/bootconfig': No such file or directory (os error 2)
+[    1.781986] magiskinit: Ramdisk is recovery, abort
+[    1.831539] init: init first stage started!
+[    1.831611] init: Unable to open /lib/modules, skipping module loading.
+[    1.831652] init: First stage mount skipped (recovery mode)
+[    1.831915] init: [libfs_mgr]ReadFstabFromDt(): failed to read fstab from dt
+[    1.832973] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    2.900774] init: [libfs_avb]Device path not found: /dev/block/by-name/vbmeta_product_a
+[    2.902528] init: [libfs_avb]avb_slot_verify failed, result: 2
+[    2.902580] init: Failed to open AvbHandle for INIT_AVB_VERSION: No such file or directory
+[    2.906335] random: init: uninitialized urandom read (40 bytes read)
+[    2.921079] random: init: uninitialized urandom read (40 bytes read)
+[    2.921188] random: init: uninitialized urandom read (4 bytes read)
+[    2.932553] init: DM_DEV_STATUS failed for system_ext_a: No such device or address
+[    2.932564] init: Could not update logical partition
+[    2.932841] init: DM_DEV_STATUS failed for product_a: No such device or address
+[    2.932849] init: Could not update logical partition
+[    2.932883] init: Loading SELinux policy
+[    2.947196] SELinux:  Completing initialization.
+[    3.032727] init: init second stage started!
+[    3.075782] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    3.079746] init: Overriding previous 'ro.' property 'ro.sf.lcd_density':'320' with new value '266'
+[    3.081264] init: Couldn't load property file '/odm/etc/build.prop': open() failed: No such file or directory: No such file or directory
+[    3.081428] init: Overriding previous 'ro.' property 'ro.carrier':'unknown' with new value 'oversea'
+[    3.081562] init: Overriding previous 'ro.' property 'ro.postinstall.fstab.prefix':'/system' with new value '/product'
+[    3.081613] init: Overriding previous 'ro.' property 'ro.config.ringtone':'Ring_Synth_04.ogg' with new value 'Ring_Synth_04.ogg,Ring_Synth_02.ogg'
+[    3.081685] init: Couldn't load property file '/factory/factory.prop': open() failed: No such file or directory: No such file or directory
+[    3.083182] init: Setting product property ro.product.manufacturer to 'Moorechip' (from ro.product.product.manufacturer)
+[    3.085764] init: Running restorecon...
+[    3.104620] init: Created socket '/dev/socket/property_service', mode 666, user 0, group 0
+[    3.106604] init: Unable to set property 'ro.boot.flash.locked' from uid:0 gid:0 pid:1: Read-only property was already set
+[    3.109194] init: SetupMountNamespaces done
+[    3.110388] init: Forked subcontext for 'u:r:vendor_init:s0' with pid 237
+[    3.110475] init: Parsing file /system/etc/init/hw/init.rc...
+[    3.110663] init: Added '/init.recovery.ums512_1h10.rc' to import list
+[    3.110676] init: Added '/system/etc/init/hw/init.usb.rc' to import list
+[    3.110691] init: Added '/system/etc/init/hw/init.usb.configfs.rc' to import list
+[    3.110701] init: Added '/system/etc/init/retropocket.rc' to import list
+[    3.112777] init: Parsing file /init.recovery.ums512_1h10.rc...
+[    3.112820] init: Added '/init.recovery.common.rc' to import list
+[    3.112831] init: Parsing file /init.recovery.common.rc...
+[    3.114484] init: Parsing file /system/etc/init/hw/init.usb.rc...
+[    3.114751] init: Parsing file /system/etc/init/hw/init.usb.configfs.rc...
+[    3.115089] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115147] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115162] init: Parsing directory /system/etc/init...
+[    3.115195] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115242] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115267] init: Parsing file /system_ext/etc/init...
+[    3.115284] init: Unable to read config file '/system_ext/etc/init': open() failed: No such file or directory
+[    3.115296] init: Parsing file /product/etc/init...
+[    3.115309] init: Unable to read config file '/product/etc/init': open() failed: No such file or directory
+[    3.115322] init: Parsing file /odm/etc/init...
+[    3.115334] init: Unable to read config file '/odm/etc/init': open() failed: No such file or directory
+[    3.115346] init: Parsing directory /vendor/etc/init...
+[    3.116318] init: processing action (SetupCgroups) from (<Builtin Action>:0)
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.117765] init: processing action (SetKptrRestrict) from (<Builtin Action>:0)
+[    3.117952] init: processing action (TestPerfEventSelinux) from (<Builtin Action>:0)
+[    3.118064] init: processing action (early-init) from (/system/etc/init/hw/init.rc:361)
+[    3.118568] init: starting service 'ueventd'...
+[    3.120278] init: cpuset cgroup controller is not mounted!
+[    3.122106] init: processing action (wait_for_coldboot_done) from (<Builtin Action>:0)
+[    3.404774] init: Wait for property 'ro.cold_boot_done=true' took 282ms
+[    3.404883] init: processing action (MixHwrngIntoLinuxRng) from (<Builtin Action>:0)
+[    3.404916] init: /dev/hw_random not found
+[    3.404951] init: processing action (SetMmapRndBits) from (<Builtin Action>:0)
+[    3.405360] init: processing action (KeychordInit) from (<Builtin Action>:0)
+[    3.405414] init: processing action (init) from (/system/etc/init/hw/init.rc:379)
+[    3.406736] init: Command 'symlink /system/bin /bin' action=init (/system/etc/init/hw/init.rc:391) took 0ms and failed: symlink() failed: File exists
+[    3.406820] init: Command 'symlink /system/etc /etc' action=init (/system/etc/init/hw/init.rc:392) took 0ms and failed: symlink() failed: File exists
+[    3.407006] init: Command 'mount cgroup none /acct cpuacct' action=init (/system/etc/init/hw/init.rc:395) took 0ms and failed: mount() failed: Device or resource busy
+[    3.409016] init: processing action (init) from (/init.recovery.common.rc:314)
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.410346] init: Command 'symlink /system/etc/bluetooth /etc/bluetooth' action=init (/init.recovery.common.rc:335) took 0ms and failed: symlink() failed: File exists
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[17:05:34] 
+[17:05:34] --- Init-specific error patterns ---
+[17:05:34]   CMD : dmesg | grep -E '(init:|parse error|malformed|\.rc|Failed to|unable to)' || echo '  NO INIT PARSER ERRORS MATCHED'
+[    0.996832] nd_pmem namespace0.0: unable to guarantee persistence of writes
+[    0.999654] regulator regulator.1: Failed to create debugfs directory
+[    0.999767] regulator regulator.2: Failed to create debugfs directory
+[    0.999874] regulator regulator.3: Failed to create debugfs directory
+[    0.999986] regulator regulator.4: Failed to create debugfs directory
+[    1.000128] regulator regulator.5: Failed to create debugfs directory
+[    1.000238] regulator regulator.6: Failed to create debugfs directory
+[    1.000340] regulator regulator.7: Failed to create debugfs directory
+[    1.000446] regulator regulator.8: Failed to create debugfs directory
+[    1.000559] regulator regulator.9: Failed to create debugfs directory
+[    1.000666] regulator regulator.10: Failed to create debugfs directory
+[    1.000773] regulator regulator.11: Failed to create debugfs directory
+[    1.000867] regulator regulator.12: Failed to create debugfs directory
+[    1.000967] regulator regulator.13: Failed to create debugfs directory
+[    1.001060] regulator regulator.14: Failed to create debugfs directory
+[    1.001152] regulator regulator.15: Failed to create debugfs directory
+[    1.001258] regulator regulator.16: Failed to create debugfs directory
+[    1.001369] regulator regulator.17: Failed to create debugfs directory
+[    1.001469] regulator regulator.18: Failed to create debugfs directory
+[    1.001569] regulator regulator.19: Failed to create debugfs directory
+[    1.001667] regulator regulator.20: Failed to create debugfs directory
+[    1.001772] regulator regulator.21: Failed to create debugfs directory
+[    1.001874] regulator regulator.22: Failed to create debugfs directory
+[    1.001973] regulator regulator.23: Failed to create debugfs directory
+[    1.002075] regulator regulator.24: Failed to create debugfs directory
+[    1.002190] regulator regulator.25: Failed to create debugfs directory
+[    1.002291] regulator regulator.26: Failed to create debugfs directory
+[    1.002404] regulator regulator.27: Failed to create debugfs directory
+[    1.002508] regulator regulator.28: Failed to create debugfs directory
+[    1.002631] regulator regulator.29: Failed to create debugfs directory
+[    1.002738] regulator regulator.30: Failed to create debugfs directory
+[    1.002841] regulator regulator.31: Failed to create debugfs directory
+[    1.002945] regulator regulator.32: Failed to create debugfs directory
+[    1.392133] sc27xx-typec-pd sc27xx-pd: unable to get vddldo supply
+[    1.615060] otg_wakelock_init: No USB transceiver found
+[    1.762559] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Adie Loop -> direct -> ADC1-DAC Adie Loop post
+[    1.762605] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Adie Loop post -> direct -> DAC
+[    1.762674] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Digital Loop -> direct -> ADC1-DAC Digital Loop post
+[    1.762718] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Digital Loop post -> direct -> DAC
+[    1.781800] magiskinit: open '/proc/bootconfig': No such file or directory (os error 2)
+[    1.781986] magiskinit: Ramdisk is recovery, abort
+[    1.831539] init: init first stage started!
+[    1.831611] init: Unable to open /lib/modules, skipping module loading.
+[    1.831652] init: First stage mount skipped (recovery mode)
+[    1.831915] init: [libfs_mgr]ReadFstabFromDt(): failed to read fstab from dt
+[    1.832973] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    2.900774] init: [libfs_avb]Device path not found: /dev/block/by-name/vbmeta_product_a
+[    2.902528] init: [libfs_avb]avb_slot_verify failed, result: 2
+[    2.902580] init: Failed to open AvbHandle for INIT_AVB_VERSION: No such file or directory
+[    2.906335] random: init: uninitialized urandom read (40 bytes read)
+[    2.921079] random: init: uninitialized urandom read (40 bytes read)
+[    2.921188] random: init: uninitialized urandom read (4 bytes read)
+[    2.932553] init: DM_DEV_STATUS failed for system_ext_a: No such device or address
+[    2.932564] init: Could not update logical partition
+[    2.932841] init: DM_DEV_STATUS failed for product_a: No such device or address
+[    2.932849] init: Could not update logical partition
+[    2.932883] init: Loading SELinux policy
+[    3.032727] init: init second stage started!
+[    3.075782] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    3.079746] init: Overriding previous 'ro.' property 'ro.sf.lcd_density':'320' with new value '266'
+[    3.081264] init: Couldn't load property file '/odm/etc/build.prop': open() failed: No such file or directory: No such file or directory
+[    3.081428] init: Overriding previous 'ro.' property 'ro.carrier':'unknown' with new value 'oversea'
+[    3.081562] init: Overriding previous 'ro.' property 'ro.postinstall.fstab.prefix':'/system' with new value '/product'
+[    3.081613] init: Overriding previous 'ro.' property 'ro.config.ringtone':'Ring_Synth_04.ogg' with new value 'Ring_Synth_04.ogg,Ring_Synth_02.ogg'
+[    3.081685] init: Couldn't load property file '/factory/factory.prop': open() failed: No such file or directory: No such file or directory
+[    3.083182] init: Setting product property ro.product.manufacturer to 'Moorechip' (from ro.product.product.manufacturer)
+[    3.085764] init: Running restorecon...
+[    3.104620] init: Created socket '/dev/socket/property_service', mode 666, user 0, group 0
+[    3.106604] init: Unable to set property 'ro.boot.flash.locked' from uid:0 gid:0 pid:1: Read-only property was already set
+[    3.109194] init: SetupMountNamespaces done
+[    3.110388] init: Forked subcontext for 'u:r:vendor_init:s0' with pid 237
+[    3.110475] init: Parsing file /system/etc/init/hw/init.rc...
+[    3.110663] init: Added '/init.recovery.ums512_1h10.rc' to import list
+[    3.110676] init: Added '/system/etc/init/hw/init.usb.rc' to import list
+[    3.110691] init: Added '/system/etc/init/hw/init.usb.configfs.rc' to import list
+[    3.110701] init: Added '/system/etc/init/retropocket.rc' to import list
+[    3.112777] init: Parsing file /init.recovery.ums512_1h10.rc...
+[    3.112820] init: Added '/init.recovery.common.rc' to import list
+[    3.112831] init: Parsing file /init.recovery.common.rc...
+[    3.114484] init: Parsing file /system/etc/init/hw/init.usb.rc...
+[    3.114751] init: Parsing file /system/etc/init/hw/init.usb.configfs.rc...
+[    3.115089] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115147] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115162] init: Parsing directory /system/etc/init...
+[    3.115195] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115242] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115267] init: Parsing file /system_ext/etc/init...
+[    3.115284] init: Unable to read config file '/system_ext/etc/init': open() failed: No such file or directory
+[    3.115296] init: Parsing file /product/etc/init...
+[    3.115309] init: Unable to read config file '/product/etc/init': open() failed: No such file or directory
+[    3.115322] init: Parsing file /odm/etc/init...
+[    3.115334] init: Unable to read config file '/odm/etc/init': open() failed: No such file or directory
+[    3.115346] init: Parsing directory /vendor/etc/init...
+[    3.116318] init: processing action (SetupCgroups) from (<Builtin Action>:0)
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.117765] init: processing action (SetKptrRestrict) from (<Builtin Action>:0)
+[    3.117952] init: processing action (TestPerfEventSelinux) from (<Builtin Action>:0)
+[    3.118064] init: processing action (early-init) from (/system/etc/init/hw/init.rc:361)
+[    3.118568] init: starting service 'ueventd'...
+[    3.120278] init: cpuset cgroup controller is not mounted!
+[    3.122106] init: processing action (wait_for_coldboot_done) from (<Builtin Action>:0)
+[    3.153328] ueventd: Parsing file /system/etc/ueventd.rc...
+[    3.154042] ueventd: Parsing file /vendor/ueventd.rc...
+[    3.154066] ueventd: Unable to read config file '/vendor/ueventd.rc': open() failed: No such file or directory
+[    3.154078] ueventd: Parsing file /odm/ueventd.rc...
+[    3.154092] ueventd: Unable to read config file '/odm/ueventd.rc': open() failed: No such file or directory
+[    3.154102] ueventd: Parsing file /ueventd.ums512_1h10.rc...
+[    3.404774] init: Wait for property 'ro.cold_boot_done=true' took 282ms
+[    3.404883] init: processing action (MixHwrngIntoLinuxRng) from (<Builtin Action>:0)
+[    3.404916] init: /dev/hw_random not found
+[    3.404951] init: processing action (SetMmapRndBits) from (<Builtin Action>:0)
+[    3.405360] init: processing action (KeychordInit) from (<Builtin Action>:0)
+[    3.405414] init: processing action (init) from (/system/etc/init/hw/init.rc:379)
+[    3.406736] init: Command 'symlink /system/bin /bin' action=init (/system/etc/init/hw/init.rc:391) took 0ms and failed: symlink() failed: File exists
+[    3.406820] init: Command 'symlink /system/etc /etc' action=init (/system/etc/init/hw/init.rc:392) took 0ms and failed: symlink() failed: File exists
+[    3.407006] init: Command 'mount cgroup none /acct cpuacct' action=init (/system/etc/init/hw/init.rc:395) took 0ms and failed: mount() failed: Device or resource busy
+[    3.409016] init: processing action (init) from (/init.recovery.common.rc:314)
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.410346] init: Command 'symlink /system/etc/bluetooth /etc/bluetooth' action=init (/init.recovery.common.rc:335) took 0ms and failed: symlink() failed: File exists
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[17:05:34] 
+[17:05:34] --- SELinux denials in dmesg ---
+[17:05:34]   CMD : dmesg | grep -i 'avc.*denied' || echo '  NO SELINUX AVC DENIALS FOUND'
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[    3.464187] audit: type=1400 audit(1763399131.311:10): avc:  denied  { read } for  pid=254 comm="recovery" path="/proc/kmsg" dev="proc" ino=4026531982 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_kmsg:s0 tclass=file permissive=1
+[    6.393377] audit: type=1400 audit(1763399134.243:56): avc:  denied  { read } for  pid=458 comm="dmesg" name="kmsg" dev="tmpfs" ino=7485 scontext=u:r:recovery:s0 tcontext=u:object_r:kmsg_device:s0 tclass=chr_file permissive=1
+[    6.393389] audit: type=1400 audit(1763399134.243:57): avc:  denied  { open } for  pid=458 comm="dmesg" path="/dev/kmsg" dev="tmpfs" ino=7485 scontext=u:r:recovery:s0 tcontext=u:object_r:kmsg_device:s0 tclass=chr_file permissive=1
+[17:05:34] 
+[17:05:34] STAGE 1 SUMMARY (hardware): 2 partial points
+[17:05:34] 
+[17:05:34] ========================================
+[17:05:34] STAGE 2: USB Type-C / PD diagnostics
+[17:05:35] ========================================
+[17:05:35] 2.1: Check for Type-C class in sysfs
+[17:05:35]   TEST: ls /sys/class/typec
+[17:05:35]   CMD : ls /sys/class/typec 2>/dev/null || echo '  INFO: /sys/class/typec not found'
+port0
+port0-partner
+[17:05:35]   RESULT: Type-C class exists
+[17:05:35] 
+[17:05:35] 2.2: Enumerate Type-C ports and partners
+[17:05:35]   Found: /sys/class/typec/port0
+[17:05:35]   CMD : cat "/sys/class/typec/port0/power_role" 2>/dev/null || echo '    power_role: N/A'
+source [sink]
+[17:05:35]   CMD : cat "/sys/class/typec/port0/data_role" 2>/dev/null || echo '    data_role: N/A'
+host [device]
+[17:05:35]   CMD : cat "/sys/class/typec/port0/usb_power_delivery_revision" 2>/dev/null || echo '    PD revision: N/A'
+0
+[17:05:35]   Found: /sys/class/typec/port0-partner
+[17:05:35]   CMD : cat "/sys/class/typec/port0-partner/power_role" 2>/dev/null || echo '    power_role: N/A'
+    power_role: N/A
+[17:05:35]   CMD : cat "/sys/class/typec/port0-partner/data_role" 2>/dev/null || echo '    data_role: N/A'
+    data_role: N/A
+[17:05:36]   CMD : cat "/sys/class/typec/port0-partner/usb_power_delivery_revision" 2>/dev/null || echo '    PD revision: N/A'
+    PD revision: N/A
+[17:05:36] 
+[17:05:36] 2.3: Look for sc27xx-typec-pd driver in platform bus
+[17:05:36]   TEST: find /sys/bus/platform/drivers -maxdepth 1 -name '*sc27xx*'
+[17:05:36]   CMD : find /sys/bus/platform/drivers -maxdepth 1 -name '*sc27xx*' 2>/dev/null || echo '  INFO: no sc27xx driver directories found'
+/sys/bus/platform/drivers/vbc-rxpx-codec-sc27xx
+/sys/bus/platform/drivers/sc27xx-typec-pd
+/sys/bus/platform/drivers/sc27xx-regulator
+/sys/bus/platform/drivers/sc27xx-typec
+/sys/bus/platform/drivers/sc27xx-fgu
+/sys/bus/platform/drivers/sc27xx-poweroff
+/sys/bus/platform/drivers/sc27xx-vibrator
+/sys/bus/platform/drivers/sc27xx-adc
+/sys/bus/platform/drivers/sc27xx-7sreset
+/sys/bus/platform/drivers/sc27xx-tsensor
+/sys/bus/platform/drivers/sc27xx-efuse
+[17:05:36]   RESULT: sc27xx driver node found
+[17:05:36] 
+[17:05:36] 2.4: Grep dmesg for sc27xx-typec-pd messages
+[17:05:36]   TEST: dmesg | grep -i 'sc27xx.*typec\|sc27xx.*pd\|vddldo'
+[17:05:36]   CMD : dmesg | grep -i 'sc27xx.*typec\|sc27xx.*pd\|vddldo' || echo '  INFO: no sc27xx Type-C/PD messages in dmesg'
+  INFO: no sc27xx Type-C/PD messages in dmesg
+[17:05:36] 
+[17:05:36] 2.5: Check for Type-C cable connection (when plugged in)
+[17:05:36]   INFO: If device is plugged in, /sys/class/typec/port*/partner should exist
+[17:05:36]   CMD : ls "/sys/class/typec/port0" | grep partner || echo '  INFO: no partner detected for port0"'
+port0-partner
+[17:05:37]   CMD : ls "/sys/class/typec/port0-partner" | grep partner || echo '  INFO: no partner detected for port0-partner"'
+  INFO: no partner detected for port0-partner"
+[17:05:37] 
+[17:05:37] STAGE 2 SUMMARY (Type-C/PD): 2 checks passed
+[17:05:37] 
+[17:05:37] ========================================
+[17:05:37] STAGE 3: Audio / ASoC diagnostics
+[17:05:37] ========================================
+[17:05:37] 3.1: Check ALSA sound cards
+[17:05:37]   TEST: cat /proc/asound/cards
+[17:05:37]   CMD : cat /proc/asound/cards 2>/dev/null || echo '  INFO: /proc/asound/cards not found'
+ 0 [sprdphonesc2730]: sprdphone-sc273 - sprdphone-sc2730
+                      sprdphone-sc2730
+[17:05:37]   RESULT: ALSA proc entries exist
+[17:05:37] 
+[17:05:37] 3.2: List ALSA proc entries
+[17:05:37]   TEST: ls /proc/asound
+[17:05:37]   CMD : ls /proc/asound 2>/dev/null || echo '  INFO: /proc/asound directory missing'
+card0
+cards
+devices
+hwdep
+pcm
+sprdphonesc2730
+timers
+version
+[17:05:38] 
+[17:05:38] 3.3: Codec drivers in platform bus
+[17:05:38]   TEST: find /sys/bus/platform/drivers -maxdepth 1 -name '*codec*'
+[17:05:38]   CMD : find /sys/bus/platform/drivers -maxdepth 1 -name '*codec*' 2>/dev/null || echo '  INFO: no codec driver directories found'
+/sys/bus/platform/drivers/vbc-rxpx-codec-sc27xx
+/sys/bus/platform/drivers/sprd-codec-sc2730
+[17:05:38] 
+[17:05:38] 3.4: Grep dmesg for sprd-codec-sc2730 and ASoC errors
+[17:05:38]   TEST: dmesg | grep -i 'sprd-codec\|ASoC.*Failed\|no source widget'
+[17:05:38]   CMD : dmesg | grep -i 'sprd-codec\|ASoC.*Failed\|no source widget' || echo '  INFO: no sprd-codec or ASoC error messages'
+  INFO: no sprd-codec or ASoC error messages
+[17:05:38] 
+[17:05:38] 3.5: Test audio playback (if tinyplay available)
+[17:05:38]   INFO: tinyplay not found, skipping playback test
+[17:05:38] 
+[17:05:38] 3.6: Check tinymix for audio controls (if available)
+[17:05:38]   INFO: tinymix not available
+[17:05:38] 
+[17:05:38] STAGE 3 SUMMARY (Audio/ASoC): 1 checks passed
+[17:05:39] 
+[17:05:39] ========================================
+[17:05:39] STAGE 4: USB / OTG diagnostics
+[17:05:39] ========================================
+[17:05:39] 4.1: Check for USB Device Controller (UDC)
+[17:05:39]   TEST: ls /sys/class/udc
+[17:05:39]   CMD : ls /sys/class/udc 2>/dev/null || echo '  INFO: /sys/class/udc not found'
+musb-hdrc.0.auto
+[17:05:39]   RESULT: UDC class exists
+[17:05:39] 
+[17:05:39] 4.2: Enumerate UDC devices
+[17:05:39]   Found UDC: musb-hdrc.0.auto"
+[17:05:39]   CMD : cat "/sys/class/udc/musb-hdrc.0.auto/state" 2>/dev/null || echo '    state: N/A'
+attached
+[17:05:39]   CMD : cat "/sys/class/udc/musb-hdrc.0.auto/current_speed" 2>/dev/null || echo '    speed: N/A'
+UNKNOWN
+[17:05:39] 
+[17:05:39] 4.3: Check for USB role-switch class
+[17:05:39]   TEST: ls /sys/class/usb_role
+[17:05:40]   CMD : ls /sys/class/usb_role 2>/dev/null || echo '  INFO: /sys/class/usb_role not found'
+[17:05:40]   RESULT: USB role-switch class exists
+[17:05:40] 
+[17:05:40] 4.4: Check USB configuration property
+[17:05:40]   TEST: getprop sys.usb.config
+[17:05:40]   CMD : getprop sys.usb.config 2>/dev/null || echo '  INFO: sys.usb.config property not set'
+none
+[17:05:40] 
+[17:05:40] 4.5: Grep dmesg for otg_wakelock messages
+[17:05:40]   TEST: dmesg | grep -i 'otg_wakelock'
+[17:05:40]   CMD : dmesg | grep -i 'otg_wakelock' || echo '  INFO: no otg_wakelock lines in dmesg'
+[    1.615060] otg_wakelock_init: No USB transceiver found
+[17:05:40] 
+[17:05:40] 4.6: Grep dmesg for USB transceiver / PHY messages
+[17:05:40]   TEST: dmesg | grep -i 'usb.*transceiver\|usb.*phy'
+[17:05:40]   CMD : dmesg | grep -i 'usb.*transceiver\|usb.*phy' || echo '  INFO: no USB transceiver/PHY messages'
+  INFO: no USB transceiver/PHY messages
+[17:05:40] 
+[17:05:41] 4.7: Check for USB gadget configfs
+[17:05:41]   TEST: ls /config/usb_gadget
+[17:05:41]   CMD : ls /config/usb_gadget 2>/dev/null || echo '  INFO: /config/usb_gadget not found (configfs may not be mounted)'
+g1
+[17:05:41]   RESULT: USB gadget configfs exists
+[17:05:41] 
+[17:05:41] 4.8: Enumerate USB gadget configurations
+[17:05:41]   Found gadget: g1"
+[17:05:41]   CMD : cat "/config/usb_gadget/g1/idVendor" 2>/dev/null || echo '    idVendor: N/A'
+0x1782
+[17:05:41]   CMD : cat "/config/usb_gadget/g1/idProduct" 2>/dev/null || echo '    idProduct: N/A'
+0x4d00
+[17:05:41]   CMD : cat "/config/usb_gadget/g1/UDC" 2>/dev/null || echo '    UDC: N/A'
+
+[17:05:41] 
+[17:05:41] 4.9: Check lsusb (if available)
+[17:05:41]   TEST: lsusb
+[17:05:41]   CMD : lsusb 2>/dev/null || echo '  INFO: lsusb failed'
+Bus 001 Device 001: ID 1d6b:0002
+[17:05:42] 
+[17:05:42] STAGE 4 SUMMARY (USB/OTG): 3 checks passed
+[17:05:42] 
+[17:05:42] ========================================
+[17:05:42] STAGE A: /dev/block/mmcblk0p77 -> /mnt/alphybris + /mnt/alpine_root
+[17:05:42] ========================================
+[17:05:42] A1: Checking that /dev/block/mmcblk0p77 is mounted on /mnt/alphybris
+[17:05:42]   CMD : grep "/dev/block/mmcblk0p77" /proc/mounts || true
+/dev/block/mmcblk0p77 /mnt/alphybris ext4 ro,seclabel,nosuid,nodev,noatime,nodiratime,data=ordered 0 0
+[17:05:42]   RESULT: OK – /dev/block/mmcblk0p77 is mounted at /mnt/alphybris
+[17:05:42] 
+[17:05:42] A2: Alpine root layout directly under /mnt/alphybris
+[17:05:42]   TEST: List top-level entries on /mnt/alphybris
+[17:05:42]   CMD : ls -1 "/mnt/alphybris" || echo "  ERROR: cannot list /mnt/alphybris"
+android
+apex
+bin
+cache
+chroot-distro
+data
+dev
+efs
+etc
+home
+init
+lib
+lost+found
+media
+metadata
+mnt
+odm
+opt
+persist
+proc
+product
+root
+run
+sbin
+srv
+sys
+system
+system_ext
+tmp
+userdata
+usr
+var
+vendor
+[17:05:42]   RESULT: Found 24 expected top-level entries (reference layout)
+[17:05:42] 
+[17:05:43] A3: Mandatory Alpine binaries in /mnt/alphybris
+[17:05:43]   TEST: Check /mnt/alphybris/bin/busybox
+[17:05:43]   CMD : ls -l "/mnt/alphybris/bin/busybox" 2>/dev/null || echo "  MISSING: /mnt/alphybris/bin/busybox"
+-rwxr-xr-x 1 root root 919152 2022-11-19 10:13 /mnt/alphybris/bin/busybox
+[17:05:43]   TEST: Check /mnt/alphybris/lib/ld-musl-aarch64.so.1
+[17:05:43]   CMD : ls -l "/mnt/alphybris/lib/ld-musl-aarch64.so.1" 2>/dev/null || echo "  MISSING: /mnt/alphybris/lib/ld-musl-aarch64.so.1"
+-rwxr-xr-x 1 root root 657776 2022-11-10 18:24 /mnt/alphybris/lib/ld-musl-aarch64.so.1
+[17:05:43]   TEST: Check /mnt/alphybris/sbin/rc-service
+[17:05:43]   CMD : ls -l "/mnt/alphybris/sbin/rc-service" 2>/dev/null || echo "  MISSING: /mnt/alphybris/sbin/rc-service"
+-rwxr-xr-x 1 root root 67264 2022-12-03 05:38 /mnt/alphybris/sbin/rc-service
+[17:05:43] 
+[17:05:43] A4: Whiteout markers on /mnt/overlay/upper
+[17:05:43]   TEST: Check /mnt/overlay/upper/.wh.proc
+[17:05:43]   CMD : ls -l "/mnt/overlay/upper/.wh.proc" 2>/dev/null || echo "  MISSING: /mnt/overlay/upper/.wh.proc"
+-rw------- 1 root root 0 2025-11-17 17:05 /mnt/overlay/upper/.wh.proc
+[17:05:43]   TEST: Check /mnt/overlay/upper/.wh.sys
+[17:05:43]   CMD : ls -l "/mnt/overlay/upper/.wh.sys" 2>/dev/null || echo "  MISSING: /mnt/overlay/upper/.wh.sys"
+-rw------- 1 root root 0 2025-11-17 17:05 /mnt/overlay/upper/.wh.sys
+[17:05:43]   TEST: Check /mnt/overlay/upper/.wh.dev
+[17:05:43]   CMD : ls -l "/mnt/overlay/upper/.wh.dev" 2>/dev/null || echo "  MISSING: /mnt/overlay/upper/.wh.dev"
+-rw------- 1 root root 0 2025-11-17 17:05 /mnt/overlay/upper/.wh.dev
+[17:05:44]   TEST: Check /mnt/overlay/upper/.wh.run
+[17:05:44]   CMD : ls -l "/mnt/overlay/upper/.wh.run" 2>/dev/null || echo "  MISSING: /mnt/overlay/upper/.wh.run"
+-rw------- 1 root root 0 2025-11-17 17:05 /mnt/overlay/upper/.wh.run
+[17:05:44]   TEST: Check /mnt/overlay/upper/.wh.mnt
+[17:05:44]   CMD : ls -l "/mnt/overlay/upper/.wh.mnt" 2>/dev/null || echo "  MISSING: /mnt/overlay/upper/.wh.mnt"
+-rw------- 1 root root 0 2025-11-17 17:05 /mnt/overlay/upper/.wh.mnt
+[17:05:44] 
+[17:05:44] A5: Bind mount /mnt/alphybris -> /mnt/alpine_root
+[17:05:44]   TEST: grep '/mnt/alphybris /mnt/alpine_root' in /proc/mounts
+[17:05:44]   CMD : grep '/mnt/alphybris /mnt/alpine_root' /proc/mounts || echo '  NOT FOUND: bind mount /mnt/alphybris -> /mnt/alpine_root'
+  NOT FOUND: bind mount /mnt/alphybris -> /mnt/alpine_root
+[17:05:44] 
+[17:05:44] A6: tmpfs overlays /tmp /run /var inside /mnt/alpine_root
+[17:05:44]   TEST: Is tmpfs mounted at /mnt/alpine_root/tmp?
+[17:05:44]   CMD : grep "tmpfs /mnt/alpine_root/tmp tmpfs" /proc/mounts || echo "  NOT FOUND: tmpfs at /mnt/alpine_root/tmp"
+tmpfs /mnt/alpine_root/tmp tmpfs rw,seclabel,relatime 0 0
+[17:05:44]   TEST: Is tmpfs mounted at /mnt/alpine_root/run?
+[17:05:44]   CMD : grep "tmpfs /mnt/alpine_root/run tmpfs" /proc/mounts || echo "  NOT FOUND: tmpfs at /mnt/alpine_root/run"
+tmpfs /mnt/alpine_root/run tmpfs rw,seclabel,relatime,mode=755 0 0
+[17:05:45]   TEST: Is tmpfs mounted at /mnt/alpine_root/var?
+[17:05:45]   CMD : grep "tmpfs /mnt/alpine_root/var tmpfs" /proc/mounts || echo "  NOT FOUND: tmpfs at /mnt/alpine_root/var"
+tmpfs /mnt/alpine_root/var tmpfs rw,seclabel,relatime,mode=755 0 0
+[17:05:45] 
+[17:05:45] A7: VFS mounts (proc/sys/dev/devpts/shm) inside /mnt/alpine_root
+[17:05:45]   TEST: grep 'proc /mnt/alpine_root/proc' in /proc/mounts
+[17:05:45]   CMD : grep "proc /mnt/alpine_root/proc" /proc/mounts || echo "  NOT FOUND: proc at /mnt/alpine_root/proc"
+proc /mnt/alpine_root/proc proc rw,relatime,gid=3009,hidepid=2 0 0
+[17:05:45]   TEST: grep 'sysfs /mnt/alpine_root/sys' in /proc/mounts
+[17:05:45]   CMD : grep "sysfs /mnt/alpine_root/sys" /proc/mounts || echo "  NOT FOUND: sysfs at /mnt/alpine_root/sys"
+sysfs /mnt/alpine_root/sys sysfs rw,seclabel,relatime 0 0
+[17:05:45]   TEST: grep 'tmpfs /mnt/alpine_root/dev ' in /proc/mounts
+[17:05:45]   CMD : grep "tmpfs /mnt/alpine_root/dev " /proc/mounts || echo "  NOT FOUND: tmpfs at /mnt/alpine_root/dev"
+tmpfs /mnt/alpine_root/dev tmpfs rw,seclabel,relatime,mode=755 0 0
+[17:05:45]   TEST: grep '/mnt/alpine_root/dev/pts' in /proc/mounts
+[17:05:45]   CMD : grep "/mnt/alpine_root/dev/pts" /proc/mounts || echo "  NOT FOUND: devpts at /mnt/alpine_root/dev/pts"
+  NOT FOUND: devpts at /mnt/alpine_root/dev/pts
+[17:05:45]   TEST: grep '/mnt/alpine_root/dev/shm' in /proc/mounts
+[17:05:45]   CMD : grep "/mnt/alpine_root/dev/shm" /proc/mounts || echo "  NOT FOUND: tmpfs at /mnt/alpine_root/dev/shm"
+  NOT FOUND: tmpfs at /mnt/alpine_root/dev/shm
+[17:05:45] 
+[17:05:46] A8: LXC dir tree on tmpfs
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib"
+drwxr-xr-x 3 root root 60 2025-11-17 17:05 /mnt/alpine_root/var/lib
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc"
+drwxr-xr-x 3 root root 60 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android"
+drwxr-xr-x 3 root root 60 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs"
+drwxr-xr-x 6 root root 120 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/system
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/system" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/system"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/system
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:46]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor"
+drwxr-xr-x 3 root root 60 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:46]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext
+[17:05:47]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext
+[17:05:47]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/product
+[17:05:47]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/product" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/product"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/product
+[17:05:47] 
+[17:05:47] A9: /android tree + symlinks (system/system_ext/vendor/product)
+[17:05:47]   TEST: ls -ld /android
+[17:05:47]   CMD : ls -ld "/android" 2>/dev/null || echo "  MISSING: /android"
+drwxr-xr-x 6 root root 0 2025-11-17 17:05 /android
+[17:05:47]   TEST: ls -ld /android/system
+[17:05:47]   CMD : ls -ld "/android/system" 2>/dev/null || echo "  MISSING: /android/system"
+drwxr-xr-x 2 root root 0 2025-11-17 17:05 /android/system
+[17:05:47]   TEST: ls -ld /android/system_ext
+[17:05:47]   CMD : ls -ld "/android/system_ext" 2>/dev/null || echo "  MISSING: /android/system_ext"
+drwxr-xr-x 2 root root 0 2025-11-17 17:05 /android/system_ext
+[17:05:47]   TEST: ls -ld /android/vendor
+[17:05:47]   CMD : ls -ld "/android/vendor" 2>/dev/null || echo "  MISSING: /android/vendor"
+drwxr-xr-x 2 root root 0 2025-11-17 17:05 /android/vendor
+[17:05:47]   TEST: ls -ld /android/product
+[17:05:47]   CMD : ls -ld "/android/product" 2>/dev/null || echo "  MISSING: /android/product"
+drwxr-xr-x 2 root root 0 2025-11-17 17:05 /android/product
+[17:05:48] 
+[17:05:48] STAGE A SUMMARY: 4 partial points
+[17:05:48] 
+[17:05:48] ========================================
+[17:05:48] STAGE B: Property triggers (alpine.* and extraction services)
+[17:05:48] ========================================
+[17:05:48] B1: Alpine base properties (set in on boot)
+[17:05:48]   TEST: getprop alpine.mount.done
+[17:05:48]   CMD : getprop alpine.mount.done
+1
+[17:05:48]   TEST: getprop alpine.vfs.ready
+[17:05:48]   CMD : getprop alpine.vfs.ready
+1
+[17:05:48] 
+[17:05:48] B2: Extraction + later service chain states
+[17:05:48]   TEST: getprop init.svc.alpine_extract_rootfs
+[17:05:48]   CMD : getprop init.svc.alpine_extract_rootfs
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_extract_vendor
+[17:05:49]   CMD : getprop init.svc.alpine_extract_vendor
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_extract_system_ext
+[17:05:49]   CMD : getprop init.svc.alpine_extract_system_ext
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_extract_product
+[17:05:49]   CMD : getprop init.svc.alpine_extract_product
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_mount_socko
+[17:05:49]   CMD : getprop init.svc.alpine_mount_socko
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_load_modules
+[17:05:49]   CMD : getprop init.svc.alpine_load_modules
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_setup_hardware
+[17:05:49]   CMD : getprop init.svc.alpine_setup_hardware
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_lxc_prestart
+[17:05:49]   CMD : getprop init.svc.alpine_lxc_prestart
+stopped
+[17:05:49]   TEST: getprop init.svc.alpine_rc_sysinit
+[17:05:50]   CMD : getprop init.svc.alpine_rc_sysinit
+stopped
+[17:05:50]   TEST: getprop init.svc.alpine_rc_boot
+[17:05:50]   CMD : getprop init.svc.alpine_rc_boot
+stopped
+[17:05:50] 
+[17:05:50] STAGE B SUMMARY: 2 partial points
+[17:05:50] 
+[17:05:50] ========================================
+[17:05:50] STAGE C: Image availability & extraction (rootfs/vendor/system_ext/product)
+[17:05:50] ========================================
+[17:05:50] C1: Check required .img files in alphybris
+[17:05:50]   TEST: ls -lh /mnt/alphybris/var/lib/lxc/android/android-rootfs.img
+[17:05:50]   CMD : ls -lh "/mnt/alphybris/var/lib/lxc/android/android-rootfs.img" 2>/dev/null || echo "  MISSING: /mnt/alphybris/var/lib/lxc/android/android-rootfs.img"
+-rw-r--r-- 1 root root 448M 2023-04-04 10:55 /mnt/alphybris/var/lib/lxc/android/android-rootfs.img
+[17:05:50]   TEST: ls -lh /mnt/alphybris/var/lib/lxc/android/vendor.img
+[17:05:50]   CMD : ls -lh "/mnt/alphybris/var/lib/lxc/android/vendor.img" 2>/dev/null || echo "  MISSING: /mnt/alphybris/var/lib/lxc/android/vendor.img"
+-rw-rw-rw- 1 root root 1.7G 2025-11-17 16:27 /mnt/alphybris/var/lib/lxc/android/vendor.img
+[17:05:50]   TEST: ls -lh /mnt/alphybris/android/system_ext/system_ext.img
+[17:05:51]   CMD : ls -lh "/mnt/alphybris/android/system_ext/system_ext.img" 2>/dev/null || echo "  MISSING: /mnt/alphybris/android/system_ext/system_ext.img"
+-rw-rw-rw- 1 root root 362M 2025-11-17 16:27 /mnt/alphybris/android/system_ext/system_ext.img
+[17:05:51]   TEST: ls -lh /mnt/alphybris/var/lib/lxc/android/product.img
+[17:05:51]   CMD : ls -lh "/mnt/alphybris/var/lib/lxc/android/product.img" 2>/dev/null || echo "  MISSING: /mnt/alphybris/var/lib/lxc/android/product.img"
+-rw-rw-rw- 1 root root 581M 2025-11-17 16:27 /mnt/alphybris/var/lib/lxc/android/product.img
+[17:05:51] 
+[17:05:51] C2: Extraction service states
+[17:05:51]   TEST: getprop init.svc.alpine_extract_rootfs
+[17:05:51]   CMD : getprop init.svc.alpine_extract_rootfs
+stopped
+[17:05:51]   TEST: getprop init.svc.alpine_extract_vendor
+[17:05:51]   CMD : getprop init.svc.alpine_extract_vendor
+stopped
+[17:05:51]   TEST: getprop init.svc.alpine_extract_system_ext
+[17:05:51]   CMD : getprop init.svc.alpine_extract_system_ext
+stopped
+[17:05:51]   TEST: getprop init.svc.alpine_extract_product
+[17:05:51]   CMD : getprop init.svc.alpine_extract_product
+stopped
+[17:05:51] 
+[17:05:52] C3: Extracted trees under /mnt/alpine_root/var/lib/lxc/android/rootfs
+[17:05:52]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/system
+[17:05:52]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/system" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/system"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/system
+[17:05:52]   TEST: list first 20 entries in /mnt/alpine_root/var/lib/lxc/android/rootfs/system
+[17:05:52]   CMD : ls -1 "/mnt/alpine_root/var/lib/lxc/android/rootfs/system" 2>/dev/null | head -20 || echo "  UNREADABLE: /mnt/alpine_root/var/lib/lxc/android/rootfs/system"
+[17:05:52]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:52]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor"
+drwxr-xr-x 3 root root 60 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:52]   TEST: list first 20 entries in /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor
+[17:05:52]   CMD : ls -1 "/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor" 2>/dev/null | head -20 || echo "  UNREADABLE: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor"
+usr
+[17:05:52]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext
+[17:05:52]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext
+[17:05:52]   TEST: list first 20 entries in /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext
+[17:05:52]   CMD : ls -1 "/mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext" 2>/dev/null | head -20 || echo "  UNREADABLE: /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext"
+[17:05:52]   TEST: ls -ld /mnt/alpine_root/var/lib/lxc/android/rootfs/product
+[17:05:53]   CMD : ls -ld "/mnt/alpine_root/var/lib/lxc/android/rootfs/product" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/product"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /mnt/alpine_root/var/lib/lxc/android/rootfs/product
+[17:05:53]   TEST: list first 20 entries in /mnt/alpine_root/var/lib/lxc/android/rootfs/product
+[17:05:53]   CMD : ls -1 "/mnt/alpine_root/var/lib/lxc/android/rootfs/product" 2>/dev/null | head -20 || echo "  UNREADABLE: /mnt/alpine_root/var/lib/lxc/android/rootfs/product"
+[17:05:53] 
+[17:05:53] STAGE C SUMMARY: 12 partial points
+[17:05:53] 
+[17:05:53] ========================================
+[17:05:53] STAGE D: Bind mounts /system/vendor/system_ext/product + APEX
+[17:05:53] ========================================
+[17:05:53] D1: Bind mounts from extracted trees into /mnt/alpine_root and /android
+[17:05:53]   TEST: grep '/mnt/alpine_root/var/lib/lxc/android/rootfs/system /mnt/alpine_root/system' in /proc/mounts
+[17:05:53]   CMD : grep "/mnt/alpine_root/var/lib/lxc/android/rootfs/system /mnt/alpine_root/system" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system -> /mnt/alpine_root/system"
+  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system -> /mnt/alpine_root/system
+[17:05:53]   TEST: grep '/mnt/alpine_root/var/lib/lxc/android/rootfs/system /mnt/alpine_root/android/system' in /proc/mounts
+[17:05:53]   CMD : grep "/mnt/alpine_root/var/lib/lxc/android/rootfs/system /mnt/alpine_root/android/system" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system -> /mnt/alpine_root/android/system"
+  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system -> /mnt/alpine_root/android/system
+[17:05:53]   TEST: grep '/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor /mnt/alpine_root/android/vendor' in /proc/mounts
+[17:05:54]   CMD : grep "/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor /mnt/alpine_root/android/vendor" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor -> /mnt/alpine_root/android/vendor"
+  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor -> /mnt/alpine_root/android/vendor
+[17:05:54]   TEST: grep '/mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext /mnt/alpine_root/android/system_ext' in /proc/mounts
+[17:05:54]   CMD : grep "/mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext /mnt/alpine_root/android/system_ext" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext -> /mnt/alpine_root/android/system_ext"
+  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/system_ext -> /mnt/alpine_root/android/system_ext
+[17:05:54]   TEST: grep '/mnt/alpine_root/var/lib/lxc/android/rootfs/product /mnt/alpine_root/android/product' in /proc/mounts
+[17:05:54]   CMD : grep "/mnt/alpine_root/var/lib/lxc/android/rootfs/product /mnt/alpine_root/android/product" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/product -> /mnt/alpine_root/android/product"
+  NOT MOUNTED: /mnt/alpine_root/var/lib/lxc/android/rootfs/product -> /mnt/alpine_root/android/product
+[17:05:54] 
+[17:05:54] D2: /apex symlink target and visibility
+[17:05:54]   TEST: ls -ld /apex
+[17:05:54]   CMD : ls -ld /apex 2>/dev/null || echo "  MISSING: /apex"
+drwxr-xr-x 2 root root 40 2025-11-17 17:05 /apex
+[17:05:54]   RESULT: /apex -> (not a symlink)
+[17:05:54]   TEST: list /apex modules
+[17:05:54]   CMD : ls -1 /apex 2>/dev/null | head -20 || echo "  UNREADABLE: /apex"
+[17:05:54] 
+[17:05:55] STAGE D SUMMARY: 0 partial points
+[17:05:55] 
+[17:05:55] ========================================
+[17:05:55] STAGE E: socko mount & kernel modules
+[17:05:55] ========================================
+[17:05:55] E1: alpine_mount_socko status and mount
+[17:05:55]   TEST: getprop init.svc.alpine_mount_socko
+[17:05:55]   CMD : getprop init.svc.alpine_mount_socko
+stopped
+[17:05:55]   TEST: ls -ld /mnt/alpine_root/vendor/socko
+[17:05:55]   CMD : ls -ld "/mnt/alpine_root/vendor/socko" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/vendor/socko"
+drwxr-xr-x 3 root root 4096 2023-07-04 09:27 /mnt/alpine_root/vendor/socko
+[17:05:55]   TEST: grep '/mnt/alpine_root/vendor/socko' in /proc/mounts
+[17:05:55]   CMD : grep "/mnt/alpine_root/vendor/socko" /proc/mounts || echo "  NOT MOUNTED: /mnt/alpine_root/vendor/socko"
+/dev/block/mmcblk0p52 /mnt/alpine_root/vendor/socko ext4 ro,seclabel,relatime 0 0
+[17:05:55]   TEST: list modules in /mnt/alpine_root/vendor/socko
+[17:05:55]   CMD : ls -1 "/mnt/alpine_root/vendor/socko"/*.ko 2>/dev/null || echo "  NO .ko modules in /mnt/alpine_root/vendor/socko"
+/mnt/alpine_root/vendor/socko/mali_gondul.ko
+/mnt/alpine_root/vendor/socko/mmdvfs.ko
+/mnt/alpine_root/vendor/socko/sprd_cpp.ko
+/mnt/alpine_root/vendor/socko/sprd_fd.ko
+/mnt/alpine_root/vendor/socko/sprd_flash_drv.ko
+/mnt/alpine_root/vendor/socko/sprd_fm.ko
+/mnt/alpine_root/vendor/socko/sprd_sensor.ko
+/mnt/alpine_root/vendor/socko/sprd_vdsp.ko
+/mnt/alpine_root/vendor/socko/sprdbt_tty.ko
+/mnt/alpine_root/vendor/socko/sprdwl_ng.ko
+[17:05:55] 
+[17:05:56] E2: alpine_load_modules state
+[17:05:56]   TEST: getprop init.svc.alpine_load_modules
+[17:05:56]   CMD : getprop init.svc.alpine_load_modules
+stopped
+[17:05:56]   TEST: lsmod (global view)
+[17:05:56]   CMD : lsmod
+Module                  Size  Used by
+[17:05:56] 
+[17:05:56] STAGE E SUMMARY: 3 partial points
+[17:05:56] 
+[17:05:56] ========================================
+[17:05:56] STAGE F: Alpine hardware setup & device nodes
+[17:05:56] ========================================
+[17:05:56] F1: alpine_setup_hardware completion and script presence
+[17:05:56]   TEST: getprop init.svc.alpine_setup_hardware
+[17:05:56]   CMD : getprop init.svc.alpine_setup_hardware
+stopped
+[17:05:56]   TEST: ls -l /mnt/alpine_root/usr/local/bin/setup-unisoc-hardware
+[17:05:56]   CMD : ls -l "/mnt/alpine_root/usr/local/bin/setup-unisoc-hardware" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/usr/local/bin/setup-unisoc-hardware"
+  MISSING: /mnt/alpine_root/usr/local/bin/setup-unisoc-hardware
+[17:05:57] 
+[17:05:57] F2: /dev node presence (host view)
+[17:05:57]   TEST: ls -l /dev/binder
+[17:05:57]   CMD : ls -l "/dev/binder" 2>/dev/null || echo "  MISSING: /dev/binder"
+  MISSING: /dev/binder
+[17:05:57]   TEST: ls -l /dev/hwbinder
+[17:05:57]   CMD : ls -l "/dev/hwbinder" 2>/dev/null || echo "  MISSING: /dev/hwbinder"
+  MISSING: /dev/hwbinder
+[17:05:57]   TEST: ls -l /dev/vndbinder
+[17:05:57]   CMD : ls -l "/dev/vndbinder" 2>/dev/null || echo "  MISSING: /dev/vndbinder"
+  MISSING: /dev/vndbinder
+[17:05:57]   TEST: ls -l /dev/mali0
+[17:05:57]   CMD : ls -l /dev/mali0 2>/dev/null || echo "  MISSING: /dev/mali0"
+  MISSING: /dev/mali0
+[17:05:57]   TEST: ls -l /dev/i2c*
+[17:05:57]   CMD : ls -l /dev/i2c* 2>/dev/null || echo "  NO /dev/i2c* NODES"
+crw------- 1 root root 89,   0 2025-11-17 17:05 /dev/i2c-0
+crw------- 1 root root 89,   1 2025-11-17 17:05 /dev/i2c-1
+crw------- 1 root root 89,   2 2025-11-17 17:05 /dev/i2c-2
+crw------- 1 root root 89,   3 2025-11-17 17:05 /dev/i2c-3
+crw------- 1 root root 89,   4 2025-11-17 17:05 /dev/i2c-4
+crw------- 1 root root 89,   5 2025-11-17 17:05 /dev/i2c-5
+[17:05:57]   TEST: ls -l /dev/fuse
+[17:05:57]   CMD : ls -l /dev/fuse 2>/dev/null || echo "  MISSING: /dev/fuse"
+crw------- 1 root root 10, 229 2025-11-17 17:05 /dev/fuse
+[17:05:58]   TEST: ls -l /dev/rs*
+[17:05:58]   CMD : ls -l /dev/rs* 2>/dev/null || echo "  NO /dev/rs* NODES"
+crw-rw-rw- 1 root root 10,  44 2025-11-17 17:05 /dev/rstouch
+[17:05:58]   TEST: ls -l /dev/retrostation_hdmi
+[17:05:58]   CMD : ls -l /dev/retrostation_hdmi 2>/dev/null || echo "  MISSING: /dev/retrostation_hdmi"
+crw------- 1 root root 10,  25 2025-11-17 17:05 /dev/retrostation_hdmi
+[17:05:58]   TEST: ls -l /dev/gsp
+[17:05:58]   CMD : ls -l /dev/gsp 2>/dev/null || echo "  MISSING: /dev/gsp"
+crw-rw---- 1 system graphics 10,  60 2025-11-17 17:05 /dev/gsp
+[17:05:58]   TEST: ls -l /dev/dri/*
+[17:05:58]   CMD : ls -l /dev/dri/* 2>/dev/null || echo "  NO /dev/dri/* NODES"
+crw-rw-rw- 1 root graphics 226,   0 2025-11-17 17:05 /dev/dri/card0
+[17:05:58]   TEST: ls -l /dev/v4l-subdev0
+[17:05:58]   CMD : ls -l "/dev/v4l-subdev0" 2>/dev/null || echo "  MISSING: /dev/v4l-subdev0"
+  MISSING: /dev/v4l-subdev0
+[17:05:58]   TEST: ls -l /dev/v4l-subdev1
+[17:05:58]   CMD : ls -l "/dev/v4l-subdev1" 2>/dev/null || echo "  MISSING: /dev/v4l-subdev1"
+  MISSING: /dev/v4l-subdev1
+[17:05:58]   TEST: ls -l /dev/v4l-subdev2
+[17:05:58]   CMD : ls -l "/dev/v4l-subdev2" 2>/dev/null || echo "  MISSING: /dev/v4l-subdev2"
+  MISSING: /dev/v4l-subdev2
+[17:05:59]   TEST: ls -l /dev/v4l-subdev3
+[17:05:59]   CMD : ls -l "/dev/v4l-subdev3" 2>/dev/null || echo "  MISSING: /dev/v4l-subdev3"
+  MISSING: /dev/v4l-subdev3
+[17:05:59]   TEST: ls -l /dev/input/*
+[17:05:59]   CMD : ls -l /dev/input/* 2>/dev/null || echo "  NO /dev/input/* NODES"
+crw-rw---- 1 system input 13,  64 2025-11-17 17:05 /dev/input/event0
+crw-rw---- 1 system input 13,  65 2025-11-17 17:05 /dev/input/event1
+crw-rw---- 1 system input 13,  66 2025-11-17 17:05 /dev/input/event2
+crw-rw---- 1 system input 13,  67 2025-11-17 17:05 /dev/input/event3
+crw-rw---- 1 system input 13,  68 2025-11-17 17:05 /dev/input/event4
+crw-rw---- 1 root   input 13,  63 2025-11-17 17:05 /dev/input/mice
+[17:05:59]   TEST: ls -l /dev/urandom
+[17:05:59]   CMD : ls -l /dev/urandom 2>/dev/null || echo "  MISSING: /dev/urandom"
+crw-rw-rw- 1 root root 1,   9 2025-11-17 17:05 /dev/urandom
+[17:05:59]   TEST: ls -l /dev/wcn
+[17:05:59]   CMD : ls -l /dev/wcn 2>/dev/null || echo "  MISSING: /dev/wcn"
+crw------- 1 root root 10,  53 2025-11-17 17:05 /dev/wcn
+[17:05:59] 
+[17:05:59] STAGE F SUMMARY: 1 partial points
+[17:05:59] 
+[17:05:59] ========================================
+[17:05:59] STAGE G: LXC pre-start & keylayout from ZIP
+[17:05:59] ========================================
+[17:05:59] G1: alpine_lxc_prestart status
+[17:06:00]   TEST: getprop init.svc.alpine_lxc_prestart
+[17:06:00]   CMD : getprop init.svc.alpine_lxc_prestart
+stopped
+[17:06:00]   TEST: ls -l /mnt/alpine_root/etc/Vendor_2022_Product_3001.zip
+[17:06:00]   CMD : ls -l "/mnt/alpine_root/etc/Vendor_2022_Product_3001.zip" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/etc/Vendor_2022_Product_3001.zip"
+  MISSING: /mnt/alpine_root/etc/Vendor_2022_Product_3001.zip
+[17:06:00]   TEST: ls -l /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor/usr/keylayout/Vendor_2022_Product_3001.kl
+[17:06:00]   CMD : ls -l "/mnt/alpine_root/var/lib/lxc/android/rootfs/vendor/usr/keylayout/Vendor_2022_Product_3001.kl" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor/usr/keylayout/Vendor_2022_Product_3001.kl"
+  MISSING: /mnt/alpine_root/var/lib/lxc/android/rootfs/vendor/usr/keylayout/Vendor_2022_Product_3001.kl
+[17:06:00] 
+[17:06:00] STAGE G SUMMARY: 1 partial points
+[17:06:00] 
+[17:06:00] ========================================
+[17:06:00] STAGE H: OpenRC sysinit/boot and environment
+[17:06:00] ========================================
+[17:06:00] H1: alpine_rc_sysinit and alpine_rc_boot states
+[17:06:00]   TEST: getprop init.svc.alpine_rc_sysinit
+[17:06:00]   CMD : getprop init.svc.alpine_rc_sysinit
+stopped
+[17:06:01]   TEST: getprop init.svc.alpine_rc_boot
+[17:06:01]   CMD : getprop init.svc.alpine_rc_boot
+stopped
+[17:06:01]   TEST: getprop alpine.env.ready
+[17:06:01]   CMD : getprop alpine.env.ready
+1
+[17:06:01]   TEST: chroot /mnt/alpine_root rc-status -a
+[17:06:01]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-status -a
+chroot: can't execute '/sbin/rc-status': No such file or directory
+[17:06:01]   TEST: chroot /mnt/alpine_root rc-status -c
+[17:06:01]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-status -c || true
+chroot: can't execute '/sbin/rc-status': No such file or directory
+[17:06:01] 
+[17:06:01] STAGE H SUMMARY: 3 partial points
+[17:06:01] 
+[17:06:01] ========================================
+[17:06:01] STAGE I: Individual Alpine services chain (alpine_svc_*)
+[17:06:01] ========================================
+[17:06:01]   TEST: getprop init.svc.alpine_svc_boot_wlan
+[17:06:01]   CMD : getprop init.svc.alpine_svc_boot_wlan
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_hybrislinks
+[17:06:02]   CMD : getprop init.svc.alpine_svc_hybrislinks
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_dbus
+[17:06:02]   CMD : getprop init.svc.alpine_svc_dbus
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_networkmanager
+[17:06:02]   CMD : getprop init.svc.alpine_svc_networkmanager
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_rfkill
+[17:06:02]   CMD : getprop init.svc.alpine_svc_rfkill
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_sshd
+[17:06:02]   CMD : getprop init.svc.alpine_svc_sshd
+stopped
+[17:06:02]   TEST: getprop init.svc.alpine_svc_udev
+[17:06:02]   CMD : getprop init.svc.alpine_svc_udev
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_udev_trigger
+[17:06:03]   CMD : getprop init.svc.alpine_svc_udev_trigger
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_udev_settle
+[17:06:03]   CMD : getprop init.svc.alpine_svc_udev_settle
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_udevhack
+[17:06:03]   CMD : getprop init.svc.alpine_svc_udevhack
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_hadess_sensorfw
+[17:06:03]   CMD : getprop init.svc.alpine_svc_hadess_sensorfw
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_ofono
+[17:06:03]   CMD : getprop init.svc.alpine_svc_ofono
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_ofono2mm
+[17:06:03]   CMD : getprop init.svc.alpine_svc_ofono2mm
+stopped
+[17:06:03]   TEST: getprop init.svc.alpine_svc_phosh
+[17:06:04]   CMD : getprop init.svc.alpine_svc_phosh
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_bluebinder
+[17:06:04]   CMD : getprop init.svc.alpine_svc_bluebinder
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_bluetooth
+[17:06:04]   CMD : getprop init.svc.alpine_svc_bluetooth
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_pulseaudio
+[17:06:04]   CMD : getprop init.svc.alpine_svc_pulseaudio
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_audiosystem
+[17:06:04]   CMD : getprop init.svc.alpine_svc_audiosystem
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_usb_tether
+[17:06:04]   CMD : getprop init.svc.alpine_svc_usb_tether
+stopped
+[17:06:04]   TEST: getprop init.svc.alpine_svc_wcnss
+[17:06:04]   CMD : getprop init.svc.alpine_svc_wcnss
+stopped
+[17:06:05]   TEST: getprop init.svc.alpine_svc_wpa_supplicant
+[17:06:05]   CMD : getprop init.svc.alpine_svc_wpa_supplicant
+stopped
+[17:06:05]   RESULT: 21/21 alpine_svc_* services in 'stopped' (completed) state
+[17:06:05]   TEST: chroot /mnt/alpine_root rc-service dbus status
+[17:06:05]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "dbus" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:05]   TEST: chroot /mnt/alpine_root rc-service networkmanager status
+[17:06:05]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "networkmanager" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:05]   TEST: chroot /mnt/alpine_root rc-service sshd status
+[17:06:05]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "sshd" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:05]   TEST: chroot /mnt/alpine_root rc-service udev status
+[17:06:05]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "udev" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:05]   TEST: chroot /mnt/alpine_root rc-service phosh status
+[17:06:06]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "phosh" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:06]   TEST: chroot /mnt/alpine_root rc-service bluetooth status
+[17:06:06]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "bluetooth" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:06]   TEST: chroot /mnt/alpine_root rc-service pulseaudio status
+[17:06:06]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "pulseaudio" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:06]   TEST: chroot /mnt/alpine_root rc-service wpa_supplicant status
+[17:06:06]   CMD : /system/bin/busybox chroot "/mnt/alpine_root" /sbin/rc-service "wpa_supplicant" status
+chroot: can't execute '/sbin/rc-service': No such file or directory
+[17:06:06]   RESULT: 0/71 key services running in Alpine
+[17:06:06] 
+[17:06:06] STAGE I SUMMARY: 1 partial points
+[17:06:06] 
+[17:06:06] ========================================
+[17:06:06] STAGE J: Bluetooth, USB ConfigFS, systeminfo
+[17:06:06] ========================================
+[17:06:07] J1: /data/misc/bluetooth presence
+[17:06:07]   TEST: ls -ld /data/misc/bluetooth
+[17:06:07]   CMD : ls -ld /data/misc/bluetooth 2>/dev/null || echo "  MISSING: /data/misc/bluetooth"
+drwxrwx--- 2 system system 0 2025-11-17 17:05 /data/misc/bluetooth
+[17:06:07] 
+[17:06:07] J2: sys.usb.configfs property == 1
+[17:06:07]   TEST: getprop sys.usb.configfs
+[17:06:07]   CMD : getprop sys.usb.configfs
+1
+[17:06:07] 
+[17:06:07] J3: /systeminfo existence
+[17:06:07]   TEST: ls -ld /systeminfo
+[17:06:07]   CMD : ls -ld /systeminfo 2>/dev/null || echo "  MISSING: /systeminfo"
+drwxrwxrwx 2 system system 0 2025-11-17 17:05 /systeminfo
+[17:06:07] 
+[17:06:07] J4: USB gadget configfs strings path
+[17:06:07]   TEST: ls -ld /config/usb_gadget/g1/configs/b.1/strings/0x409
+[17:06:07]   CMD : ls -ld "/config/usb_gadget/g1/configs/b.1/strings/0x409" 2>/dev/null || echo "  MISSING: /config/usb_gadget/g1/configs/b.1/strings/0x409"
+drwxrwx--- 2 shell shell 0 2025-11-17 17:05 /config/usb_gadget/g1/configs/b.1/strings/0x409
+[17:06:08] 
+[17:06:08] STAGE J SUMMARY: 4 partial points
+[17:06:08] 
+[17:06:08] ========================================
+[17:06:08] STAGE K: libhybris / Android HAL functional probes
+[17:06:08] ========================================
+[17:06:08] K1: test_vibrator binary (if present)
+[17:06:08]   TEST: ls -l /mnt/alpine_root/usr/bin/test_vibrator
+[17:06:08]   CMD : ls -l "/mnt/alpine_root/usr/bin/test_vibrator" 2>/dev/null || echo "  MISSING: /mnt/alpine_root/usr/bin/test_vibrator"
+  MISSING: /mnt/alpine_root/usr/bin/test_vibrator
+[17:06:08] 
+[17:06:08] K2: ldd of a HAL-using binary (phosh or pulseaudio)
+[17:06:08] 
+[17:06:08] STAGE K SUMMARY: 0 partial points
+[17:06:08] 
+[17:06:08] ========================================
+[17:06:08] STAGE L: SELinux and security contexts
+[17:06:08] ========================================
+[17:06:08] L1: /sys/fs/selinux/enforce
+[17:06:09]   TEST: cat /sys/fs/selinux/enforce
+[17:06:09]   CMD : cat /sys/fs/selinux/enforce 2>/dev/null || echo "  NO SELINUX ENFORCE FILE"
+0[17:06:09] 
+[17:06:09] L2: init (PID1) SELinux context
+[17:06:09]   TEST: cat /proc/1/attr/current
+[17:06:09]   CMD : cat /proc/1/attr/current 2>/dev/null || echo "  NO CONTEXT FOR PID1"
+u:r:init:s0 [17:06:09] 
+[17:06:09] L3: this script SELinux context
+[17:06:09]   TEST: cat /proc/self/attr/current
+[17:06:09]   CMD : cat /proc/self/attr/current 2>/dev/null || echo "  NO CONTEXT FOR SELF"
+u:r:recovery:s0 [17:06:09] 
+[17:06:09] STAGE L SUMMARY: 3 partial points
+[17:06:09] 
+[17:06:09] ========================================
+[17:06:09] STAGE M: Init process (PID 1) & dmesg (Alpine stack view)
+[17:06:09] ========================================
+[17:06:10] M1: Inspect init process (PID 1)
+[17:06:10]   TEST: ps -p 1 -o pid,ppid,user,args
+[17:06:10]   CMD : ps -p 1 -o pid,ppid,user,args
+   PID   PPID USER         ARGS                       
+     1      0 root         init second_stage
+[17:06:10]   RESULT: Init executable: /system/bin/init
+[17:06:10]   RESULT: Init cmdline: /system/bin/init second_stage
+[17:06:10] 
+[17:06:10] M2: List children of PID 1
+[17:06:10]   TEST: ps -o pid,ppid,args | busybox awk '$2 == 1'
+[17:06:10]   CMD : ps -o pid,ppid,args | busybox awk '$2 == 1'
+   237      1 init subcontext u:r:vendor_init:s0 15
+   238      1 ueventd
+   253      1 charger
+   254      1 sh /system/bin/recovery
+[17:06:10] 
+[17:06:10] M3: Scan dmesg for init-related messages
+[17:06:10] --- Checking dmesg for init lines ---
+[17:06:10]   CMD : dmesg | grep -i "init" || echo "  NO 'init' LINES FOUND IN dmesg"
+[    0.000000] random: get_random_bytes called from start_kernel+0x98/0x470 with crng_init=0
+[    0.000000] Kernel command line: earlycon=sprd_serial,0x70100000,115200n8 console=ttyS1,115200n8 loglevel=0 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-apb/71400000.sdio swiotlb=1 androidboot.init_fatal_panic=true androidboot.hardware=ums512_1h10 androidboot.dtbo_idx=1 lcd_id=ID0 lcd_name=lcd_FC11339_mipi_hd lcd_base=9e000000 lcd_size=1336x752 pixel_clock=64000000 logo_bpix=8 androidboot.ddrsize=4096M androidboot.ddrsize.range=[4096,5120) androidboot.lwfq.type=0 androidboot.auto.efuse=T618 androidboot.auto.chipid=UMS512-AC  sysdump_magic=82100000  androidboot.wdten=e551 modem=shutdown androidboot.mode=recovery ltemode=lcsfb rfboard.id=0 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=0 androidboot.pmic.chipid=2730 modemboot.method=emmcboot  androidboot.verifiedbootstate=orange androidboot.flash.locked=0  androidboot.serialno=0123456789ABCDEF androidboot.vbmeta.device=PARTUUID=1.0 androidboot.vbmeta.avb_version=1.1 androidboot.vbmeta.device_state=
+[    0.000000] .init : 0x        (ptrval) - 0x        (ptrval)   (  2752 KB)
+[    0.000000] SELinux:  Initializing.
+[    0.292000] SCSI subsystem initialized
+[    0.406322] Trying to unpack rootfs image as initramfs...
+[    0.889008] hw perfevents: no interrupt-affinity property for /pmu, guessing.
+[    0.892966] audit: type=2000 audit(0.891:1): state=initialized audit_enabled=0 res=1
+[    0.893101] Initialise system trusted keyrings
+[    0.895617] fuse init (API version 7.26)
+[    0.983491] RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_mcu_module_init():264]register main sensor:0
+[    0.984947] [drm] dpu plane init ok
+[    0.984959] [drm] sprd_crtc_init() ok
+[    0.985433] [drm] Initialized sprd 1.0.0 20180501 for display-subsystem on minor 0
+[    0.993858] RetroidPocket [drivers/misc/retrostation/gpio.c:rs_gpio_sysfs_init():127]done!
+[    0.993932] RetroidPocket [drivers/misc/retrostation/gpio.c:rs_gpio_init():190]rs_gpio_init done!
+[    1.099425] IR NEC protocol handler initialized
+[    1.099428] IR RC5(x/sz) protocol handler initialized
+[    1.099429] IR RC6 protocol handler initialized
+[    1.099431] IR JVC protocol handler initialized
+[    1.099433] IR Sony protocol handler initialized
+[    1.099435] IR SANYO protocol handler initialized
+[    1.099437] IR MCE Keyboard/mouse protocol handler initialized
+[    1.099438] IR XMP protocol handler initialized
+[    1.104524] eta355e_init
+[    1.269020] Initializing XFRM netlink socket
+[    1.314044] mmc0: init cq
+[    1.376431] random: fast init done
+[    1.615054] RetroidPocket [drivers/misc/retrostation/hdmi.c:hdmi_init():787][hdmi] hdmi_init done!
+[    1.615060] otg_wakelock_init: No USB transceiver found
+[    1.778626] run init
+[    1.781800] magiskinit: open '/proc/bootconfig': No such file or directory (os error 2)
+[    1.781986] magiskinit: Ramdisk is recovery, abort
+[    1.831539] init: init first stage started!
+[    1.831611] init: Unable to open /lib/modules, skipping module loading.
+[    1.831652] init: First stage mount skipped (recovery mode)
+[    1.831915] init: [libfs_mgr]ReadFstabFromDt(): failed to read fstab from dt
+[    1.832973] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    2.900774] init: [libfs_avb]Device path not found: /dev/block/by-name/vbmeta_product_a
+[    2.902528] init: [libfs_avb]avb_slot_verify failed, result: 2
+[    2.902580] init: Failed to open AvbHandle for INIT_AVB_VERSION: No such file or directory
+[    2.906335] random: init: uninitialized urandom read (40 bytes read)
+[    2.921079] random: init: uninitialized urandom read (40 bytes read)
+[    2.921188] random: init: uninitialized urandom read (4 bytes read)
+[    2.932553] init: DM_DEV_STATUS failed for system_ext_a: No such device or address
+[    2.932564] init: Could not update logical partition
+[    2.932841] init: DM_DEV_STATUS failed for product_a: No such device or address
+[    2.932849] init: Could not update logical partition
+[    2.932883] init: Loading SELinux policy
+[    2.947196] SELinux:  Completing initialization.
+[    3.032727] init: init second stage started!
+[    3.075782] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    3.079746] init: Overriding previous 'ro.' property 'ro.sf.lcd_density':'320' with new value '266'
+[    3.081264] init: Couldn't load property file '/odm/etc/build.prop': open() failed: No such file or directory: No such file or directory
+[    3.081428] init: Overriding previous 'ro.' property 'ro.carrier':'unknown' with new value 'oversea'
+[    3.081562] init: Overriding previous 'ro.' property 'ro.postinstall.fstab.prefix':'/system' with new value '/product'
+[    3.081613] init: Overriding previous 'ro.' property 'ro.config.ringtone':'Ring_Synth_04.ogg' with new value 'Ring_Synth_04.ogg,Ring_Synth_02.ogg'
+[    3.081685] init: Couldn't load property file '/factory/factory.prop': open() failed: No such file or directory: No such file or directory
+[    3.083182] init: Setting product property ro.product.manufacturer to 'Moorechip' (from ro.product.product.manufacturer)
+[    3.085764] init: Running restorecon...
+[    3.104620] init: Created socket '/dev/socket/property_service', mode 666, user 0, group 0
+[    3.106604] init: Unable to set property 'ro.boot.flash.locked' from uid:0 gid:0 pid:1: Read-only property was already set
+[    3.109194] init: SetupMountNamespaces done
+[    3.110388] init: Forked subcontext for 'u:r:vendor_init:s0' with pid 237
+[    3.110475] init: Parsing file /system/etc/init/hw/init.rc...
+[    3.110663] init: Added '/init.recovery.ums512_1h10.rc' to import list
+[    3.110676] init: Added '/system/etc/init/hw/init.usb.rc' to import list
+[    3.110691] init: Added '/system/etc/init/hw/init.usb.configfs.rc' to import list
+[    3.110701] init: Added '/system/etc/init/retropocket.rc' to import list
+[    3.112777] init: Parsing file /init.recovery.ums512_1h10.rc...
+[    3.112820] init: Added '/init.recovery.common.rc' to import list
+[    3.112831] init: Parsing file /init.recovery.common.rc...
+[    3.114484] init: Parsing file /system/etc/init/hw/init.usb.rc...
+[    3.114751] init: Parsing file /system/etc/init/hw/init.usb.configfs.rc...
+[    3.115089] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115147] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115162] init: Parsing directory /system/etc/init...
+[    3.115195] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115242] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115267] init: Parsing file /system_ext/etc/init...
+[    3.115284] init: Unable to read config file '/system_ext/etc/init': open() failed: No such file or directory
+[    3.115296] init: Parsing file /product/etc/init...
+[    3.115309] init: Unable to read config file '/product/etc/init': open() failed: No such file or directory
+[    3.115322] init: Parsing file /odm/etc/init...
+[    3.115334] init: Unable to read config file '/odm/etc/init': open() failed: No such file or directory
+[    3.115346] init: Parsing directory /vendor/etc/init...
+[    3.116318] init: processing action (SetupCgroups) from (<Builtin Action>:0)
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.117765] init: processing action (SetKptrRestrict) from (<Builtin Action>:0)
+[    3.117952] init: processing action (TestPerfEventSelinux) from (<Builtin Action>:0)
+[    3.118064] init: processing action (early-init) from (/system/etc/init/hw/init.rc:361)
+[    3.118568] init: starting service 'ueventd'...
+[    3.120278] init: cpuset cgroup controller is not mounted!
+[    3.122106] init: processing action (wait_for_coldboot_done) from (<Builtin Action>:0)
+[    3.404774] init: Wait for property 'ro.cold_boot_done=true' took 282ms
+[    3.404883] init: processing action (MixHwrngIntoLinuxRng) from (<Builtin Action>:0)
+[    3.404916] init: /dev/hw_random not found
+[    3.404951] init: processing action (SetMmapRndBits) from (<Builtin Action>:0)
+[    3.405360] init: processing action (KeychordInit) from (<Builtin Action>:0)
+[    3.405414] init: processing action (init) from (/system/etc/init/hw/init.rc:379)
+[    3.406736] init: Command 'symlink /system/bin /bin' action=init (/system/etc/init/hw/init.rc:391) took 0ms and failed: symlink() failed: File exists
+[    3.406820] init: Command 'symlink /system/etc /etc' action=init (/system/etc/init/hw/init.rc:392) took 0ms and failed: symlink() failed: File exists
+[    3.407006] init: Command 'mount cgroup none /acct cpuacct' action=init (/system/etc/init/hw/init.rc:395) took 0ms and failed: mount() failed: Device or resource busy
+[    3.409016] init: processing action (init) from (/init.recovery.common.rc:314)
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.410346] init: Command 'symlink /system/etc/bluetooth /etc/bluetooth' action=init (/init.recovery.common.rc:335) took 0ms and failed: symlink() failed: File exists
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[    7.252809] random: crng init done
+[   15.883346] audit: type=1400 audit(1763399143.731:73): avc:  denied  { getattr } for  pid=1149 comm="ls" path="/mnt/overlay/upper/.wh.proc" dev="tmpfs" ino=8050 scontext=u:r:recovery:s0 tcontext=u:object_r:init_tmpfs:s0 tclass=file permissive=1
+[   16.341776] init: /system/bin/busybox: cannot expand arguments': using deprecated syntax for specifying property 'mod 2>/dev/null || true; done', use ${name} instead
+[   41.567775] audit: type=1400 audit(1763399169.415:82): avc:  denied  { getattr } for  pid=3164 comm="cat" scontext=u:r:recovery:s0 tcontext=u:r:init:s0 tclass=process permissive=1
+[17:06:10] 
+[17:06:11] --- Init-specific error patterns ---
+[17:06:11]   CMD : dmesg | grep -E '(init:|parse error|malformed|\.rc|Failed to|unable to)' || echo '  NO INIT PARSER ERRORS MATCHED'
+[    0.996832] nd_pmem namespace0.0: unable to guarantee persistence of writes
+[    0.999654] regulator regulator.1: Failed to create debugfs directory
+[    0.999767] regulator regulator.2: Failed to create debugfs directory
+[    0.999874] regulator regulator.3: Failed to create debugfs directory
+[    0.999986] regulator regulator.4: Failed to create debugfs directory
+[    1.000128] regulator regulator.5: Failed to create debugfs directory
+[    1.000238] regulator regulator.6: Failed to create debugfs directory
+[    1.000340] regulator regulator.7: Failed to create debugfs directory
+[    1.000446] regulator regulator.8: Failed to create debugfs directory
+[    1.000559] regulator regulator.9: Failed to create debugfs directory
+[    1.000666] regulator regulator.10: Failed to create debugfs directory
+[    1.000773] regulator regulator.11: Failed to create debugfs directory
+[    1.000867] regulator regulator.12: Failed to create debugfs directory
+[    1.000967] regulator regulator.13: Failed to create debugfs directory
+[    1.001060] regulator regulator.14: Failed to create debugfs directory
+[    1.001152] regulator regulator.15: Failed to create debugfs directory
+[    1.001258] regulator regulator.16: Failed to create debugfs directory
+[    1.001369] regulator regulator.17: Failed to create debugfs directory
+[    1.001469] regulator regulator.18: Failed to create debugfs directory
+[    1.001569] regulator regulator.19: Failed to create debugfs directory
+[    1.001667] regulator regulator.20: Failed to create debugfs directory
+[    1.001772] regulator regulator.21: Failed to create debugfs directory
+[    1.001874] regulator regulator.22: Failed to create debugfs directory
+[    1.001973] regulator regulator.23: Failed to create debugfs directory
+[    1.002075] regulator regulator.24: Failed to create debugfs directory
+[    1.002190] regulator regulator.25: Failed to create debugfs directory
+[    1.002291] regulator regulator.26: Failed to create debugfs directory
+[    1.002404] regulator regulator.27: Failed to create debugfs directory
+[    1.002508] regulator regulator.28: Failed to create debugfs directory
+[    1.002631] regulator regulator.29: Failed to create debugfs directory
+[    1.002738] regulator regulator.30: Failed to create debugfs directory
+[    1.002841] regulator regulator.31: Failed to create debugfs directory
+[    1.002945] regulator regulator.32: Failed to create debugfs directory
+[    1.392133] sc27xx-typec-pd sc27xx-pd: unable to get vddldo supply
+[    1.615060] otg_wakelock_init: No USB transceiver found
+[    1.762559] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Adie Loop -> direct -> ADC1-DAC Adie Loop post
+[    1.762605] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Adie Loop post -> direct -> DAC
+[    1.762674] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Digital Loop -> direct -> ADC1-DAC Digital Loop post
+[    1.762718] sprd-codec-sc2730 sc27xx-audio-codec: ASoC: Failed to add route ADC1-DAC Digital Loop post -> direct -> DAC
+[    1.781800] magiskinit: open '/proc/bootconfig': No such file or directory (os error 2)
+[    1.781986] magiskinit: Ramdisk is recovery, abort
+[    1.831539] init: init first stage started!
+[    1.831611] init: Unable to open /lib/modules, skipping module loading.
+[    1.831652] init: First stage mount skipped (recovery mode)
+[    1.831915] init: [libfs_mgr]ReadFstabFromDt(): failed to read fstab from dt
+[    1.832973] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    2.900774] init: [libfs_avb]Device path not found: /dev/block/by-name/vbmeta_product_a
+[    2.902528] init: [libfs_avb]avb_slot_verify failed, result: 2
+[    2.902580] init: Failed to open AvbHandle for INIT_AVB_VERSION: No such file or directory
+[    2.906335] random: init: uninitialized urandom read (40 bytes read)
+[    2.921079] random: init: uninitialized urandom read (40 bytes read)
+[    2.921188] random: init: uninitialized urandom read (4 bytes read)
+[    2.932553] init: DM_DEV_STATUS failed for system_ext_a: No such device or address
+[    2.932564] init: Could not update logical partition
+[    2.932841] init: DM_DEV_STATUS failed for product_a: No such device or address
+[    2.932849] init: Could not update logical partition
+[    2.932883] init: Loading SELinux policy
+[    3.032727] init: init second stage started!
+[    3.075782] init: Using Android DT directory /proc/device-tree/firmware/android/
+[    3.079746] init: Overriding previous 'ro.' property 'ro.sf.lcd_density':'320' with new value '266'
+[    3.081264] init: Couldn't load property file '/odm/etc/build.prop': open() failed: No such file or directory: No such file or directory
+[    3.081428] init: Overriding previous 'ro.' property 'ro.carrier':'unknown' with new value 'oversea'
+[    3.081562] init: Overriding previous 'ro.' property 'ro.postinstall.fstab.prefix':'/system' with new value '/product'
+[    3.081613] init: Overriding previous 'ro.' property 'ro.config.ringtone':'Ring_Synth_04.ogg' with new value 'Ring_Synth_04.ogg,Ring_Synth_02.ogg'
+[    3.081685] init: Couldn't load property file '/factory/factory.prop': open() failed: No such file or directory: No such file or directory
+[    3.083182] init: Setting product property ro.product.manufacturer to 'Moorechip' (from ro.product.product.manufacturer)
+[    3.085764] init: Running restorecon...
+[    3.104620] init: Created socket '/dev/socket/property_service', mode 666, user 0, group 0
+[    3.106604] init: Unable to set property 'ro.boot.flash.locked' from uid:0 gid:0 pid:1: Read-only property was already set
+[    3.109194] init: SetupMountNamespaces done
+[    3.110388] init: Forked subcontext for 'u:r:vendor_init:s0' with pid 237
+[    3.110475] init: Parsing file /system/etc/init/hw/init.rc...
+[    3.110663] init: Added '/init.recovery.ums512_1h10.rc' to import list
+[    3.110676] init: Added '/system/etc/init/hw/init.usb.rc' to import list
+[    3.110691] init: Added '/system/etc/init/hw/init.usb.configfs.rc' to import list
+[    3.110701] init: Added '/system/etc/init/retropocket.rc' to import list
+[    3.112777] init: Parsing file /init.recovery.ums512_1h10.rc...
+[    3.112820] init: Added '/init.recovery.common.rc' to import list
+[    3.112831] init: Parsing file /init.recovery.common.rc...
+[    3.114484] init: Parsing file /system/etc/init/hw/init.usb.rc...
+[    3.114751] init: Parsing file /system/etc/init/hw/init.usb.configfs.rc...
+[    3.115089] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115147] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115162] init: Parsing directory /system/etc/init...
+[    3.115195] init: Parsing file /system/etc/init/retropocket.rc...
+[    3.115242] init: /system/etc/init/retropocket.rc: 7: ignored duplicate definition of service 'pservice'
+[    3.115267] init: Parsing file /system_ext/etc/init...
+[    3.115284] init: Unable to read config file '/system_ext/etc/init': open() failed: No such file or directory
+[    3.115296] init: Parsing file /product/etc/init...
+[    3.115309] init: Unable to read config file '/product/etc/init': open() failed: No such file or directory
+[    3.115322] init: Parsing file /odm/etc/init...
+[    3.115334] init: Unable to read config file '/odm/etc/init': open() failed: No such file or directory
+[    3.115346] init: Parsing directory /vendor/etc/init...
+[    3.116318] init: processing action (SetupCgroups) from (<Builtin Action>:0)
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.117765] init: processing action (SetKptrRestrict) from (<Builtin Action>:0)
+[    3.117952] init: processing action (TestPerfEventSelinux) from (<Builtin Action>:0)
+[    3.118064] init: processing action (early-init) from (/system/etc/init/hw/init.rc:361)
+[    3.118568] init: starting service 'ueventd'...
+[    3.120278] init: cpuset cgroup controller is not mounted!
+[    3.122106] init: processing action (wait_for_coldboot_done) from (<Builtin Action>:0)
+[    3.153328] ueventd: Parsing file /system/etc/ueventd.rc...
+[    3.154042] ueventd: Parsing file /vendor/ueventd.rc...
+[    3.154066] ueventd: Unable to read config file '/vendor/ueventd.rc': open() failed: No such file or directory
+[    3.154078] ueventd: Parsing file /odm/ueventd.rc...
+[    3.154092] ueventd: Unable to read config file '/odm/ueventd.rc': open() failed: No such file or directory
+[    3.154102] ueventd: Parsing file /ueventd.ums512_1h10.rc...
+[    3.404774] init: Wait for property 'ro.cold_boot_done=true' took 282ms
+[    3.404883] init: processing action (MixHwrngIntoLinuxRng) from (<Builtin Action>:0)
+[    3.404916] init: /dev/hw_random not found
+[    3.404951] init: processing action (SetMmapRndBits) from (<Builtin Action>:0)
+[    3.405360] init: processing action (KeychordInit) from (<Builtin Action>:0)
+[    3.405414] init: processing action (init) from (/system/etc/init/hw/init.rc:379)
+[    3.406736] init: Command 'symlink /system/bin /bin' action=init (/system/etc/init/hw/init.rc:391) took 0ms and failed: symlink() failed: File exists
+[    3.406820] init: Command 'symlink /system/etc /etc' action=init (/system/etc/init/hw/init.rc:392) took 0ms and failed: symlink() failed: File exists
+[    3.407006] init: Command 'mount cgroup none /acct cpuacct' action=init (/system/etc/init/hw/init.rc:395) took 0ms and failed: mount() failed: Device or resource busy
+[    3.409016] init: processing action (init) from (/init.recovery.common.rc:314)
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.410346] init: Command 'symlink /system/etc/bluetooth /etc/bluetooth' action=init (/init.recovery.common.rc:335) took 0ms and failed: symlink() failed: File exists
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[   16.341776] init: /system/bin/busybox: cannot expand arguments': using deprecated syntax for specifying property 'mod 2>/dev/null || true; done', use ${name} instead
+[   41.567775] audit: type=1400 audit(1763399169.415:82): avc:  denied  { getattr } for  pid=3164 comm="cat" scontext=u:r:recovery:s0 tcontext=u:r:init:s0 tclass=process permissive=1
+[17:06:11] 
+[17:06:11] --- SELinux denials in dmesg ---
+[17:06:11]   CMD : dmesg | grep -i 'avc.*denied' || echo '  NO SELINUX AVC DENIALS FOUND'
+[    3.116424] audit: type=1400 audit(1763399130.963:3): avc:  denied  { read } for  pid=237 comm="init" name="bin" dev="rootfs" ino=6996 scontext=u:r:vendor_init:s0 tcontext=u:object_r:rootfs:s0 tclass=dir permissive=1
+[    3.409330] audit: type=1400 audit(1763399131.259:4): avc:  denied  { setcheckreqprot } for  pid=1 comm="init" scontext=u:r:init:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[    3.443867] audit: type=1400 audit(1763399131.291:5): avc:  denied  { add_name } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    3.443879] audit: type=1400 audit(1763399131.291:6): avc:  denied  { create } for  pid=1 comm="init" name="tracing_on" scontext=u:r:init:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    3.445665] audit: type=1400 audit(1763399131.295:7): avc:  denied  { add_name } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=dir permissive=1
+[    3.445677] audit: type=1400 audit(1763399131.295:8): avc:  denied  { create } for  pid=1 comm="init" name="idVendor" scontext=u:r:init:s0 tcontext=u:object_r:sysfs_android_usb:s0 tclass=file permissive=1
+[    3.448965] audit: type=1400 audit(1763399131.299:9): avc:  denied  { setattr } for  pid=1 comm="init" name="sw_ver" dev="sysfs" ino=20428 scontext=u:r:init:s0 tcontext=u:object_r:sysfs_wcn:s0 tclass=file permissive=1
+[    3.464187] audit: type=1400 audit(1763399131.311:10): avc:  denied  { read } for  pid=254 comm="recovery" path="/proc/kmsg" dev="proc" ino=4026531982 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_kmsg:s0 tclass=file permissive=1
+[    6.393377] audit: type=1400 audit(1763399134.243:56): avc:  denied  { read } for  pid=458 comm="dmesg" name="kmsg" dev="tmpfs" ino=7485 scontext=u:r:recovery:s0 tcontext=u:object_r:kmsg_device:s0 tclass=chr_file permissive=1
+[    6.393389] audit: type=1400 audit(1763399134.243:57): avc:  denied  { open } for  pid=458 comm="dmesg" path="/dev/kmsg" dev="tmpfs" ino=7485 scontext=u:r:recovery:s0 tcontext=u:object_r:kmsg_device:s0 tclass=chr_file permissive=1
+[    7.400793] audit: type=1400 audit(1763399135.251:58): avc:  denied  { read } for  pid=530 comm="ls" name="typec" dev="sysfs" ino=11718 scontext=u:r:recovery:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    7.400806] audit: type=1400 audit(1763399135.251:59): avc:  denied  { open } for  pid=530 comm="ls" path="/sys/class/typec" dev="sysfs" ino=11718 scontext=u:r:recovery:s0 tcontext=u:object_r:sysfs:s0 tclass=dir permissive=1
+[    7.717793] audit: type=1400 audit(1763399135.567:60): avc:  denied  { read } for  pid=553 comm="cat" name="power_role" dev="sysfs" ino=27904 scontext=u:r:recovery:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    7.717808] audit: type=1400 audit(1763399135.567:61): avc:  denied  { open } for  pid=553 comm="cat" path="/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-typec/typec/port0/power_role" dev="sysfs" ino=27904 scontext=u:r:recovery:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    9.141135] audit: type=1400 audit(1763399136.991:62): avc:  denied  { getattr } for  pid=658 comm="ls" path="/sys/devices/platform/soc/soc:aon/32100000.spi/spi_master/spi4/spi4.0/sc27xx-typec/typec/port0/uevent" dev="sysfs" ino=27898 scontext=u:r:recovery:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+[    9.813090] audit: type=1400 audit(1763399137.663:63): avc:  denied  { search } for  pid=707 comm="cat" name="asound" dev="proc" ino=4026531960 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_asound:s0 tclass=dir permissive=1
+[    9.813104] audit: type=1400 audit(1763399137.663:64): avc:  denied  { read } for  pid=707 comm="cat" name="cards" dev="proc" ino=4026531963 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_asound:s0 tclass=file permissive=1
+[    9.813144] audit: type=1400 audit(1763399137.663:65): avc:  denied  { open } for  pid=707 comm="cat" path="/proc/asound/cards" dev="proc" ino=4026531963 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_asound:s0 tclass=file permissive=1
+[   13.347901] audit: type=1400 audit(1763399141.195:69): avc:  denied  { read } for  pid=965 comm="ls" name="usb_gadget" dev="configfs" ino=7465 scontext=u:r:recovery:s0 tcontext=u:object_r:configfs:s0 tclass=dir permissive=1
+[   13.347915] audit: type=1400 audit(1763399141.195:70): avc:  denied  { open } for  pid=965 comm="ls" path="/config/usb_gadget" dev="configfs" ino=7465 scontext=u:r:recovery:s0 tcontext=u:object_r:configfs:s0 tclass=dir permissive=1
+[   13.690538] audit: type=1400 audit(1763399141.539:71): avc:  denied  { read } for  pid=991 comm="cat" name="idVendor" dev="configfs" ino=8559 scontext=u:r:recovery:s0 tcontext=u:object_r:configfs:s0 tclass=file permissive=1
+[   13.690552] audit: type=1400 audit(1763399141.539:72): avc:  denied  { open } for  pid=991 comm="cat" path="/config/usb_gadget/g1/idVendor" dev="configfs" ino=8559 scontext=u:r:recovery:s0 tcontext=u:object_r:configfs:s0 tclass=file permissive=1
+[   15.883346] audit: type=1400 audit(1763399143.731:73): avc:  denied  { getattr } for  pid=1149 comm="ls" path="/mnt/overlay/upper/.wh.proc" dev="tmpfs" ino=8050 scontext=u:r:recovery:s0 tcontext=u:object_r:init_tmpfs:s0 tclass=file permissive=1
+[   16.359140] audit: type=1400 audit(1763399144.207:74): avc:  denied  { sys_chroot } for  pid=1194 comm="busybox" capability=18  scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=capability permissive=1
+[   27.078240] audit: type=1400 audit(1763399154.927:75): avc:  denied  { read } for  pid=2041 comm="ls" name="/" dev="tmpfs" ino=7766 scontext=u:r:recovery:s0 tcontext=u:object_r:apex_mnt_dir:s0 tclass=dir permissive=1
+[   27.078255] audit: type=1400 audit(1763399154.927:76): avc:  denied  { open } for  pid=2041 comm="ls" path="/apex" dev="tmpfs" ino=7766 scontext=u:r:recovery:s0 tcontext=u:object_r:apex_mnt_dir:s0 tclass=dir permissive=1
+[   28.496457] audit: type=1400 audit(1763399156.347:77): avc:  denied  { read } for  pid=2149 comm="lsmod" name="modules" dev="proc" ino=4026532086 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_modules:s0 tclass=file permissive=1
+[   28.496471] audit: type=1400 audit(1763399156.347:78): avc:  denied  { open } for  pid=2149 comm="lsmod" path="/proc/modules" dev="proc" ino=4026532086 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_modules:s0 tclass=file permissive=1
+[   28.496528] audit: type=1400 audit(1763399156.347:79): avc:  denied  { getattr } for  pid=2149 comm="lsmod" path="/proc/modules" dev="proc" ino=4026532086 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_modules:s0 tclass=file permissive=1
+[   30.005293] audit: type=1400 audit(1763399157.855:80): avc:  denied  { getattr } for  pid=2265 comm="ls" path="/dev/i2c-0" dev="tmpfs" ino=7957 scontext=u:r:recovery:s0 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+[   30.717352] audit: type=1400 audit(1763399158.567:81): avc:  denied  { getattr } for  pid=2320 comm="ls" path="/dev/dri/card0" dev="tmpfs" ino=10248 scontext=u:r:recovery:s0 tcontext=u:object_r:gpu_device:s0 tclass=chr_file permissive=1
+[   41.567775] audit: type=1400 audit(1763399169.415:82): avc:  denied  { getattr } for  pid=3164 comm="cat" scontext=u:r:recovery:s0 tcontext=u:r:init:s0 tclass=process permissive=1
+[   42.357452] audit: type=1400 audit(1763399170.207:83): avc:  denied  { read } for  pid=3222 comm="ps" scontext=u:r:recovery:s0 tcontext=u:r:kernel:s0 tclass=file permissive=1
+[   42.357856] audit: type=1400 audit(1763399170.207:84): avc:  denied  { open } for  pid=3222 comm="ps" path="/proc/2/stat" dev="proc" ino=14385 scontext=u:r:recovery:s0 tcontext=u:r:kernel:s0 tclass=file permissive=1
+[17:06:11] 
+[17:06:11] STAGE M SUMMARY: 2 partial points
+[17:06:11] 
+[17:06:11] ========================================
+[17:06:11] FINAL SUMMARY
+[17:06:11] ========================================
+[17:06:11] Stage 0  (debugfs mount):                 (no score)
+[17:06:11] Stage 1  (init/dmesg hardware):           2
+[17:06:11] Stage 2  (Type-C / PD):                   2
+[17:06:11] Stage 3  (Audio / ASoC):                  1
+[17:06:11] Stage 4  (USB / OTG):                     3
+[17:06:12] Stage A  (alphybris/alpine_root setup):   4
+[17:06:12] Stage B  (props & extraction triggers):   2
+[17:06:12] Stage C  (images & extraction):           12
+[17:06:12] Stage D  (bind mounts & APEX):            0
+[17:06:12] Stage E  (socko & modules):               3
+[17:06:12] Stage F  (Alpine hardware & /dev):        1
+[17:06:12] Stage G  (LXC prestart & keylayout):      1
+[17:06:12] Stage H  (OpenRC sysinit/boot):           3
+[17:06:12] Stage I  (service chain):                 1
+[17:06:12] Stage J  (BT/USB/systeminfo):             4
+[17:06:12] Stage K  (libhybris/HAL tests):           0
+[17:06:12] Stage L  (SELinux/security):              3
+[17:06:12] Stage M  (init & dmesg Alpine view):      2
+[17:06:12] 
+[17:06:12] TOTAL partial-points (for relative health): 44
+[17:06:12] 
+[17:06:12] Diagnostics completed at: Mon Nov 17 17:06:12 GMT 2025
+[17:06:13] Log stored at: /sdcard/alpine_v30_recovery_diagnostics.log
+[17:06:13] 
+[17:06:13] ===== EXECUTION COMPLETE – RETURNING TO REAL RECOVERY IN 7s =====

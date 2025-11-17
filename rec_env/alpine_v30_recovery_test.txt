@@ -1,0 +1,975 @@
+#!/system/bin/sh
+#
+# Combined hardware diagnostics (Type-C/Audio/USB/OTG/init/dmesg)
+# with Alpine v30 staged init tests for /mnt/alphybris + /mnt/alpine_root.
+#
+# v30 notes:
+#   - Pre-extracted .img files in /mnt/alphybris
+#   - Extraction via busybox tar to LXC rootfs subdirs
+#   - Keylayout extracted from ZIP via unzip -p
+#   - No super-partition/dynamic partition arithmetic
+#
+
+# ===========================
+# LOGGING SETUP
+# ===========================
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+BOOT_LOG="/sdcard/alpine_v30_recovery_diagnostics.log"
+FALLBACK_LOG="/alpine_v30_recovery_diagnostics.log"
+
+LOGFILE="$FALLBACK_LOG"
+: > "$LOGFILE"
+
+log() {
+    local TS
+    TS="$(date '+%H:%M:%S' 2>/dev/null || echo TIME)"
+    echo "[$TS] $*" | tee -a "$LOGFILE"
+}
+
+log_cmd() {
+    log "  CMD : $*"
+    eval "$@" 2>&1 | tee -a "$LOGFILE"
+}
+
+log ""
+log "================================================================"
+log "ALPINE v30 – /mnt/alphybris + /mnt/alpine_root RECOVERY DIAGNOSTICS"
+log "================================================================"
+log "Start Time: $(date)"
+log ""
+
+BUSYBOX="/system/bin/busybox"
+ALPINE_PART="/dev/block/mmcblk0p77"
+ALPHYBRIS="/mnt/alphybris"
+CHROOT="/mnt/alpine_root"
+
+# ===========================
+# LOG TO SD IF POSSIBLE
+# ===========================
+log "SECTION: Logging target setup (/sdcard if available)"
+if [ -b "$BOOT_PARTITION" ]; then
+    log "  INFO: Found boot block device $BOOT_PARTITION"
+    if mount | grep -q "$BOOT_PARTITION"; then
+        log "  TEST: Where is $BOOT_PARTITION mounted?"
+        log_cmd "mount | grep \"$BOOT_PARTITION\""
+        MNT=$(mount | grep "$BOOT_PARTITION" | head -1 | awk '{print $3}')
+        log "  RESULT: $BOOT_PARTITION is mounted at $MNT"
+        if [ "$MNT" = "/sdcard" ] || [ "$MNT" = "/boot" ]; then
+            BOOT_LOG="$MNT/alpine_v30_recovery_diagnostics.log"
+        fi
+    else
+        log "  TEST: Mount boot partition at $SD_MOUNT"
+        log_cmd "mkdir -p \"$SD_MOUNT\""
+        log_cmd "mount -t exfat \"$BOOT_PARTITION\" \"$SD_MOUNT\" || echo \"  WARN: mount failed\""
+        BOOT_LOG="$SD_MOUNT/alpine_v30_recovery_diagnostics.log"
+        log_cmd "mount -o remount,rw \"$SD_MOUNT\" 2>/dev/null || echo \"  WARN: remount rw failed\""
+    fi
+
+    if [ -d "$SD_MOUNT" ]; then
+        log "  TEST: Switch to SD logging if writable"
+        log_cmd "touch \"$SD_MOUNT/test.tmp\" || echo \"  WARN: cannot write to $SD_MOUNT\""
+        if [ -f "$SD_MOUNT/test.tmp" ]; then
+            rm -f "$SD_MOUNT/test.tmp"
+            cat "$FALLBACK_LOG" > "$BOOT_LOG" 2>/dev/null
+            LOGFILE="$BOOT_LOG"
+            log "  RESULT: Logging moved to $LOGFILE"
+        else
+            log "  RESULT: SD not writable, stay on $LOGFILE"
+        fi
+    fi
+else
+    log "  ERROR: Boot partition block device $BOOT_PARTITION not found"
+fi
+
+###############################################################################
+# HARDWARE DIAGNOSTICS (Type-C / Audio / USB / OTG / init/dmesg)
+###############################################################################
+
+# ===========================
+# STAGE 0: MOUNT DEBUGFS
+# ===========================
+log ""
+log "========================================"
+log "STAGE 0: Mount debugfs (for hardware debugging)"
+log "========================================"
+
+if mount | grep -q debugfs; then
+    log "  RESULT: debugfs already mounted"
+    log_cmd "mount | grep debugfs"
+else
+    log "  TEST: mount -t debugfs none /sys/kernel/debug"
+    log_cmd "mount -t debugfs none /sys/kernel/debug 2>&1 || echo '  WARN: debugfs mount failed'"
+    if mount | grep -q debugfs; then
+        log "  RESULT: debugfs mounted successfully"
+    else
+        log "  RESULT: debugfs not available (kernel may not support it)"
+    fi
+fi
+
+# ===========================
+# STAGE 1: INIT PROCESS & DMESG (HARDWARE VIEW)
+# ===========================
+log ""
+log "========================================"
+log "STAGE 1: Init process (PID 1) & dmesg (hardware)"
+log "========================================"
+
+STAGE1_PASS=0
+
+log "1.1: Inspect init process (PID 1)"
+log "  TEST: ps -p 1 -o pid,ppid,user,args"
+log_cmd "ps -p 1 -o pid,ppid,user,args"
+if [ -L /proc/1/exe ]; then
+    INIT_EXE=$(readlink /proc/1/exe 2>/dev/null || echo "(unreadable)")
+    log "  RESULT: Init executable: $INIT_EXE"
+    STAGE1_PASS=$((STAGE1_PASS + 1))
+fi
+if [ -f /proc/1/cmdline ]; then
+    INIT_CMD=$(tr '\0' ' ' < /proc/1/cmdline 2>/dev/null)
+    log "  RESULT: Init cmdline: $INIT_CMD"
+    STAGE1_PASS=$((STAGE1_PASS + 1))
+fi
+
+log ""
+log "1.2: List children of PID 1"
+log "  TEST: ps -o pid,ppid,args | busybox awk '\$2 == 1'"
+log_cmd "ps -o pid,ppid,args | busybox awk '\$2 == 1'"
+
+log ""
+log "1.3: Scan dmesg for init-related messages"
+log "--- Checking dmesg for init lines ---"
+log_cmd "dmesg | grep -i 'init' || echo '  NO init LINES FOUND IN dmesg'"
+
+log ""
+log "--- Init-specific error patterns ---"
+log_cmd "dmesg | grep -E '(init:|parse error|malformed|\\.rc|Failed to|unable to)' || echo '  NO INIT PARSER ERRORS MATCHED'"
+
+log ""
+log "--- SELinux denials in dmesg ---"
+log_cmd "dmesg | grep -i 'avc.*denied' || echo '  NO SELINUX AVC DENIALS FOUND'"
+
+log ""
+log "STAGE 1 SUMMARY (hardware): $STAGE1_PASS partial points"
+
+# ===========================
+# STAGE 2: USB TYPE-C / PD
+# ===========================
+log ""
+log "========================================"
+log "STAGE 2: USB Type-C / PD diagnostics"
+log "========================================"
+
+STAGE2_PASS=0
+
+log "2.1: Check for Type-C class in sysfs"
+log "  TEST: ls /sys/class/typec"
+log_cmd "ls /sys/class/typec 2>/dev/null || echo '  INFO: /sys/class/typec not found'"
+if [ -d /sys/class/typec ]; then
+    log "  RESULT: Type-C class exists"
+    STAGE2_PASS=$((STAGE2_PASS + 1))
+    log ""
+    log "2.2: Enumerate Type-C ports and partners"
+    for port in /sys/class/typec/port*; do
+        if [ -d "$port" ]; then
+            log "  Found: $port"
+            log_cmd "cat \"$port/power_role\" 2>/dev/null || echo '    power_role: N/A'"
+            log_cmd "cat \"$port/data_role\" 2>/dev/null || echo '    data_role: N/A'"
+            log_cmd "cat \"$port/usb_power_delivery_revision\" 2>/dev/null || echo '    PD revision: N/A'"
+        fi
+    done
+else
+    log "  RESULT: No Type-C class found – PD may not be supported or not probed"
+fi
+
+log ""
+log "2.3: Look for sc27xx-typec-pd driver in platform bus"
+log "  TEST: find /sys/bus/platform/drivers -maxdepth 1 -name '*sc27xx*'"
+log_cmd "find /sys/bus/platform/drivers -maxdepth 1 -name '*sc27xx*' 2>/dev/null || echo '  INFO: no sc27xx driver directories found'"
+if find /sys/bus/platform/drivers -maxdepth 1 -name '*sc27xx*' 2>/dev/null | grep -q .; then
+    log "  RESULT: sc27xx driver node found"
+    STAGE2_PASS=$((STAGE2_PASS + 1))
+else
+    log "  RESULT: sc27xx driver not found in platform bus"
+fi
+
+log ""
+log "2.4: Grep dmesg for sc27xx-typec-pd messages"
+log "  TEST: dmesg | grep -i 'sc27xx.*typec\\|sc27xx.*pd\\|vddldo'"
+log_cmd "dmesg | grep -i 'sc27xx.*typec\\|sc27xx.*pd\\|vddldo' || echo '  INFO: no sc27xx Type-C/PD messages in dmesg'"
+
+log ""
+log "2.5: Check for Type-C cable connection (when plugged in)"
+log "  INFO: If device is plugged in, /sys/class/typec/port*/partner should exist"
+for port in /sys/class/typec/port*; do
+    if [ -d "$port" ]; then
+        log_cmd "ls \"$port\" | grep partner || echo '  INFO: no partner detected for $(basename \"$port\")'"
+    fi
+done
+
+log ""
+log "STAGE 2 SUMMARY (Type-C/PD): $STAGE2_PASS checks passed"
+
+# ===========================
+# STAGE 3: AUDIO / ASoC
+# ===========================
+log ""
+log "========================================"
+log "STAGE 3: Audio / ASoC diagnostics"
+log "========================================"
+
+STAGE3_PASS=0
+
+log "3.1: Check ALSA sound cards"
+log "  TEST: cat /proc/asound/cards"
+log_cmd "cat /proc/asound/cards 2>/dev/null || echo '  INFO: /proc/asound/cards not found'"
+if [ -f /proc/asound/cards ]; then
+    log "  RESULT: ALSA proc entries exist"
+    STAGE3_PASS=$((STAGE3_PASS + 1))
+fi
+
+log ""
+log "3.2: List ALSA proc entries"
+log "  TEST: ls /proc/asound"
+log_cmd "ls /proc/asound 2>/dev/null || echo '  INFO: /proc/asound directory missing'"
+
+log ""
+log "3.3: Codec drivers in platform bus"
+log "  TEST: find /sys/bus/platform/drivers -maxdepth 1 -name '*codec*'"
+log_cmd "find /sys/bus/platform/drivers -maxdepth 1 -name '*codec*' 2>/dev/null || echo '  INFO: no codec driver directories found'"
+
+log ""
+log "3.4: Grep dmesg for sprd-codec-sc2730 and ASoC errors"
+log "  TEST: dmesg | grep -i 'sprd-codec\\|ASoC.*Failed\\|no source widget'"
+log_cmd "dmesg | grep -i 'sprd-codec\\|ASoC.*Failed\\|no source widget' || echo '  INFO: no sprd-codec or ASoC error messages'"
+
+log ""
+log "3.5: Test audio playback (if tinyplay available)"
+if [ -x /system/bin/tinyplay ]; then
+    log "  INFO: tinyplay found, attempting short test playback"
+    log "  TEST: tinyplay /system/media/audio/ui/lock.ogg (2 second timeout)"
+    log_cmd "timeout 2 tinyplay /system/media/audio/ui/lock.ogg 2>/dev/null || echo '  INFO: tinyplay failed or timed out (expected in recovery)'"
+    STAGE3_PASS=$((STAGE3_PASS + 1))
+else
+    log "  INFO: tinyplay not found, skipping playback test"
+fi
+
+log ""
+log "3.6: Check tinymix for audio controls (if available)"
+if [ -x /system/bin/tinymix ]; then
+    log "  TEST: tinymix"
+    log_cmd "tinymix 2>/dev/null | head -20 || echo '  INFO: tinymix failed'"
+else
+    log "  INFO: tinymix not available"
+fi
+
+log ""
+log "STAGE 3 SUMMARY (Audio/ASoC): $STAGE3_PASS checks passed"
+
+# ===========================
+# STAGE 4: USB / OTG
+# ===========================
+log ""
+log "========================================"
+log "STAGE 4: USB / OTG diagnostics"
+log "========================================"
+
+STAGE4_PASS=0
+
+log "4.1: Check for USB Device Controller (UDC)"
+log "  TEST: ls /sys/class/udc"
+log_cmd "ls /sys/class/udc 2>/dev/null || echo '  INFO: /sys/class/udc not found'"
+if [ -d /sys/class/udc ]; then
+    log "  RESULT: UDC class exists"
+    STAGE4_PASS=$((STAGE4_PASS + 1))
+    log ""
+    log "4.2: Enumerate UDC devices"
+    for udc in /sys/class/udc/*; do
+        if [ -d "$udc" ]; then
+            log "  Found UDC: $(basename \"$udc\")"
+            log_cmd "cat \"$udc/state\" 2>/dev/null || echo '    state: N/A'"
+            log_cmd "cat \"$udc/current_speed\" 2>/dev/null || echo '    speed: N/A'"
+        fi
+    done
+else
+    log "  RESULT: No UDC found – device may not support USB gadget mode"
+fi
+
+log ""
+log "4.3: Check for USB role-switch class"
+log "  TEST: ls /sys/class/usb_role"
+log_cmd "ls /sys/class/usb_role 2>/dev/null || echo '  INFO: /sys/class/usb_role not found'"
+if [ -d /sys/class/usb_role ]; then
+    log "  RESULT: USB role-switch class exists"
+    STAGE4_PASS=$((STAGE4_PASS + 1))
+fi
+
+log ""
+log "4.4: Check USB configuration property"
+log "  TEST: getprop sys.usb.config"
+log_cmd "getprop sys.usb.config 2>/dev/null || echo '  INFO: sys.usb.config property not set'"
+
+log ""
+log "4.5: Grep dmesg for otg_wakelock messages"
+log "  TEST: dmesg | grep -i 'otg_wakelock'"
+log_cmd "dmesg | grep -i 'otg_wakelock' || echo '  INFO: no otg_wakelock lines in dmesg'"
+
+log ""
+log "4.6: Grep dmesg for USB transceiver / PHY messages"
+log "  TEST: dmesg | grep -i 'usb.*transceiver\\|usb.*phy'"
+log_cmd "dmesg | grep -i 'usb.*transceiver\\|usb.*phy' || echo '  INFO: no USB transceiver/PHY messages'"
+
+log ""
+log "4.7: Check for USB gadget configfs"
+log "  TEST: ls /config/usb_gadget"
+log_cmd "ls /config/usb_gadget 2>/dev/null || echo '  INFO: /config/usb_gadget not found (configfs may not be mounted)'"
+if [ -d /config/usb_gadget ]; then
+    log "  RESULT: USB gadget configfs exists"
+    STAGE4_PASS=$((STAGE4_PASS + 1))
+    log ""
+    log "4.8: Enumerate USB gadget configurations"
+    for gadget in /config/usb_gadget/*; do
+        if [ -d "$gadget" ]; then
+            log "  Found gadget: $(basename \"$gadget\")"
+            log_cmd "cat \"$gadget/idVendor\" 2>/dev/null || echo '    idVendor: N/A'"
+            log_cmd "cat \"$gadget/idProduct\" 2>/dev/null || echo '    idProduct: N/A'"
+            log_cmd "cat \"$gadget/UDC\" 2>/dev/null || echo '    UDC: N/A'"
+        fi
+    done
+fi
+
+log ""
+log "4.9: Check lsusb (if available)"
+if command -v lsusb >/dev/null 2>&1; then
+    log "  TEST: lsusb"
+    log_cmd "lsusb 2>/dev/null || echo '  INFO: lsusb failed'"
+else
+    log "  INFO: lsusb not available"
+fi
+
+log ""
+log "STAGE 4 SUMMARY (USB/OTG): $STAGE4_PASS checks passed"
+
+###############################################################################
+# ALPINE v30 STACK DIAGNOSTICS
+###############################################################################
+
+# ===========================
+# STAGE A: PARTITION & ROOT /mnt/alphybris + /mnt/alpine_root
+# ===========================
+log ""
+log "========================================"
+log "STAGE A: /dev/block/mmcblk0p77 -> /mnt/alphybris + /mnt/alpine_root"
+log "========================================"
+
+STAGEA_PASS=0
+
+log "A1: Checking that /dev/block/mmcblk0p77 is mounted on /mnt/alphybris"
+log_cmd "grep \"$ALPINE_PART\" /proc/mounts || true"
+if grep -q "$ALPINE_PART $ALPHYBRIS" /proc/mounts 2>/dev/null; then
+    log "  RESULT: OK – $ALPINE_PART is mounted at $ALPHYBRIS"
+    STAGEA_PASS=$((STAGEA_PASS + 1))
+else
+    log "  RESULT: FAIL – $ALPINE_PART is not mounted at $ALPHYBRIS"
+fi
+
+log ""
+log "A2: Alpine root layout directly under /mnt/alphybris"
+TOP_DIRS="lost+found run media persist proc data usr lib system root opt var home userdata odm mnt efs android sbin sys etc vendor product metadata dev bin srv init tmp cache apex .writable_image [SYS]"
+log "  TEST: List top-level entries on /mnt/alphybris"
+log_cmd "ls -1 \"$ALPHYBRIS\" || echo \"  ERROR: cannot list $ALPHYBRIS\""
+MATCH=0
+for d in $TOP_DIRS; do
+    [ -e "$ALPHYBRIS/$d" ] && MATCH=$((MATCH + 1))
+done
+log "  RESULT: Found $MATCH expected top-level entries (reference layout)"
+
+log ""
+log "A3: Mandatory Alpine binaries in /mnt/alphybris"
+MANDATORY="/bin/busybox /lib/ld-musl-aarch64.so.1 /sbin/rc-service"
+for f in $MANDATORY; do
+    log "  TEST: Check $ALPHYBRIS$f"
+    log_cmd "ls -l \"$ALPHYBRIS$f\" 2>/dev/null || echo \"  MISSING: $ALPHYBRIS$f\""
+    [ -f "$ALPHYBRIS$f" ] && STAGEA_PASS=$((STAGEA_PASS + 1))
+done
+
+log ""
+log "A4: Whiteout markers on /mnt/overlay/upper"
+WHITEOUTS=".wh.proc .wh.sys .wh.dev .wh.run .wh.mnt"
+for w in $WHITEOUTS; do
+    log "  TEST: Check /mnt/overlay/upper/$w"
+    log_cmd "ls -l \"/mnt/overlay/upper/$w\" 2>/dev/null || echo \"  MISSING: /mnt/overlay/upper/$w\""
+done
+
+log ""
+log "A5: Bind mount /mnt/alphybris -> /mnt/alpine_root"
+log "  TEST: grep '/mnt/alphybris /mnt/alpine_root' in /proc/mounts"
+log_cmd "grep '/mnt/alphybris /mnt/alpine_root' /proc/mounts || echo '  NOT FOUND: bind mount /mnt/alphybris -> /mnt/alpine_root'"
+if grep -q "/mnt/alphybris /mnt/alpine_root" /proc/mounts 2>/dev/null; then
+    STAGEA_PASS=$((STAGEA_PASS + 1))
+fi
+
+log ""
+log "A6: tmpfs overlays /tmp /run /var inside /mnt/alpine_root"
+TMPFS_MOUNTS="$CHROOT/tmp $CHROOT/run $CHROOT/var"
+for t in $TMPFS_MOUNTS; do
+    log "  TEST: Is tmpfs mounted at $t?"
+    log_cmd "grep \"tmpfs $t tmpfs\" /proc/mounts || echo \"  NOT FOUND: tmpfs at $t\""
+done
+
+log ""
+log "A7: VFS mounts (proc/sys/dev/devpts/shm) inside /mnt/alpine_root"
+log "  TEST: grep 'proc $CHROOT/proc' in /proc/mounts"
+log_cmd "grep \"proc $CHROOT/proc\" /proc/mounts || echo \"  NOT FOUND: proc at $CHROOT/proc\""
+log "  TEST: grep 'sysfs $CHROOT/sys' in /proc/mounts"
+log_cmd "grep \"sysfs $CHROOT/sys\" /proc/mounts || echo \"  NOT FOUND: sysfs at $CHROOT/sys\""
+log "  TEST: grep 'tmpfs $CHROOT/dev ' in /proc/mounts"
+log_cmd "grep \"tmpfs $CHROOT/dev \" /proc/mounts || echo \"  NOT FOUND: tmpfs at $CHROOT/dev\""
+log "  TEST: grep '$CHROOT/dev/pts' in /proc/mounts"
+log_cmd "grep \"$CHROOT/dev/pts\" /proc/mounts || echo \"  NOT FOUND: devpts at $CHROOT/dev/pts\""
+log "  TEST: grep '$CHROOT/dev/shm' in /proc/mounts"
+log_cmd "grep \"$CHROOT/dev/shm\" /proc/mounts || echo \"  NOT FOUND: tmpfs at $CHROOT/dev/shm\""
+
+log ""
+log "A8: LXC dir tree on tmpfs"
+LXC_DIRS="$CHROOT/var/lib $CHROOT/var/lib/lxc $CHROOT/var/lib/lxc/android $CHROOT/var/lib/lxc/android/rootfs $CHROOT/var/lib/lxc/android/rootfs/system $CHROOT/var/lib/lxc/android/rootfs/vendor $CHROOT/var/lib/lxc/android/rootfs/system_ext $CHROOT/var/lib/lxc/android/rootfs/product"
+for d in $LXC_DIRS; do
+    log "  TEST: ls -ld $d"
+    log_cmd "ls -ld \"$d\" 2>/dev/null || echo \"  MISSING: $d\""
+done
+
+log ""
+log "A9: /android tree + symlinks (system/system_ext/vendor/product)"
+ANDROID_DIRS="/android /android/system /android/system_ext /android/vendor /android/product"
+for d in $ANDROID_DIRS; do
+    log "  TEST: ls -ld $d"
+    log_cmd "ls -ld \"$d\" 2>/dev/null || echo \"  MISSING: $d\""
+done
+
+log ""
+log "STAGE A SUMMARY: $STAGEA_PASS partial points"
+
+# ===========================
+# STAGE B: PROPERTIES & TRIGGERS (alpine.mount.done, alpine.vfs.ready)
+# ===========================
+log ""
+log "========================================"
+log "STAGE B: Property triggers (alpine.* and extraction services)"
+log "========================================"
+
+STAGEB_PASS=0
+
+log "B1: Alpine base properties (set in on boot)"
+log "  TEST: getprop alpine.mount.done"
+log_cmd "getprop alpine.mount.done"
+AMOUNT=$(getprop alpine.mount.done 2>/dev/null || echo 0)
+[ "$AMOUNT" = "1" ] && STAGEB_PASS=$((STAGEB_PASS + 1))
+
+log "  TEST: getprop alpine.vfs.ready"
+log_cmd "getprop alpine.vfs.ready"
+AVFS=$(getprop alpine.vfs.ready 2>/dev/null || echo 0)
+[ "$AVFS" = "1" ] && STAGEB_PASS=$((STAGEB_PASS + 1))
+
+log ""
+log "B2: Extraction + later service chain states"
+EXTRACT_SVCS="alpine_extract_rootfs alpine_extract_vendor alpine_extract_system_ext alpine_extract_product alpine_mount_socko alpine_load_modules alpine_setup_hardware alpine_lxc_prestart alpine_rc_sysinit alpine_rc_boot"
+for s in $EXTRACT_SVCS; do
+    log "  TEST: getprop init.svc.$s"
+    log_cmd "getprop init.svc.$s"
+done
+
+log ""
+log "STAGE B SUMMARY: $STAGEB_PASS partial points"
+
+# ===========================
+# STAGE C: IMAGE FILES & EXTRACTION RESULTS
+# ===========================
+log ""
+log "========================================"
+log "STAGE C: Image availability & extraction (rootfs/vendor/system_ext/product)"
+log "========================================"
+
+STAGEC_PASS=0
+
+ROOTFS_IMG="$ALPHYBRIS/var/lib/lxc/android/android-rootfs.img"
+VENDOR_IMG="$ALPHYBRIS/var/lib/lxc/android/vendor.img"
+SYSEXT_IMG="$ALPHYBRIS/android/system_ext/system_ext.img"
+PRODUCT_IMG="$ALPHYBRIS/var/lib/lxc/android/product.img"
+
+log "C1: Check required .img files in alphybris"
+for img in "$ROOTFS_IMG" "$VENDOR_IMG" "$SYSEXT_IMG" "$PRODUCT_IMG"; do
+    log "  TEST: ls -lh $img"
+    log_cmd "ls -lh \"$img\" 2>/dev/null || echo \"  MISSING: $img\""
+    [ -f "$img" ] && STAGEC_PASS=$((STAGEC_PASS + 1))
+done
+
+log ""
+log "C2: Extraction service states"
+for svc in alpine_extract_rootfs alpine_extract_vendor alpine_extract_system_ext alpine_extract_product; do
+    log "  TEST: getprop init.svc.$svc"
+    log_cmd "getprop init.svc.$svc"
+    STAT=$(getprop init.svc.$svc 2>/dev/null || echo not_found)
+    [ "$STAT" = "stopped" ] && STAGEC_PASS=$((STAGEC_PASS + 1))
+done
+
+log ""
+log "C3: Extracted trees under /mnt/alpine_root/var/lib/lxc/android/rootfs"
+EX_SYS="$CHROOT/var/lib/lxc/android/rootfs/system"
+EX_VENDOR="$CHROOT/var/lib/lxc/android/rootfs/vendor"
+EX_SYSEXT="$CHROOT/var/lib/lxc/android/rootfs/system_ext"
+EX_PRODUCT="$CHROOT/var/lib/lxc/android/rootfs/product"
+
+for path in "$EX_SYS" "$EX_VENDOR" "$EX_SYSEXT" "$EX_PRODUCT"; do
+    log "  TEST: ls -ld $path"
+    log_cmd "ls -ld \"$path\" 2>/dev/null || echo \"  MISSING: $path\""
+    log "  TEST: list first 20 entries in $path"
+    log_cmd "ls -1 \"$path\" 2>/dev/null | head -20 || echo \"  UNREADABLE: $path\""
+    [ -d "$path" ] && STAGEC_PASS=$((STAGEC_PASS + 1))
+done
+
+log ""
+log "STAGE C SUMMARY: $STAGEC_PASS partial points"
+
+# ===========================
+# STAGE D: BIND MOUNTS & APEX (POST-EXTRACTION)
+# ===========================
+log ""
+log "========================================"
+log "STAGE D: Bind mounts /system/vendor/system_ext/product + APEX"
+log "========================================"
+
+STAGED_PASS=0
+
+log "D1: Bind mounts from extracted trees into /mnt/alpine_root and /android"
+log "  TEST: grep '$EX_SYS $CHROOT/system' in /proc/mounts"
+log_cmd "grep \"$EX_SYS $CHROOT/system\" /proc/mounts || echo \"  NOT MOUNTED: $EX_SYS -> $CHROOT/system\""
+grep -q "$EX_SYS $CHROOT/system" /proc/mounts 2>/dev/null && STAGED_PASS=$((STAGED_PASS + 1))
+
+log "  TEST: grep '$EX_SYS $CHROOT/android/system' in /proc/mounts"
+log_cmd "grep \"$EX_SYS $CHROOT/android/system\" /proc/mounts || echo \"  NOT MOUNTED: $EX_SYS -> $CHROOT/android/system\""
+grep -q "$EX_SYS $CHROOT/android/system" /proc/mounts 2>/dev/null && STAGED_PASS=$((STAGED_PASS + 1))
+
+log "  TEST: grep '$EX_VENDOR $CHROOT/android/vendor' in /proc/mounts"
+log_cmd "grep \"$EX_VENDOR $CHROOT/android/vendor\" /proc/mounts || echo \"  NOT MOUNTED: $EX_VENDOR -> $CHROOT/android/vendor\""
+grep -q "$EX_VENDOR $CHROOT/android/vendor" /proc/mounts 2>/dev/null && STAGED_PASS=$((STAGED_PASS + 1))
+
+log "  TEST: grep '$EX_SYSEXT $CHROOT/android/system_ext' in /proc/mounts"
+log_cmd "grep \"$EX_SYSEXT $CHROOT/android/system_ext\" /proc/mounts || echo \"  NOT MOUNTED: $EX_SYSEXT -> $CHROOT/android/system_ext\""
+grep -q "$EX_SYSEXT $CHROOT/android/system_ext" /proc/mounts 2>/dev/null && STAGED_PASS=$((STAGED_PASS + 1))
+
+log "  TEST: grep '$EX_PRODUCT $CHROOT/android/product' in /proc/mounts"
+log_cmd "grep \"$EX_PRODUCT $CHROOT/android/product\" /proc/mounts || echo \"  NOT MOUNTED: $EX_PRODUCT -> $CHROOT/android/product\""
+grep -q "$EX_PRODUCT $CHROOT/android/product" /proc/mounts 2>/dev/null && STAGED_PASS=$((STAGED_PASS + 1))
+
+log ""
+log "D2: /apex symlink target and visibility"
+log "  TEST: ls -ld /apex"
+log_cmd "ls -ld /apex 2>/dev/null || echo \"  MISSING: /apex\""
+APEX_TARGET=$(readlink /apex 2>/dev/null || echo "(not a symlink)")
+log "  RESULT: /apex -> $APEX_TARGET"
+log "  TEST: list /apex modules"
+log_cmd "ls -1 /apex 2>/dev/null | head -20 || echo \"  UNREADABLE: /apex\""
+
+log ""
+log "STAGE D SUMMARY: $STAGED_PASS partial points"
+
+# ===========================
+# STAGE E: SOCKO & KERNEL MODULES (mmcblk0p52)
+# ===========================
+log ""
+log "========================================"
+log "STAGE E: socko mount & kernel modules"
+log "========================================"
+
+STAGEE_PASS=0
+
+log "E1: alpine_mount_socko status and mount"
+log "  TEST: getprop init.svc.alpine_mount_socko"
+log_cmd "getprop init.svc.alpine_mount_socko"
+SOCKO_STATUS=$(getprop init.svc.alpine_mount_socko 2>/dev/null || echo not_found)
+[ "$SOCKO_STATUS" = "stopped" ] && STAGEE_PASS=$((STAGEE_PASS + 1))
+
+SOCKO_DIR="$CHROOT/vendor/socko"
+log "  TEST: ls -ld $SOCKO_DIR"
+log_cmd "ls -ld \"$SOCKO_DIR\" 2>/dev/null || echo \"  MISSING: $SOCKO_DIR\""
+log "  TEST: grep '$SOCKO_DIR' in /proc/mounts"
+log_cmd "grep \"$SOCKO_DIR\" /proc/mounts || echo \"  NOT MOUNTED: $SOCKO_DIR\""
+grep -q "$SOCKO_DIR" /proc/mounts 2>/dev/null && STAGEE_PASS=$((STAGEE_PASS + 1))
+
+log "  TEST: list modules in $SOCKO_DIR"
+log_cmd "ls -1 \"$SOCKO_DIR\"/*.ko 2>/dev/null || echo \"  NO .ko modules in $SOCKO_DIR\""
+
+log ""
+log "E2: alpine_load_modules state"
+log "  TEST: getprop init.svc.alpine_load_modules"
+log_cmd "getprop init.svc.alpine_load_modules"
+LOAD_STATUS=$(getprop init.svc.alpine_load_modules 2>/dev/null || echo not_found)
+[ "$LOAD_STATUS" = "stopped" ] && STAGEE_PASS=$((STAGEE_PASS + 1))
+
+if [ -x "$BUSYBOX" ]; then
+    log "  TEST: lsmod (global view)"
+    log_cmd "lsmod"
+fi
+
+log ""
+log "STAGE E SUMMARY: $STAGEE_PASS partial points"
+
+# ===========================
+# STAGE F: HARDWARE SCRIPT & /dev NODES (ALPINE VIEW)
+# ===========================
+log ""
+log "========================================"
+log "STAGE F: Alpine hardware setup & device nodes"
+log "========================================"
+
+STAGEF_PASS=0
+
+log "F1: alpine_setup_hardware completion and script presence"
+log "  TEST: getprop init.svc.alpine_setup_hardware"
+log_cmd "getprop init.svc.alpine_setup_hardware"
+HW_STATUS=$(getprop init.svc.alpine_setup_hardware 2>/dev/null || echo not_found)
+[ "$HW_STATUS" = "stopped" ] && STAGEF_PASS=$((STAGEF_PASS + 1))
+
+HW_SCRIPT="$CHROOT/usr/local/bin/setup-unisoc-hardware"
+log "  TEST: ls -l $HW_SCRIPT"
+log_cmd "ls -l \"$HW_SCRIPT\" 2>/dev/null || echo \"  MISSING: $HW_SCRIPT\""
+[ -f "$HW_SCRIPT" ] && STAGEF_PASS=$((STAGEF_PASS + 1))
+
+log ""
+log "F2: /dev node presence (host view)"
+for dev in /dev/binder /dev/hwbinder /dev/vndbinder; do
+    log "  TEST: ls -l $dev"
+    log_cmd "ls -l \"$dev\" 2>/dev/null || echo \"  MISSING: $dev\""
+done
+
+log "  TEST: ls -l /dev/mali0"
+log_cmd "ls -l /dev/mali0 2>/dev/null || echo \"  MISSING: /dev/mali0\""
+
+log "  TEST: ls -l /dev/i2c*"
+log_cmd "ls -l /dev/i2c* 2>/dev/null || echo \"  NO /dev/i2c* NODES\""
+
+log "  TEST: ls -l /dev/fuse"
+log_cmd "ls -l /dev/fuse 2>/dev/null || echo \"  MISSING: /dev/fuse\""
+
+log "  TEST: ls -l /dev/rs*"
+log_cmd "ls -l /dev/rs* 2>/dev/null || echo \"  NO /dev/rs* NODES\""
+
+log "  TEST: ls -l /dev/retrostation_hdmi"
+log_cmd "ls -l /dev/retrostation_hdmi 2>/dev/null || echo \"  MISSING: /dev/retrostation_hdmi\""
+
+log "  TEST: ls -l /dev/gsp"
+log_cmd "ls -l /dev/gsp 2>/dev/null || echo \"  MISSING: /dev/gsp\""
+
+log "  TEST: ls -l /dev/dri/*"
+log_cmd "ls -l /dev/dri/* 2>/dev/null || echo \"  NO /dev/dri/* NODES\""
+
+for i in $(seq 0 3); do
+    node="/dev/v4l-subdev$i"
+    log "  TEST: ls -l $node"
+    log_cmd "ls -l \"$node\" 2>/dev/null || echo \"  MISSING: $node\""
+done
+
+log "  TEST: ls -l /dev/input/*"
+log_cmd "ls -l /dev/input/* 2>/dev/null || echo \"  NO /dev/input/* NODES\""
+
+log "  TEST: ls -l /dev/urandom"
+log_cmd "ls -l /dev/urandom 2>/dev/null || echo \"  MISSING: /dev/urandom\""
+
+log "  TEST: ls -l /dev/wcn"
+log_cmd "ls -l /dev/wcn 2>/dev/null || echo \"  MISSING: /dev/wcn\""
+
+log ""
+log "STAGE F SUMMARY: $STAGEF_PASS partial points"
+
+# ===========================
+# STAGE G: LXC PRE-START & KEYLAYOUT (ZIP->KL)
+# ===========================
+log ""
+log "========================================"
+log "STAGE G: LXC pre-start & keylayout from ZIP"
+log "========================================"
+
+STAGEG_PASS=0
+
+log "G1: alpine_lxc_prestart status"
+log "  TEST: getprop init.svc.alpine_lxc_prestart"
+log_cmd "getprop init.svc.alpine_lxc_prestart"
+LXC_STATUS2=$(getprop init.svc.alpine_lxc_prestart 2>/dev/null || echo not_found)
+[ "$LXC_STATUS2" = "stopped" ] && STAGEG_PASS=$((STAGEG_PASS + 1))
+
+KL_ZIP="$CHROOT/etc/Vendor_2022_Product_3001.zip"
+KL_DST="$CHROOT/var/lib/lxc/android/rootfs/vendor/usr/keylayout/Vendor_2022_Product_3001.kl"
+
+log "  TEST: ls -l $KL_ZIP"
+log_cmd "ls -l \"$KL_ZIP\" 2>/dev/null || echo \"  MISSING: $KL_ZIP\""
+log "  TEST: ls -l $KL_DST"
+log_cmd "ls -l \"$KL_DST\" 2>/dev/null || echo \"  MISSING: $KL_DST\""
+[ -f "$KL_DST" ] && STAGEG_PASS=$((STAGEG_PASS + 1))
+
+log ""
+log "STAGE G SUMMARY: $STAGEG_PASS partial points"
+
+# ===========================
+# STAGE H: OPENRC SYSINIT/BOOT
+# ===========================
+log ""
+log "========================================"
+log "STAGE H: OpenRC sysinit/boot and environment"
+log "========================================"
+
+STAGEH_PASS=0
+
+log "H1: alpine_rc_sysinit and alpine_rc_boot states"
+log "  TEST: getprop init.svc.alpine_rc_sysinit"
+log_cmd "getprop init.svc.alpine_rc_sysinit"
+SYSINIT2=$(getprop init.svc.alpine_rc_sysinit 2>/dev/null || echo not_found)
+[ "$SYSINIT2" = "stopped" ] && STAGEH_PASS=$((STAGEH_PASS + 1))
+
+log "  TEST: getprop init.svc.alpine_rc_boot"
+log_cmd "getprop init.svc.alpine_rc_boot"
+BOOT2=$(getprop init.svc.alpine_rc_boot 2>/dev/null || echo not_found)
+[ "$BOOT2" = "stopped" ] && STAGEH_PASS=$((STAGEH_PASS + 1))
+
+log "  TEST: getprop alpine.env.ready"
+log_cmd "getprop alpine.env.ready"
+ENV_READY2=$(getprop alpine.env.ready 2>/dev/null || echo 0)
+[ "$ENV_READY2" = "1" ] && STAGEH_PASS=$((STAGEH_PASS + 1))
+
+if [ -x "$BUSYBOX" ]; then
+    log "  TEST: chroot /mnt/alpine_root rc-status -a"
+    log_cmd "$BUSYBOX chroot \"$CHROOT\" /sbin/rc-status -a"
+    log "  TEST: chroot /mnt/alpine_root rc-status -c"
+    log_cmd "$BUSYBOX chroot \"$CHROOT\" /sbin/rc-status -c || true"
+fi
+
+log ""
+log "STAGE H SUMMARY: $STAGEH_PASS partial points"
+
+# ===========================
+# STAGE I: INDIVIDUAL SERVICE CHAIN (ALPINE v30)
+# ===========================
+log ""
+log "========================================"
+log "STAGE I: Individual Alpine services chain (alpine_svc_*)"
+log "========================================"
+
+STAGEI_PASS=0
+
+SERVICES_CHAIN="boot_wlan hybrislinks dbus networkmanager rfkill sshd udev udev_trigger udev_settle udevhack hadess_sensorfw ofono ofono2mm phosh bluebinder bluetooth pulseaudio audiosystem usb_tether wcnss wpa_supplicant"
+TOTAL_SVCS=0
+DONE_SVCS=0
+
+for s in $SERVICES_CHAIN; do
+    P="init.svc.alpine_svc_$s"
+    log "  TEST: getprop $P"
+    log_cmd "getprop $P"
+    VAL=$(getprop "$P" 2>/dev/null || echo not_found)
+    TOTAL_SVCS=$((TOTAL_SVCS + 1))
+    [ "$VAL" = "stopped" ] && DONE_SVCS=$((DONE_SVCS + 1))
+done
+log "  RESULT: $DONE_SVCS/$TOTAL_SVCS alpine_svc_* services in 'stopped' (completed) state"
+[ "$DONE_SVCS" -ge 15 ] && STAGEI_PASS=$((STAGEI_PASS + 1))
+
+if [ -x "$BUSYBOX" ]; then
+    KEY_ORC="dbus networkmanager sshd udev phosh bluetooth pulseaudio wpa_supplicant"
+    RUNNING=0
+    for svc in $KEY_ORC; do
+        log "  TEST: chroot /mnt/alpine_root rc-service $svc status"
+        log_cmd "$BUSYBOX chroot \"$CHROOT\" /sbin/rc-service \"$svc\" status"
+        if $BUSYBOX chroot "$CHROOT" /sbin/rc-service "$svc" status 2>/dev/null | grep -qi "started\|running"; then
+            RUNNING=$((RUNNING + 1))
+        fi
+    done
+    log "  RESULT: $RUNNING/${#KEY_ORC} key services running in Alpine"
+fi
+
+log ""
+log "STAGE I SUMMARY: $STAGEI_PASS partial points"
+
+# ===========================
+# STAGE J: BT/USB/SYSTEMINFO PREFLIGHT
+# ===========================
+log ""
+log "========================================"
+log "STAGE J: Bluetooth, USB ConfigFS, systeminfo"
+log "========================================"
+
+STAGEJ_PASS=0
+
+log "J1: /data/misc/bluetooth presence"
+log "  TEST: ls -ld /data/misc/bluetooth"
+log_cmd "ls -ld /data/misc/bluetooth 2>/dev/null || echo \"  MISSING: /data/misc/bluetooth\""
+[ -d /data/misc/bluetooth ] && STAGEJ_PASS=$((STAGEJ_PASS + 1))
+
+log ""
+log "J2: sys.usb.configfs property == 1"
+log "  TEST: getprop sys.usb.configfs"
+log_cmd "getprop sys.usb.configfs"
+USB_CFGFS=$(getprop sys.usb.configfs 2>/dev/null || echo not_set)
+[ "$USB_CFGFS" = "1" ] && STAGEJ_PASS=$((STAGEJ_PASS + 1))
+
+log ""
+log "J3: /systeminfo existence"
+log "  TEST: ls -ld /systeminfo"
+log_cmd "ls -ld /systeminfo 2>/dev/null || echo \"  MISSING: /systeminfo\""
+[ -e /systeminfo ] && STAGEJ_PASS=$((STAGEJ_PASS + 1))
+
+log ""
+log "J4: USB gadget configfs strings path"
+USB_STR="/config/usb_gadget/g1/configs/b.1/strings/0x409"
+log "  TEST: ls -ld $USB_STR"
+log_cmd "ls -ld \"$USB_STR\" 2>/dev/null || echo \"  MISSING: $USB_STR\""
+[ -d "$USB_STR" ] && STAGEJ_PASS=$((STAGEJ_PASS + 1))
+
+log ""
+log "STAGE J SUMMARY: $STAGEJ_PASS partial points"
+
+# ===========================
+# STAGE K: LIBHYBRIS / HAL FUNCTION TESTS
+# ===========================
+log ""
+log "========================================"
+log "STAGE K: libhybris / Android HAL functional probes"
+log "========================================"
+
+STAGEK_PASS=0
+
+TEST_VIB="$CHROOT/usr/bin/test_vibrator"
+log "K1: test_vibrator binary (if present)"
+log "  TEST: ls -l $TEST_VIB"
+log_cmd "ls -l \"$TEST_VIB\" 2>/dev/null || echo \"  MISSING: $TEST_VIB\""
+if [ -x "$TEST_VIB" ] && [ -x "$BUSYBOX" ]; then
+    log "  TEST: chroot /mnt/alpine_root /usr/bin/test_vibrator"
+    log_cmd "$BUSYBOX chroot \"$CHROOT\" /usr/bin/test_vibrator"
+    STAGEK_PASS=$((STAGEK_PASS + 1))
+fi
+
+log ""
+log "K2: ldd of a HAL-using binary (phosh or pulseaudio)"
+for BIN in /usr/bin/phosh /usr/bin/pulseaudio; do
+    if [ -x "$CHROOT$BIN" ] && [ -x "$BUSYBOX" ]; then
+        log "  TEST: chroot /mnt/alpine_root ldd $BIN"
+        log_cmd "$BUSYBOX chroot \"$CHROOT\" ldd \"$BIN\""
+        STAGEK_PASS=$((STAGEK_PASS + 1))
+        break
+    fi
+done
+
+log ""
+log "STAGE K SUMMARY: $STAGEK_PASS partial points"
+
+# ===========================
+# STAGE L: SELINUX & SECURITY
+# ===========================
+log ""
+log "========================================"
+log "STAGE L: SELinux and security contexts"
+log "========================================"
+
+STAGEL_PASS=0
+
+log "L1: /sys/fs/selinux/enforce"
+log "  TEST: cat /sys/fs/selinux/enforce"
+log_cmd "cat /sys/fs/selinux/enforce 2>/dev/null || echo \"  NO SELINUX ENFORCE FILE\""
+[ -f /sys/fs/selinux/enforce ] && STAGEL_PASS=$((STAGEL_PASS + 1))
+
+log ""
+log "L2: init (PID1) SELinux context"
+log "  TEST: cat /proc/1/attr/current"
+log_cmd "cat /proc/1/attr/current 2>/dev/null || echo \"  NO CONTEXT FOR PID1\""
+[ -f /proc/1/attr/current ] && STAGEL_PASS=$((STAGEL_PASS + 1))
+
+log ""
+log "L3: this script SELinux context"
+log "  TEST: cat /proc/self/attr/current"
+log_cmd "cat /proc/self/attr/current 2>/dev/null || echo \"  NO CONTEXT FOR SELF\""
+[ -f /proc/self/attr/current ] && STAGEL_PASS=$((STAGEL_PASS + 1))
+
+log ""
+log "STAGE L SUMMARY: $STAGEL_PASS partial points"
+
+# ===========================
+# STAGE M: INIT & DMESG (ALPINE-STACK VIEW)
+# ===========================
+log ""
+log "========================================"
+log "STAGE M: Init process (PID 1) & dmesg (Alpine stack view)"
+log "========================================"
+
+STAGEM_PASS=0
+
+log "M1: Inspect init process (PID 1)"
+log "  TEST: ps -p 1 -o pid,ppid,user,args"
+log_cmd "ps -p 1 -o pid,ppid,user,args"
+if [ -L /proc/1/exe ]; then
+    INIT_EXE3=$(readlink /proc/1/exe 2>/dev/null || echo "(unreadable)")
+    log "  RESULT: Init executable: $INIT_EXE3"
+    STAGEM_PASS=$((STAGEM_PASS + 1))
+fi
+if [ -f /proc/1/cmdline ]; then
+    INIT_CMD3=$(tr '\0' ' ' < /proc/1/cmdline 2>/dev/null)
+    log "  RESULT: Init cmdline: $INIT_CMD3"
+    STAGEM_PASS=$((STAGEM_PASS + 1))
+fi
+
+log ""
+log "M2: List children of PID 1"
+log "  TEST: ps -o pid,ppid,args | busybox awk '\$2 == 1'"
+log_cmd "ps -o pid,ppid,args | busybox awk '\$2 == 1'"
+
+log ""
+log "M3: Scan dmesg for init-related messages"
+log "--- Checking dmesg for init lines ---"
+log_cmd "dmesg | grep -i \"init\" || echo \"  NO 'init' LINES FOUND IN dmesg\""
+
+log ""
+log "--- Init-specific error patterns ---"
+log_cmd "dmesg | grep -E '(init:|parse error|malformed|\\.rc|Failed to|unable to)' || echo '  NO INIT PARSER ERRORS MATCHED'"
+
+log ""
+log "--- SELinux denials in dmesg ---"
+log_cmd "dmesg | grep -i 'avc.*denied' || echo '  NO SELINUX AVC DENIALS FOUND'"
+
+log ""
+log "STAGE M SUMMARY: $STAGEM_PASS partial points"
+
+# ===========================
+# FINAL SUMMARY
+# ===========================
+log ""
+log "========================================"
+log "FINAL SUMMARY"
+log "========================================"
+
+TOTAL=$((STAGE1_PASS + STAGE2_PASS + STAGE3_PASS + STAGE4_PASS + STAGEA_PASS + STAGEB_PASS + STAGEC_PASS + STAGED_PASS + STAGEE_PASS + STAGEF_PASS + STAGEG_PASS + STAGEH_PASS + STAGEI_PASS + STAGEJ_PASS + STAGEK_PASS + STAGEL_PASS + STAGEM_PASS))
+
+log "Stage 0  (debugfs mount):                 (no score)"
+log "Stage 1  (init/dmesg hardware):           $STAGE1_PASS"
+log "Stage 2  (Type-C / PD):                   $STAGE2_PASS"
+log "Stage 3  (Audio / ASoC):                  $STAGE3_PASS"
+log "Stage 4  (USB / OTG):                     $STAGE4_PASS"
+log "Stage A  (alphybris/alpine_root setup):   $STAGEA_PASS"
+log "Stage B  (props & extraction triggers):   $STAGEB_PASS"
+log "Stage C  (images & extraction):           $STAGEC_PASS"
+log "Stage D  (bind mounts & APEX):            $STAGED_PASS"
+log "Stage E  (socko & modules):               $STAGEE_PASS"
+log "Stage F  (Alpine hardware & /dev):        $STAGEF_PASS"
+log "Stage G  (LXC prestart & keylayout):      $STAGEG_PASS"
+log "Stage H  (OpenRC sysinit/boot):           $STAGEH_PASS"
+log "Stage I  (service chain):                 $STAGEI_PASS"
+log "Stage J  (BT/USB/systeminfo):             $STAGEJ_PASS"
+log "Stage K  (libhybris/HAL tests):           $STAGEK_PASS"
+log "Stage L  (SELinux/security):              $STAGEL_PASS"
+log "Stage M  (init & dmesg Alpine view):      $STAGEM_PASS"
+log ""
+log "TOTAL partial-points (for relative health): $TOTAL"
+
+log ""
+log "Diagnostics completed at: $(date)"
+log "Log stored at: $LOGFILE"
+
+sync
+log ""
+log "===== EXECUTION COMPLETE – RETURNING TO REAL RECOVERY IN 7s ====="
+sleep 7
+exec /system/bin/realrecovery "$@"
