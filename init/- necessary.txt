@@ -10,6 +10,7 @@ Goal:
 ✓ ext4, exfat filesystems
 ✓ Namespace support: UTS_NS, NET_NS
 ✗ NO PID_NS, NO USER_NS (can't use LXC)
+✗ NO devtmpfs (ueventd.rc user)
 ✗ No Panfrost drivers
 
 init.recovery.common.rc:
@@ -1226,4 +1227,5 @@ yaml-0.2.5-r0
 yaml-cpp-0.7.0-r0
 zlib-1.2.13-r0
 zlib-dev-1.2.13-r0
+
 zstd-libs-1.5.5-r0
