@@ -1,0 +1,267 @@
+[07:58:02] =========================================
+[07:58:02] === ALPINE PATH ENVIRONMENT ===
+[07:58:02] =========================================
+[07:58:02] 
+[07:58:02] Creating overlay symlinks...
+[07:58:02]   ✓ /bin -> /mnt/alphybris/bin
+[07:58:03]   ✓ /sbin -> /mnt/alphybris/sbin
+[07:58:03]   ✓ /usr -> /mnt/alphybris/usr
+[07:58:03]   ✓ /lib -> /mnt/alphybris/lib
+[07:58:03]   ✓ /srv -> /mnt/alphybris/srv
+[07:58:03]   ✓ /var -> /mnt/alphybris/var
+[07:58:03]   ✓ /etc -> /mnt/alphybris/etc
+[07:58:03] 
+[07:58:03] Creating /lib/modules symlink for modprobe (kernel: 4.14.193)...
+[07:58:03]   ✓ /lib/modules/4.14.193 exists
+[07:58:04] 
+[07:58:04] Verifying Alpine dynamic linker...
+[07:58:04]   ✓ ld-musl-aarch64.so.1 accessible
+[07:58:04] 
+[07:58:04] =========================================
+[07:58:04] === CREATING HOST SYMLINKS ===
+[07:58:04] =========================================
+[07:58:04] 
+[07:58:04] Creating /android/* symlinks...
+[07:58:04]   ✓ /android/system -> /mnt/alpine_root/android/system
+[07:58:04]   ✓ /android/vendor -> /mnt/alpine_root/android/vendor
+[07:58:04] 
+[07:58:04] Creating /apex symlink...
+[07:58:05]   ✓ /apex -> /mnt/alpine_root/android/system/apex
+[07:58:05] 
+[07:58:05] =========================================
+[07:58:05] === SYSTEM INFRASTRUCTURE ===
+[07:58:05] =========================================
+[07:58:05] 
+[07:58:05] Running tzdatacheck...
+[07:58:05] 
+[07:58:05] ✓ Property service copied
+[07:58:05] 
+[07:58:05] ✓ Binderfs mounted
+[07:58:06] 
+[07:58:06] =========================================
+[07:58:06] === KERNEL MODULE LOADING ===
+[07:58:06] =========================================
+[07:58:06] 
+[07:58:06] Using insmod: /sbin/insmod
+[07:58:06] 
+[07:58:06] ✓ Socko mounted at /mnt/vendor/socko
+[07:58:06] Loading socko modules (excluding sprd_vdsp.ko)...
+[07:58:13] 
+[07:58:13] Loading vendor modules...
+[07:58:14] 
+[07:58:14] Loaded modules:
+Module                  Size  Used by    Tainted: G S
+kheaders             3387392  0 
+incrementalfs          57344  0 
+sprdwl_ng             327680  0 
+sprd_fm                53248  0 
+sprdbt_tty             36864  0 
+sprd_flash_drv         16384  0 
+sprd_sensor            90112  0 
+sprd_cpp               45056  0 
+mmdvfs                110592  0 
+mali_gondul           532480  0 
+[07:58:14] 
+[07:58:14] =========================================
+[07:58:14] === ALPINE GETTY TEST (tty1) ===
+[07:58:14] =========================================
+[07:58:14] 
+[07:58:14] Binding /dev, /proc, /sys into Alpine root...
+[07:58:14] Current host tty is: not a tty
+not a tty
+[07:58:14] Spawning Alpine /sbin/getty on /dev/tty1...
+[07:58:14] If /dev/tty1 exists, switch to it and log in; then exit to resume this script.
+[07:58:25] Returned from Alpine getty session
+[07:58:25] =========================================
+[07:58:25] === UNISOC HARDWARE SETUP ===
+[07:58:25] =========================================
+[07:58:25] 
+07:58:30 -   ✓ Configured: /dev/video12 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video13 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video14 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video15 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video2 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video3 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video4 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video5 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video6 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video7 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video8 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/video9 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/media0 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/media1 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/media2 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/media3 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev0 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev1 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev2 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev3 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev4 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev5 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev6 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/v4l-subdev7 (666 root:root)
+07:58:30 -   Total V4L2 devices configured: 28
+07:58:30 - === Configuring RS Communication Devices ===
+07:58:30 -   ✓ Configured: /dev/rstouch (666 root:root)
+07:58:30 - === Configuring Special Function Devices ===
+07:58:30 -   ✓ Configured: /dev/autotest0 (666 root:root)
+07:58:30 -   ✓ Configured: /dev/retrostation_hdmi (666 root:root)
+07:58:30 - === Hardware Configuration Completed at Wed Nov 19 07:58:30 UTC 2025 ===
+
+==========================================
+UNISOC Hardware Configuration Summary
+==========================================
+07:58:30 - === Virtual Filesystems ===
+07:58:30 -   ✓ /dev/pts: mounted
+07:58:30 -   ✓ /dev/shm: mounted
+07:58:30 -   ✓ /tmp: mounted as tmpfs
+07:58:30 -     ✓ /tmp/runtime exists
+07:58:30 -   ✓ /run: mounted
+07:58:30 -   ✓ /apex: mounted as tmpfs
+07:58:30 - === Android/Halium Directories ===
+07:58:30 -   ✓ /dev/__properties__ exists
+07:58:30 -   ✓ /dev/socket exists
+07:58:30 - === Android Binder IPC ===
+07:58:30 -   ✓ binderfs mounted at /dev/binderfs
+07:58:30 -     Binder devices: 0
+07:58:30 - === UNISOC Communication Devices ===
+07:58:30 -   LTE devices: 47
+07:58:30 -   Log devices: 5
+07:58:30 -   Power management: 3
+07:58:30 - === Serial Interfaces ===
+07:58:30 -   TTY Gadget (USB): 8
+07:58:30 -   Standard Serial: 2
+07:58:30 -   Bluetooth: 2
+07:58:30 - === I2C Buses and Camera Sensors ===
+07:58:30 -   I2C buses configured: 6
+07:58:30 -   I2C-0 (0x70300000) - Main Camera Bus:
+07:58:30 -     ✓ sensor-main@20 (0x20)
+07:58:30 -     ✓ deputy-camera@21 (0x21)
+07:58:30 -   I2C-1 (0x70400000) - Secondary Camera Bus:
+07:58:30 -     ✓ sensor-main2@2a (0x2A)
+07:58:30 -     ✓ sensor-sub@6c (0x6C)
+07:58:30 -   I2C-5 (0x32060000) - AON Power Management:
+07:58:30 -     ✓ PM device@60 (0x60)
+07:58:30 -     ✓ PM device@62 (0x62)
+07:58:30 - === Camera System ===
+07:58:30 -   Video devices: 16
+07:58:30 -   Media controllers: 4
+07:58:30 -   V4L2 subdevices: 8
+07:58:30 -   ✓ sprd_sensor module loaded
+07:58:30 -   ✓ sprd_cpp module loaded
+07:58:30 -   Camera regulators: 0/3 available
+07:58:30 - === Media Processing Hardware ===
+07:58:30 -   UNISOC media accelerators: 4/5
+07:58:30 -   ✓ Mali GPU (/dev/mali0)
+07:58:30 -   ✓ DRM Graphics (/dev/dri/card0)
+07:58:30 - === Audio System ===
+07:58:30 -   ALSA devices: 28
+07:58:31 -   Audio pipes: 7
+07:58:31 - === Wireless and GNSS ===
+07:58:31 -   Wireless devices: 2
+07:58:31 -   GNSS devices: 4
+07:58:31 - === System Buses and Controllers ===
+07:58:31 -   GPIO controllers: 6
+07:58:31 -   Input devices: 6
+07:58:31 -   IIO sensors: 2
+07:58:31 -   USB devices: 1
+07:58:31 - === Network and System Services ===
+07:58:31 -   Network devices: 2
+07:58:31 -   System service devices: 6/6
+07:58:31 - === Special Function Devices ===
+07:58:31 -   ✓ FM Radio
+07:58:31 -   ✓ HDMI Interface
+07:58:31 -   ✓ Real-Time Clock
+07:58:31 -   ✓ Memory Mapper
+
+Full log: /var/log/unisoc_hardware.log
+==========================================
+Exit code: 0
+[07:58:31] 
+[07:58:31] =========================================
+[07:58:31] === HARDWARE TEST ===
+[07:58:31] =========================================
+[07:58:31] 
+[07:58:31] Checking tty from Android side after Alpine session:
+not a tty
+not a tty
+[07:58:31] 
+[07:58:31]   OS:
+Linux localhost 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64 Linux
+[07:58:31]   OS release:
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.17.3
+PRETTY_NAME="Alpine Linux v3.17"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+[07:58:31]   Network:
+[07:58:31] 
+[07:58:31]   Modem:
+[07:58:32] 
+[07:58:32]   DRM/Display:
+[07:58:32]     ✓ /dev/dri/card0
+[07:58:32] 
+[07:58:32]   Mali GPU:
+[07:58:32]     ✓ /dev/mali0
+[07:58:32] 
+[07:58:32]   IIO Sensors:
+iio:device0
+iio:device1
+trigger0
+[07:58:32] 
+[07:58:32]   Thermal sensors:
+[07:58:32]     board-thmzone: 32901
+[07:58:32]     soc-thmzone: 35434
+[07:58:33]     ank4-thmzone: 34391
+[07:58:33]     ank5-thmzone: 34134
+[07:58:33]     cputop-thmzone: 34641
+[07:58:33]     gpuank2-thmzone: 33589
+[07:58:33]     cluster0-thmzone: 35434
+[07:58:33]     cluster1-thmzone: 35695
+[07:58:33]     osctsen-thmzone: N/A
+[07:58:33]     outtsen-thmzone: N/A
+[07:58:34]     battery: 29900
+[07:58:34]     prometheus6-tzone0: 34173
+[07:58:34]     prometheus6-tzone1: 35695
+[07:58:34]     prometheus7-thmzone: 34901
+[07:58:34]     ank0-thmzone: 35206
+[07:58:34]     ank1-thmzone: 35695
+[07:58:34]     gpu-thmzone: 34648
+[07:58:34]     ank2-thmzone: 34384
+[07:58:34]     ank3-thmzone: 34391
+[07:58:35] 
+[07:58:35]   Camera (I2C and V4L2):
+/dev/video0
+/dev/video1
+/dev/video10
+/dev/video11
+/dev/video12
+/dev/video13
+/dev/video14
+/dev/video15
+/dev/video2
+/dev/video3
+/dev/video4
+/dev/video5
+/dev/video6
+/dev/video7
+/dev/video8
+/dev/video9
+[07:58:35] 
+[07:58:35]   RAM:
+              total        used        free      shared  buff/cache   available
+Mem:           3.4G       65.2M        3.2G       26.1M      126.3M        3.3G
+Swap:             0           0           0
+[07:58:35] 
+[07:58:35]   Uptime:
+ 07:58:35 up 0 min,  0 users,  load average: 1.89, 0.47, 0.15
+[07:58:35] 
+[07:58:35] =========================================
+[07:58:35] === FINAL STATUS ===
+[07:58:35] =========================================
+[07:58:35] 
+[07:58:35] === TEST COMPLETE  ===
+[07:58:35] Main log: /sdcard/alpine_post_init_test.log
+[07:58:35] 
+[07:58:36] === CLEANUP ===

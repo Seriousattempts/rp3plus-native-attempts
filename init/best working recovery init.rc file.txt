@@ -1,0 +1,840 @@
+#
+## Please include it in /init.recovery.${ro.hardware}.rc
+#
+
+# ================
+# service section
+# ================
+
+service healthd /system/bin/healthd -r
+    critical
+    seclabel u:r:healthd:s0
+
+service modem_ctl-cali /vendor/bin/modem_control
+    class cali
+    user root
+    group system radio shell
+    oneshot
+
+service modem_ctl-ft /vendor/bin/modem_control
+    class factorytest
+    user root
+    group system radio shell
+    oneshot
+
+service logd-cali /system/bin/logd
+    class cali
+    socket logd stream 0666 logd logd
+    socket logdr seqpacket 0666 logd logd
+    socket logdw dgram 0222 logd logd
+    file /proc/kmsg r
+    file /dev/kmsg w
+    user logd
+    seclabel u:r:logd:s0
+
+service vendor.wpa_supplicant /vendor/bin/hw/wpa_supplicant \
+    Dnl80211 iwlan0 c/data/vendor/wifi/wpa/wpa_supplicant.conf \
+    e/data/vendor/wifi/entropy.bin g@android:wpa_wlan0 dd
+    group system wifi inet keystore
+    socket wpa_wlan0 dgram 660 wifi wifi
+    disabled
+    oneshot
+
+service wcnd-cali /vendor/bin/connmgr -R
+    class cali
+    user root
+    group root system shell wifi inet bluetooth
+    seclabel u:r:wcnd:s0
+
+service wcnd_eng-cali /vendor/bin/connmgr -G
+    class cali
+    user root
+    group root system shell wifi inet bluetooth
+    disabled
+    oneshot
+    seclabel u:r:wcnd:s0
+
+service console-cali /system/bin/sh
+    console
+    class cali
+    user root
+    group root
+    seclabel u:r:shell:s0
+
+service vendor.mlogservice /vendor/bin/mlogservice
+    class main
+    disabled
+    user shell
+    group system root
+
+service engpcclient /vendor/bin/engpc
+    class cali
+    user root
+    group root sdcard_rw system radio shell net_bt_admin input audio
+
+service gpsd /vendor/bin/gpsd
+    class core
+    disabled
+    user system
+    group gps system shell inet net_raw wifi
+
+service vendor.tsupplicant /vendor/bin/tsupplicant firmware
+    class core
+    user system
+    group system
+
+# alpine android-rootfs.img - mount
+service alpine_mount_rootfs /system/bin/sh -c "mkdir -p /mnt/alphybris/android/system && mount -o loop,ro /mnt/alphybris/var/lib/lxc/android/android-rootfs.img /mnt/alphybris/android"
+    disabled
+    oneshot
+    user root
+    group root
+    seclabel u:r:recovery:s0
+
+# alpine vendor from twrp - mount
+service alpine_mount_vendor /system/bin/sh -c "mkdir -p /mnt/alphybris/android/vendor && mount -o loop,rw /mnt/alphybris/var/lib/lxc/android/vendor.img /mnt/alphybris/android/vendor"
+    disabled
+    oneshot
+    user root
+    group root
+    seclabel u:r:recovery:s0
+
+# ===============
+# on init section
+# ===============
+
+on init
+    # Apply strict SELinux checking of PROT_EXEC on mmap/mprotect calls.
+    write /sys/fs/selinux/checkreqprot 0
+    start healthd
+    chown system system /sys/bus/iio/devices/trigger0/name
+    chown system system /sys/bus/iio/devices/iio:device1/buffer
+    chown system system /sys/bus/iio/devices/iio:device1/buffer/length
+    chown system system /sys/bus/iio/devices/iio:device1/buffer/enable
+    chown system system /sys/bus/iio/devices/iio:device1/trigger/current_trigger
+    chmod 660 /sys/bus/iio/devices/trigger0/name
+    chmod 660 /sys/bus/iio/devices/iio:device1/buffer/length
+    chmod 660 /sys/bus/iio/devices/iio:device1/buffer/enable
+    chmod 660 /sys/bus/iio/devices/iio:device1/trigger/current_trigger
+
+    export PATH /sbin:/system/bin:/vendor/bin
+    export SECONDARY_STORAGE /storage/sdcard0
+
+    mkdir /storage
+    mkdir /storage/sdcard1
+    mkdir /storage/sdcard0
+    symlink /storage/sdcard0 /mnt/sdcard
+    symlink /system/etc/bluetooth /etc/bluetooth
+
+    mkdir /systeminfo 0777 system system
+
+#   修改打印等级
+    loglevel 1
+
+    chown system root /proc/mdbg/assert
+    chown system root /proc/mdbg/wdtirq
+    chown system root /proc/mdbg/at_cmd
+    chown system root /proc/mdbg/loopcheck
+
+    chmod 760 /proc/mdbg/assert
+    chmod 760 /proc/mdbg/wdtirq
+    chmod 760 /proc/mdbg/at_cmd
+    chmod 760 /proc/mdbg/loopcheck
+
+    chown system root /proc/cpwcn/wdtirq
+    chmod 766 /proc/cpwcn/wdtirq
+
+    # Create mount-point for ConfigFS USB gadgets
+    # Add standard gadget entries
+    mount configfs none /config
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    write /config/usb_gadget/g1/idVendor 0x1782
+    write /config/usb_gadget/g1/idProduct 0x4d00
+    mkdir /config/usb_gadget/g1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer Unisoc
+    write /config/usb_gadget/g1/strings/0x409/product "Unisoc Phone"
+    mkdir /config/usb_gadget/g1/configs/b.1 0770 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "Conf 1"
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 120
+
+    # Create adb+ffs gadget function
+    mkdir /config/usb_gadget/g1/functions/ffs.adb 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/ffs.fastboot 0770 shell shell
+    mkdir /dev/usb-ffs 0770 shell shell
+    mkdir /dev/usb-ffs/adb 0770 shell shell
+    mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+    mkdir /dev/usb-ffs/fastboot 0770 system system
+    mount functionfs fastboot /dev/usb-ffs/fastboot rmode=0770,fmode=0660,uid=1000,gid=1000
+
+    # Create MTP and PTP functions
+    mkdir /config/usb_gadget/g1/functions/mtp.gs0 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/ptp.gs1 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/rndis.gs4 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/vser.gs7 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/accessory.gs2 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/audio_source.gs3 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/midi.gs5 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs0 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs1 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs2 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs3 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs4 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs5 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs6 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/gser.gs7 0770 shell shell
+
+    # Regulator test fix
+    mount -t debugfs none /sys/kernel/debug
+
+    # Mount alphybris partition
+    mkdir /mnt/alphybris 0755 root root
+    mount ext4 /dev/block/mmcblk0p77 /mnt/alphybris rw
+
+    # Create Alpine mount points
+    mkdir /mnt/alpine_root 0755 root root
+    mkdir /mnt/overlay 0755 root root
+    mkdir /mnt/overlay/upper 0755 root root
+    mkdir /mnt/overlay/work 0755 root root
+
+    # Whiteout markers (reference)
+    write /mnt/overlay/upper/.wh.proc ""
+    write /mnt/overlay/upper/.wh.sys ""
+    write /mnt/overlay/upper/.wh.dev ""
+    write /mnt/overlay/upper/.wh.run ""
+    write /mnt/overlay/upper/.wh.mnt ""
+
+    # Bind-mount full Alpine filesystem from /mnt/alphybris into /mnt/alpine_root
+    # Android init-style bind: filesystem type 'none', flag 'bind rec'
+    mount none /mnt/alphybris /mnt/alpine_root bind rec
+
+    # Create directories for tmpfs overlays (before mounting)
+    mkdir /mnt/alpine_root/tmp 1777 root root
+    mkdir /mnt/alpine_root/run 0755 root root
+    mkdir /mnt/alpine_root/var 0755 root root
+
+    # Create mount points for host filesystems
+    mkdir /mnt/alpine_root/proc 0755 root root
+    mkdir /mnt/alpine_root/sys 0755 root root
+    mkdir /mnt/alpine_root/dev 0755 root root
+    mkdir /mnt/alpine_root/dev/pts 0755 root root
+    mkdir /mnt/alpine_root/dev/shm 1777 root root
+    mkdir /mnt/alpine_root/system 0755 root root
+
+    # Android directories inside chroot
+    mkdir /mnt/alpine_root/android 0755 root root
+    mkdir /mnt/alpine_root/android/system 0755 root root
+    mkdir /mnt/alpine_root/android/system_ext 0755 root root
+    mkdir /mnt/alpine_root/android/vendor 0755 root root
+    mkdir /mnt/alpine_root/android/product 0755 root root
+
+    # Mount virtual filesystems (ConfigFS style, not bind)
+    mount proc proc /mnt/alpine_root/proc
+    mount sysfs sysfs /mnt/alpine_root/sys
+    mount tmpfs tmpfs /mnt/alpine_root/dev mode=0755
+    mount devpts devpts /mnt/alpine_root/dev/pts mode=0620,gid=5
+    mount tmpfs tmpfs /mnt/alpine_root/dev/shm mode=1777
+
+    # Runtime directories
+    mkdir /mnt/alpine_root/run/user 0755 root root
+    mkdir /mnt/alpine_root/tmp/runtime 0755 root root
+
+    symlink /mnt/alpine_root/android/system /android/system
+    symlink /mnt/alpine_root/android/system_ext /android/system_ext
+    symlink /mnt/alpine_root/android/vendor /android/vendor
+    symlink /mnt/alpine_root/android/product /android/product
+
+# ================
+# on boot section
+# ================
+
+on boot
+    setprop sys.usb.configfs 1
+    write /sys/block/mmcblk0boot0/force_ro 0
+    write /sys/block/mmcblk0boot1/force_ro 0
+
+    chown system system /dev/iio:device1
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/iio/trigger/current_trigger
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/batch
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/logctl
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/calibrator_cmd
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/calibrator_data
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/enable
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/flush
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/iio
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/version
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/op_download
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/mag_cali_flag
+    chown system system /sys/class/sprd_sensorhub/sensor_hub/sensorhub
+
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/iio/trigger/current_trigger
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/batch
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/logctl
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/calibrator_cmd
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/calibrator_data
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/enable
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/flush
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/iio
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/version
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/op_download
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/mag_cali_flag
+    chmod 660 /sys/class/sprd_sensorhub/sensor_hub/sensorhub
+    chmod 660 /sys/class/power_supply/battery/charger.0/stop_charge
+    chmod 660 /sys/class/power_supply/battery/charger.0/jeita_control
+    chmod 660 /sys/class/power_supply/battery/input_current_limit
+    chmod 660 /sys/class/power_supply/battery/constant_charge_current
+
+    # Set Alpine properties to trigger service chain
+    setprop alpine.mount.done 1
+    setprop alpine.vfs.ready 1
+
+# retropocket.rc
+    start pservice
+    chmod 666 /dev/rstouch
+    chmod 666 /sys/hdmi/driver_ctl
+    setprop persist.vendor.app.version ""
+
+# ==============
+# on fs section
+# ==============
+
+on fs
+    mkdir /data/misc/bluedroid 0770 bluetooth net_bt_stack
+    mkdir /data/misc/bluetooth 0770 system system
+    
+    #wifi.rc
+    setprop sys.wifitracing.started 0
+
+
+# ========================
+# on post-fs-data section
+# ========================
+
+on post-fs-data
+    # We chown/chmod /data again so because mount is run as root + defaults
+    chown system system /data
+    chmod 0771 /data
+    # We restorecon /data in case the userdata partition has been reset.
+    restorecon /data
+    mkdir /data/misc 01771 system misc
+    mkdir /data/misc/bluedroid 0770 bluetooth net_bt_stack
+    mkdir /data/misc/bluetooth 0770 system system
+    copy /system/etc/bluetooth/bt_stack.conf /data/misc/bluedroid/bt_stack.conf
+    chown bluetooth system /data/misc/bluedroid/bt_stack.conf
+    chmod 0640 /data/misc/bluedroid/bt_stack.conf
+
+    chmod 666 /sys/module/shub_core/parameters/gryo_firms
+    chmod 666 /sys/module/shub_core/parameters/acc_firms
+    chmod 666 /sys/module/shub_core/parameters/mag_firms
+    chmod 666 /sys/module/shub_core/parameters/pressure_firms
+    chmod 666 /sys/module/shub_core/parameters/light_firms
+    chmod 666 /sys/module/shub_core/parameters/prox_firms
+    chmod 666 /sys/module/firmware_class/parameters/path
+    chmod 666 /sys/module/shub_core/parameters/sensor_fusion_mode
+
+    #add wifi
+    mkdir /data/vendor/wifi 0770 wifi wifi
+    mkdir /data/vendor/wifi/wpa 0770 wifi wifi
+    mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
+    mkdir /data/system 0770 system system
+    mkdir /etc/wifi 0770 wifi wifi
+    write /data/vendor/wifi/fwpath sta_mode
+    chmod 660 /data/vendor/wifi/fwpath
+    chown wifi wifi /data/vendor/wifi/fwpath
+    rmdir /data/system/wpa_supplicant
+    mkdir /data/misc/dhcp 0770 dhcp dhcp
+
+    #to observe dnsmasq.leases file for dhcp information
+    chown dhcp system /data/misc/dhcp
+    setprop wifi.interface wlan0
+    mkdir /data/misc/dhcp6c 0770 dhcp dhcp
+    chown dhcp system /data/misc/dhcp6c
+
+    # Ylog dir on /data partition
+    mkdir /data/vendor 0751 root root
+    mkdir /data/vendor/local 0751 root root
+
+    # slogmodem config dir
+    mkdir /data/vendor/ylog 0770 shell system
+    mkdir /data/vendor/local/slogmodem 0770 shell system
+    mkdir /data/vendor/local/mlogservice 0770 shell system
+    mkdir /mnt/vendor/sensorhub 0777 system root
+    mkdir /mnt/vendor/productinfo 0771 system root
+    mkdir /mnt/vendor/productinfo/sensor_calibration_data 0770 system root
+    mkdir /data/vendor/local/otpdata 0777 system root
+
+    # wifi.rc
+    restorecon_recursive /data/misc/apexdata/com.android.wifi
+
+    # Check any timezone data in /data is newer than the copy in the time zone data
+    # module, delete if not.
+    exec - system system -- /system/bin/tzdatacheck
+
+# ===================
+# on property section
+# =====================
+
+on property:ro.debuggable=1
+    write /sys/module/smsg/parameters/debug_enable 1
+
+on property:ro.bootmode=recovery
+    class_start recovery
+
+on property:sys.usb.configfs=1 && property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb,vser,gser
+    write /config/usb_gadget/g1/idVendor 0x1782
+    write /config/usb_gadget/g1/idProduct 0x5d06
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "adb_vser_gser"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+    rm /config/usb_gadget/g1/configs/b.1/f3
+    rm /config/usb_gadget/g1/configs/b.1/f4
+    rm /config/usb_gadget/g1/configs/b.1/f5
+    rm /config/usb_gadget/g1/configs/b.1/f6
+    rm /config/usb_gadget/g1/configs/b.1/f7
+    rm /config/usb_gadget/g1/configs/b.1/f8
+    rm /config/usb_gadget/g1/configs/b.1/f9
+    rm /config/usb_gadget/g1/configs/b.1/f10
+    rm /config/usb_gadget/g1/configs/b.1/f11
+
+    symlink /config/usb_gadget/g1/functions/ffs.adb  /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/vser.gs7 /config/usb_gadget/g1/configs/b.1/f2
+    symlink /config/usb_gadget/g1/functions/gser.gs0 /config/usb_gadget/g1/configs/b.1/f3
+
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.usb.configfs=1 && property:sys.usb.config=vser
+    write /config/usb_gadget/g1/idVendor 0x1782
+    write /config/usb_gadget/g1/idProduct 0x4d00
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "vser"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+    rm /config/usb_gadget/g1/configs/b.1/f3
+    rm /config/usb_gadget/g1/configs/b.1/f4
+    rm /config/usb_gadget/g1/configs/b.1/f5
+    rm /config/usb_gadget/g1/configs/b.1/f6
+    rm /config/usb_gadget/g1/configs/b.1/f7
+    rm /config/usb_gadget/g1/configs/b.1/f8
+    rm /config/usb_gadget/g1/configs/b.1/f9
+    rm /config/usb_gadget/g1/configs/b.1/f10
+    rm /config/usb_gadget/g1/configs/b.1/f11
+
+    symlink /config/usb_gadget/g1/functions/vser.gs7 /config/usb_gadget/g1/configs/b.1/f1
+
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+on property:ro.bootmode=cali
+    # Enables vser port
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "vser"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/vser.gs7 /config/usb_gadget/g1/configs/b.1/f1
+
+    mount_all /etc/recovery.tmpfsdata.fstab
+    mount tmpfs tmpfs /data mode=0777
+    mkdir /system 0755 root root
+    symlink /system_root/system /system
+    chown system system /data
+    trigger post-fs
+    trigger post-fs-data
+    chmod 0771 /data
+    restorecon /data
+    mkdir /data/local 0751 root root
+    mkdir /data/local/media 0751 media media
+
+    mkdir /data/vendor/local/mlogservice 0770 shell system
+    mkdir /data/vendor 0751 root root
+    mkdir /data/vendor/local 0751 root root
+    mkdir /data/vendor/local/media 0770 audioserver system
+
+    mkdir /data/sprd_ss 0770 system system
+    class_start cali
+
+    # ToDo: insmod .../${ro.gpu.name}.ko
+    insmod /mnt/product/socko/pvrsrvkm.ko
+    insmod /mnt/product/socko/mali_gondul.ko
+
+    #gnss libgps
+    mkdir /data/vendor/gnss/ 0777 system system
+    mkdir /data/vendor/gnss/bin/ 0777 system system
+    mkdir /data/vendor/gnss/supl/ 0777 system system
+    mkdir /data/vendor/gnss/config/ 0777 system system
+    mkdir /data/vendor/gnss/lte/ 0777 system system
+    chown system system /data/vendor/gnss/bin/gnssmodem.bin
+    chown system system /data/vendor/gnss/config/config.xml
+    chown system system /data/vendor/gnss/supl/supl.xml
+    chown system system /data/vendor/gnss/supl/spirentroot.cer
+    chown system system /data/vendor/gnss/lte/ext.eph
+    chown system system /data/vendor/gnss/lte/jpleph.405
+    chown system system /data/vendor/gnss/lte/raw.obs
+    chown system system /data/vendor/gnss/gnss.log
+    chown system system /data/vendor/gnss/nmea.log
+    chown system system /mnt/vendor/tsx.dat
+    chown system system /mnt/vendor/txdata.txt
+    chown system system /data/vendor/gnss/FlashCfg.cg
+    chmod 666 /data/vendor/gnss/bin/gnssmodem.bin
+    chmod 666 /data/vendor/gnss/config/config.xml
+    chmod 660 /data/vendor/gnss/supl/supl.xml
+    chmod 660 /data/vendor/gnss/supl/spirentroot.cer
+    chmod 666 /data/vendor/gnss/lte/ext.eph
+    chmod 666 /data/vendor/gnss/lte/jpleph.405
+    chmod 660 /data/vendor/gnss/lte/raw.obs
+    chmod 666 /data/vendor/gnss/gnss.log
+    chmod 666 /data/vendor/gnss/nmea.log
+    chmod 666 /mnt/vendor/tsx.dat
+    chmod 666 /mnt/vendor/txdata.txt
+    chmod 666 /data/vendor/gnss/FlashCfg.cg
+
+    start hwservicemanager
+#    start vendor.slogmodem
+#    start vendor.cp_diskserver
+#    start vendor.mlogservice
+
+on property:ro.bootmode=factorytest
+    setprop sys.usb.config adb,vser,gser
+
+    mount_all /etc/recovery.tmpfsdata.fstab
+    mount tmpfs tmpfs /data mode=0777
+    mkdir /system 0755 root root
+    symlink /system_root/system /system
+    trigger post-fs
+    trigger post-fs-data
+    chown system system /data
+    chmod 0771 /data
+    chown system system /dev/adf0
+    chown system system /dev/adf-interface0.0
+    chown system system /dev/adf-overlay-engine0.0
+    mkdir /data/local 0751 root root
+    mkdir /data/vendor 0751 root root
+    mkdir /data/local/media 0751 media media
+
+    mkdir /data/misc 01771 system misc
+    mkdir /data/misc/media 0700 media media
+    mkdir /data/misc/audioserver 0700 audioserver audioserver
+    mkdir /data/misc/cameraserver 0700 cameraserver cameraserver
+    mkdir /data/vendor/cameraserver 0700 cameraserver cameraserver
+    mkdir /mnt/vendor/productinfo/otpdata 0777 system root
+
+    # Support audio test
+    mkdir /data/vendor/local 0751 root root
+    mkdir /data/vendor/local/media 0770 audioserver system
+
+    # ToDo: insmod .../${ro.gpu.name}.ko
+    insmod /mnt/product/socko/pvrsrvkm.ko
+    insmod /mnt/product/socko/mali_gondul.ko
+
+    #gnss
+    mkdir /data/vendor/gnss/ 0777 system system
+    mkdir /data/vendor/gnss/bin/ 0777 system system
+    mkdir /data/vendor/gnss/supl/ 0777 system system
+    mkdir /data/vendor/gnss/config/ 0777 system system
+    mkdir /data/vendor/gnss/lte/ 0777 system system
+    chown system system /data/vendor/gnss/bin/gnssmodem.bin
+    chown system system /data/vendor/gnss/config/config.xml
+    chown system system /data/vendor/gnss/supl/supl.xml
+    chown system system /data/vendor/gnss/supl/spirentroot.cer
+    chown system system /data/vendor/gnss/lte/ext.eph
+    chown system system /data/vendor/gnss/lte/jpleph.405
+    chown system system /data/vendor/gnss/lte/raw.obs
+    chown system system /data/vendor/gnss/gnss.log
+    chown system system /data/vendor/gnss/nmea.log
+    chown system system /mnt/vendor/tsx.dat
+    chown system system /mnt/vendor/txdata.txt
+    chown system system /data/vendor/gnss/FlashCfg.cg
+    chmod 666 /data/vendor/gnss/bin/gnssmodem.bin
+    chmod 666 /data/vendor/gnss/config/config.xml
+    chmod 660 /data/vendor/gnss/supl/supl.xml
+    chmod 660 /data/vendor/gnss/supl/spirentroot.cer
+    chmod 666 /data/vendor/gnss/lte/ext.eph
+    chmod 666 /data/vendor/gnss/lte/jpleph.405
+    chmod 660 /data/vendor/gnss/lte/raw.obs
+    chmod 666 /data/vendor/gnss/gnss.log
+    chmod 666 /data/vendor/gnss/nmea.log
+    chmod 666 /mnt/vendor/tsx.dat
+    chmod 666 /mnt/vendor/txdata.txt
+    chmod 666 /data/vendor/gnss/FlashCfg.cg
+
+    chown system system /sys/class/misc/gnss_common_ctl/gnss_power_enable
+    chown system system /sys/class/misc/gnss_common_ctl/gnss_dump
+    chown system system /sys/class/misc/gnss_common_ctl/gnss_subsys
+    chown system system /dev/gnss_pmnotify_ctl
+    chmod  220 /sys/class/misc/gnss_common_ctl/gnss_power_enable
+    chmod 660 /sys/class/misc/gnss_common_ctl/gnss_dump
+    chmod 660 /sys/class/misc/gnss_common_ctl/gnss_subsys
+    chmod 660  /dev/gnss_pmnotify_ctl
+
+    mkdir /data/misc 01771 system misc
+#    start vendor.cp_diskserver
+#    start vendor.slogmodem
+#    start vendor.mlogservice
+    trigger factorytest
+
+on property:ro.bootmode=factorytest && property:ro.debuggable=0
+    setprop sys.usb.config vser
+
+# wifi.rc
+
+on property:sys.user.0.ce_available=true
+   restorecon_recursive /data/misc_ce/0/apexdata/com.android.wifi
+
+on property:sys.boot_completed=1 && property:sys.wifitracing.started=0
+   # Create trace buffer, and set basic configuration.
+   mkdir /sys/kernel/debug/tracing/instances/wifi 711
+   restorecon_recursive /sys/kernel/debug/tracing/instances/wifi
+   write /sys/kernel/debug/tracing/instances/wifi/tracing_on 0
+   write /sys/kernel/debug/tracing/instances/wifi/buffer_size_kb 1
+   write /sys/kernel/debug/tracing/instances/wifi/trace_options disable_on_free
+
+   mkdir /sys/kernel/tracing/instances/wifi 711
+   restorecon_recursive /sys/kernel/tracing/instances/wifi
+   write /sys/kernel/tracing/instances/wifi/tracing_on 0
+   write /sys/kernel/tracing/instances/wifi/buffer_size_kb 1
+   write /sys/kernel/tracing/instances/wifi/trace_options disable_on_free
+
+   # Enable cfg80211 events for connection and key management events.
+   # - Events are not actually logged until WifiService writes "1" to
+   #   /sys/kernel/debug/tracing/instances/wifi/tracing_on.
+   # - WifiService is responsible for turning tracing off and on.
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/cfg80211_gtk_rekey_notify/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_add_key/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_assoc/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_auth/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_connect/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_set_default_key/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_set_default_mgmt_key/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/cfg80211/rdev_set_rekey_data/enable 1
+
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/cfg80211_gtk_rekey_notify/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_add_key/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_assoc/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_auth/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_connect/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_set_default_key/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_set_default_mgmt_key/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/cfg80211/rdev_set_rekey_data/enable 1
+
+   # Enable datapath events for Wifi.
+   # - Events are not actually logged until WifiService writes "1" to
+   #   /sys/kernel/debug/tracing/instances/wifi/tracing_on.
+   # - WifiService will ensure that tracing is turned back off,
+   #   when a connection attempt ends (whether in success or failure)
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/filter name==${wifi.interface:-wlan0}
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/net_dev_queue/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/net_dev_xmit/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/netif_rx/enable 1
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/netif_receive_skb/enable 1
+
+   write /sys/kernel/tracing/instances/wifi/events/net/filter name==${wifi.interface:-wlan0}
+   write /sys/kernel/tracing/instances/wifi/events/net/net_dev_queue/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/net/net_dev_xmit/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/net/netif_rx/enable 1
+   write /sys/kernel/tracing/instances/wifi/events/net/netif_receive_skb/enable 1
+
+   # Set DAC to allow system to enable/disable, and read wifi trace
+   # events.
+   chown system /sys/kernel/debug/tracing/instances/wifi/tracing_on
+   chown system /sys/kernel/debug/tracing/instances/wifi/free_buffer
+   chown system /sys/kernel/debug/tracing/instances/wifi/trace
+   chmod 200 /sys/kernel/debug/tracing/instances/wifi/tracing_on
+   chmod 400 /sys/kernel/debug/tracing/instances/wifi/free_buffer
+   chmod 600 /sys/kernel/debug/tracing/instances/wifi/trace
+
+   chown system /sys/kernel/tracing/instances/wifi/tracing_on
+   chown system /sys/kernel/tracing/instances/wifi/free_buffer
+   chown system /sys/kernel/tracing/instances/wifi/trace
+   chmod 200 /sys/kernel/tracing/instances/wifi/tracing_on
+   chmod 400 /sys/kernel/tracing/instances/wifi/free_buffer
+   chmod 600 /sys/kernel/tracing/instances/wifi/trace
+   setprop sys.wifitracing.started 1
+
+on property:sys.boot_completed=1 && property:wifi.interface=* && property:sys.wifitracing.started=1
+   # Override default value.
+   write /sys/kernel/debug/tracing/instances/wifi/events/net/filter name==${wifi.interface}
+   write /sys/kernel/tracing/instances/wifi/events/net/filter name==${wifi.interface}
+
+on property:vendor.sprd.tsupplicant.enabled=1
+    start vendor.tsupplicant
+
+# alpine's android-rootfs.img mount starts
+on property:alpine.vfs.ready=1
+    start alpine_mount_rootfs
+
+# APEX right after rootfs mount
+on property:init.svc.alpine_mount_rootfs=stopped
+    mount none /mnt/alpine_root/android/system /mnt/alpine_root/system bind
+    symlink /mnt/alphybris/android/system/apex /android/apex
+    symlink /android/apex /apex
+    start alpine_mount_vendor
+
+# =====================================================
+# Alpine: Staged Services for Alpine Linux Environment
+# =====================================================
+# TESTING HISTORY:
+# v1: Used /system/bin/busybox sh -c with multi-line strings and backslashes
+#     Result: FAILED - Init parser mangled backslashes, treated them as literal \x5c
+#     Error: "cannot expand arguments': using deprecated syntax"
+# v2: Removed 'critical' keyword from oneshot services
+#     Result: PARTIAL SUCCESS - Services registered but had parsing errors
+#     Error: "'stdio_to_kmsg' and 'console' are mutually exclusive"
+# v3: Used /system/bin/sh with no command, relied on 'on property:' triggers
+#     Result: FAILED - Service blocked waiting for stdin, never completed
+#     Error: Service stuck in 'running' state, subsequent triggers never fired
+# v4: Single-line commands with status logging using $?
+#     Result: FAILED - Init parser treated $? as property expansion
+#     Error: "using deprecated syntax for specifying property '?'"
+#     Note: Services DID register and execute, but commands corrupted
+# v5: Single-line commands, removed $? logging, added verification
+#     Result: Services executed but NO verification logs created
+#     Error: Overlay mount likely failed silently, no error capture worked
+#     Cause: Either path wrong or stderr redirection not working in service commands
+# v6: Used exec > /boot/file.log 2>&1 for redirection in service commands
+#     Result: FAILED - Services executed but NO log files created
+#     Error: Init doesn't provide stdout/stderr to oneshot services
+#     Cause: File descriptor redirection silently fails in init service context
+# v7: External scripts with { } > file redirection
+#     Result: FAILED - Services executed but scripts never ran
+#     Error: Scripts either missing from ramdisk, wrong permissions, or wrong format
+#     Cause: Can't rely on external files in recovery ramdisk
+# v8: Pure init.rc commands only - no external scripts or shell
+#     Result: SUCCESS - Overlay mounted, OpenRC launched and running
+#     Evidence: SELinux denials show dev="overlay", OpenRC scripts executing
+#     Status: alpine_runtime in restart loop due to service failures
+# v9: Added hardware setup stage, oneshot for runtime debugging
+#     Result: alpine_setup_hardware missing from service list (not registered)
+#     Cause: Service definition may have been accidentally omitted from init.rc
+# v10: Complete working configuration with all services
+#      Result: Overlay working, services executing, but bind mounts failed
+#      Error: mount bind syntax incorrect for Android init
+#      Error: APEX copy failed (copy doesn't support directories)
+#      Error: Environment variables not passed through chroot
+#      Error: rc-status location wrong (/sbin vs /bin)
+# v11: Fixed bind mounts, APEX handling, environment passthrough, library paths
+#      Result: Bind mounts working, but /system missing, APEX wrong path, env truncated
+#      Error: Long command string may exceed init parser limits
+#      Error: APEX symlink pointed to wrong location (rootfs/apex vs rootfs/system/apex)
+# v12: Alpine's root overlays directly onto / (not /mnt/alpine_root)
+#      /system remains accessible for Android binaries (sh, chroot, busybox)
+#      ld-musl-aarch64.so.1 available at /lib for host-level library resolution
+#      LXC container structure at /var/lib/lxc/android/rootfs for libhybris
+#      All services run through global chroot after setup completes
+#      OpenRC manages system initialization, not Android init
+# v13: v12 showed that `ro.bootmode` is set too early for property triggers to work
+#      `on boot` executes after init has fully started but before user services
+#      Overlay Alpine Root Directly onto / (on boot trigger)
+#      Mount Alpine's root filesystem directly over / using overlay
+#      This mounts on top of existing rootfs, doesn't replace it
+# v14: Attempted selective bind mounts
+#      overlay mount worked but alpine's files aren't accessible
+#      root file system cannot be unmounted or replaced, /system only has /exec
+# v15: Full Android partition integration, hardware-first approach
+#      Result: Bind mounts failed - executed on boot before /mnt/alphybris mounted
+#      Error: Services completed but Alpine files not accessible
+#      Cause: on boot trigger fires before on fs mounts partitions
+# v16: Used post-fs-data with direct mount commands
+#      Result: FAILED - Device restarted (init crash)
+#      Cause: Mount failures in trigger blocks can cause init panic
+# v17: Conservative approach using services for all mount operations
+#      All potentially-failing operations moved to services (not trigger blocks)
+#      Services can fail gracefully without crashing init
+#      Split bind mounts into separate services for debugging
+#      Added property checks and wait conditions
+#      Result: Bind mounting system directories causes kernel panic or init crash
+# v18: Return to v11 stable chroot approach with super partition
+#      Result: Services execute but directories/mounts incomplete
+#      Issue: Missing /tmp bind mount, wrong super partition mount sequence
+#      Issue: Module loading outside chroot context fails
+# v19: Added missing directories and mounts
+#      Result: Overlay mount itself failed silently
+#      Issue: Mount command in trigger may fail if lowerdir doesn't exist
+#      Issue: Missing /android bind mount structure
+# v20: Overlay mount service succeeded but overlay was empty
+#      Issue: Wrong lowerdir path (/mnt/alphybris vs /data/linuxdata)
+#      Issue: Missing /tmp/runtime directory
+#      Issue: /dev/pts and /dev/shm not mounted
+# v21: Used /data/linuxdata path but partition is mounted to /mnt/alphybris
+#      Issue: Path mismatch - overlay tried to use unmounted path
+#      Result: Overlay empty (no Alpine files visible)
+# v22: Service-based overlay mount failing silently
+#      Issue: mount command in service context doesn't work
+#      Result: Directories created but overlay empty
+# v23: Direct mount in trigger still failed - overlay empty
+#      Issue: Overlay filesystem may not be supported by kernel/recovery
+#      Evidence: All 23 versions show same failure pattern
+# v24: Direct bind mount failed - trigger never fired or mount failed
+#      Issue: /mnt/alpine_root created in same trigger as mount
+#      Issue: Trigger timing uncertain with ro.bootmode property
+# v25: Separate directory prep from mounting (like v8 success)
+#      Create directories in on fs (guaranteed timing)
+#      Do bind mount in property trigger
+#      Use v8's exact mount syntax that worked
+#      Issue: ro.bootmode=recovery trigger never fires or mount command fails
+#      Success: Directories in on fs persisted (proven to work)
+# v26: Move everything to on fs block
+#      All mount operations happen where alphybris mounts
+#      No property triggers for mounts - direct sequential execution
+#      Guaranteed timing and ordering
+#      Issue: Timing failed, relying on on init and on boot blocks instead
+# v27: /mnt/alphybris mounted successfully in on init
+#      Issue: Extract paths wrong (removed /chroot-distro/alpine, didn't change .rc)
+#      Issue: Super partition mount service too complex for init
+# v28: Arithmetic expansion $((...)) crashed init parser
+#      Issue: $((2695168*512)) syntax not supported by Android init
+#      Issue: Complex shell conditionals too advanced for init
+#      Result: Entire init.rc rejected, recovery didn't boot properly
+# v29: init doesn't take arithmetic
+#      retested v27's to confirm legitimacy of other errors
+#      extracting android-rootfs.img works
+#      init_first_stage handles extracting .img from super image.
+# v30: Pre-extracted .img files eliminate super partition complexity
+#      TWRP modifications extract vendor.img, product.img, system_ext.img to partition
+#      Extract all .img files using tar (proven in v27 for android-rootfs.img)
+#      No arithmetic, no losetup offsets, no super partition mounting required
+#      Pure init commands in on init, all extraction in services
+#      Removed use of /var/lib/lxc/android/pre-start.sh
+#      Extract .kl zip file, move to respective keylayout
+# v31: Fix bind mount syntax and chroot visibility
+#      Use 'mount none SRC DST bind rec' (Android init style shown in /system/etc/init/hw)
+#      Ensure /mnt/alpine_root sees full /mnt/alphybris tree
+#      Test with existing .rc workflow and service chain
+# v32: Presence checks and conditional extraction for the four *.img files
+#      moving the for mod in ...; do insmod ... loop into the chroot
+#      used exec_background
+# v33: no exec_background, only exec functionality
+#      Removing duplicate alpine_load_modules
+#      mount none /mnt/alphybris /mnt/alpine_root bind rec means no reason to create folders already present
+#      Made sure everything is to be extracted or found in /android/*
+#      reverted to v30 socko loading
+#      tar extraction to loop mounting like previously did (how did I forget this???)
+#      no more chroot testing
+#      typo check
+# v33: loop devices for partitions work
+#      anothing not a partition not in chroot failed
+#      any changes to alphybris changes alpine_root
+# v34: apex moved earlier, remove /apex directories , recreate and symlink them
+#      anothing not a partition not in chroot failed
+#      any changes to alphybris changes alpine_root
+# v35: android-rootfs.img is being looped improperly in /android, resultng in apex issue
+#      added mount none of /apex
+#      looping android-rootfs.img to /mnt/alphybris/android instead of /mnt/alphybris/android/system
+#      paths should be recursive, but added a mkdir for vendor/usr/keylayout
+#      wrapped setup-unisoc-hardware around LD_LIBRARY_PATH to test usage
+#      For socko; Added [ -b /dev/block/mmcblk0p52 ] guard to test if partition exists (it's there wtf)
+#      Changed from /mnt/alphybris/vendor/socko to /mnt/alpine_root/vendor/socko to try bind directory
+# v36: So every service fails after mounting the 4 partitions to /android/*
+#      So now we can mount partition 77, and assign it to another mount with:
+# on init
+#        mkdir /mnt/alphybris 0755 root root
+#        mount ext4 /dev/block/mmcblk0p77 /mnt/alphybris rw
+#        mount none /mnt/alphybris /mnt/alpine_root
+#      When mounting the 4 partitions to root, the trigger chains stop firing from the previous tests
+#      Soooooo I can either attempt to try more methods to have .rc commands run
+#      Or I can try to go back to using the recovery as a script now with the root and partitions loaded
+#      But I also stopped that because recovery as a script fails, a lot.
+#      errrrrrrrrrrrrrrrrrrrrrrrrr
+# v37: testing with only the mount initiation
+#      Changing android-rootfs.img - mount to go back to /mnt/alphybris/android instead of /mnt/alphybris/android/system
+# v38: So now product and system_ext declines to mount
+#      wtf
+#      tartarsauce suddendly doesn't work anymore
+#      sytem_ext and product aren't important, but now it's the principle

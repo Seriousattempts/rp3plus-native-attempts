@@ -1,0 +1,694 @@
+#!/system/bin/sh
+
+# === ALPHYBRIS SERVICE TEST ===
+
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+DISTRO_PARTITION="/dev/block/mmcblk0p77"
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/service_test.log"
+
+# Global cleanup tracking
+CLEANUP_ACTIONS=""
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p $SD_MOUNT
+    mount -t exfat $BOOT_PARTITION $SD_MOUNT 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log "=== ALPHYBRIS D-BUS & SERVICE TEST (COMPLETE VERSION) ==="
+log ""
+
+# Mount Alpine
+DISTRO_MOUNT="/mnt/alphybris"
+mkdir -p "$DISTRO_MOUNT"
+mount "$DISTRO_PARTITION" "$DISTRO_MOUNT"
+CLEANUP_ACTIONS="umount $DISTRO_MOUNT;$CLEANUP_ACTIONS"
+
+ALPINE_ROOT="$DISTRO_MOUNT/chroot-distro/alpine"
+TEMP_DIR="$DISTRO_MOUNT/super_temp"
+
+# ============================================
+# === INFRASTRUCTURE SETUP ===
+# ============================================
+
+log "=== SETUP: INFRASTRUCTURE ==="
+log ""
+
+mkdir -p "$TEMP_DIR"
+
+# 1. Partition extraction
+log "1. Extracting partitions..."
+for part_info in "system_ext:336896:92642" "vendor:429568:462622" "product:892416:148751"; do
+    PART=$(echo $part_info | cut -d: -f1)
+    SKIP=$(echo $part_info | cut -d: -f2)
+    COUNT=$(echo $part_info | cut -d: -f3)
+    [ ! -f "$TEMP_DIR/${PART}.img" ] && dd if=$SUPER_PARTITION of="$TEMP_DIR/${PART}.img" bs=4096 skip=$SKIP count=$COUNT 2>&1 | grep copied | tee -a "$LOGFILE"
+done
+
+# 2. Android-rootfs.img mount
+log "2. Mounting android-rootfs.img..."
+ROOTFS_IMG="$ALPINE_ROOT/var/lib/lxc/android/android-rootfs.img"
+ROOTFS_MOUNT="$ALPINE_ROOT/var/lib/lxc/android/rootfs"
+mkdir -p "$ROOTFS_MOUNT"
+
+SHORT_ROOTFS="/tmp/rootfs.img"
+[ ! -f "$SHORT_ROOTFS" ] && cp "$ROOTFS_IMG" "$SHORT_ROOTFS"
+
+ROOTFS_LOOP=$(losetup -f)
+losetup "$ROOTFS_LOOP" "$SHORT_ROOTFS"
+mount -t ext4 -o rw "$ROOTFS_LOOP" "$ROOTFS_MOUNT"
+CLEANUP_ACTIONS="umount $ROOTFS_MOUNT; losetup -d $ROOTFS_LOOP;$CLEANUP_ACTIONS"
+
+# 3. Mount partitions into android-rootfs
+log "3. Mounting partitions into android-rootfs..."
+VENDOR_LOOP=$(losetup -f); losetup "$VENDOR_LOOP" "$TEMP_DIR/vendor.img"; mount -t ext4 -o ro "$VENDOR_LOOP" "$ROOTFS_MOUNT/vendor"
+CLEANUP_ACTIONS="umount $ROOTFS_MOUNT/vendor; losetup -d $VENDOR_LOOP;$CLEANUP_ACTIONS"
+
+SYSEXT_LOOP=$(losetup -f); losetup "$SYSEXT_LOOP" "$TEMP_DIR/system_ext.img"; mount -t ext4 -o ro "$SYSEXT_LOOP" "$ROOTFS_MOUNT/system_ext"
+CLEANUP_ACTIONS="umount $ROOTFS_MOUNT/system_ext; losetup -d $SYSEXT_LOOP;$CLEANUP_ACTIONS"
+
+PRODUCT_LOOP=$(losetup -f); losetup "$PRODUCT_LOOP" "$TEMP_DIR/product.img"; mount -t ext4 -o ro "$PRODUCT_LOOP" "$ROOTFS_MOUNT/product"
+CLEANUP_ACTIONS="umount $ROOTFS_MOUNT/product; losetup -d $PRODUCT_LOOP;$CLEANUP_ACTIONS"
+
+# 4. Bind mounts to Alpine (LXC-style)
+log "4. Creating bind mounts..."
+mkdir -p "$ALPINE_ROOT/android" "$ALPINE_ROOT/system" "$ALPINE_ROOT/vendor" "$ALPINE_ROOT/odm"
+mount --bind "$ROOTFS_MOUNT" "$ALPINE_ROOT/android"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/android;$CLEANUP_ACTIONS"
+
+mount --bind "$ROOTFS_MOUNT/system" "$ALPINE_ROOT/system"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/system;$CLEANUP_ACTIONS"
+
+mount --bind "$ROOTFS_MOUNT/vendor" "$ALPINE_ROOT/vendor"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/vendor;$CLEANUP_ACTIONS"
+
+[ -d "$ROOTFS_MOUNT/vendor/odm" ] && mount --bind "$ROOTFS_MOUNT/vendor/odm" "$ALPINE_ROOT/odm" && CLEANUP_ACTIONS="umount $ALPINE_ROOT/odm;$CLEANUP_ACTIONS"
+
+# 5. APEX via SYMLINK
+log "5. Creating APEX symlink..."
+ln -sf /android/system/apex "$ALPINE_ROOT/apex"
+CLEANUP_ACTIONS="rm -f $ALPINE_ROOT/apex;$CLEANUP_ACTIONS"
+
+# 6. Property service
+log "6. Copying property service..."
+[ -d /dev/__properties__ ] && rm -rf "$ALPINE_ROOT/dev/__properties__" && cp -r /dev/__properties__ "$ALPINE_ROOT/dev/__properties__"
+CLEANUP_ACTIONS="rm -rf $ALPINE_ROOT/dev/__properties__;$CLEANUP_ACTIONS"
+
+# 7. Binderfs + symlinks
+log "7. Setting up binderfs with proper permissions..."
+mkdir -p "$ALPINE_ROOT/dev/binderfs"
+mount -t binder binder "$ALPINE_ROOT/dev/binderfs"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/dev/binderfs;$CLEANUP_ACTIONS"
+
+# Fix binder permissions
+chmod 666 "$ALPINE_ROOT/dev/binderfs/binder" 2>/dev/null
+chmod 666 "$ALPINE_ROOT/dev/binderfs/hwbinder" 2>/dev/null
+chmod 666 "$ALPINE_ROOT/dev/binderfs/vndbinder" 2>/dev/null
+
+ln -sf /dev/binderfs/binder "$ALPINE_ROOT/dev/binder"
+ln -sf /dev/binderfs/hwbinder "$ALPINE_ROOT/dev/hwbinder"
+ln -sf /dev/binderfs/vndbinder "$ALPINE_ROOT/dev/vndbinder"
+CLEANUP_ACTIONS="rm -f $ALPINE_ROOT/dev/binder $ALPINE_ROOT/dev/hwbinder $ALPINE_ROOT/dev/vndbinder;$CLEANUP_ACTIONS"
+
+# 8. Kernel modules
+log "8. Loading kernel modules..."
+SOCKO_MOUNT="$ALPINE_ROOT/mnt/socko"
+mkdir -p "$SOCKO_MOUNT"
+mount -o ro "$SOCKO_PARTITION" "$SOCKO_MOUNT"
+CLEANUP_ACTIONS="umount $SOCKO_MOUNT;$CLEANUP_ACTIONS"
+
+log "  Loading socko modules:"
+for mod in mali_gondul.ko mmdvfs.ko sprd_cpp.ko sprd_flash_drv.ko sprd_fm.ko sprd_sensor.ko sprdbt_tty.ko sprdwl_ng.ko; do
+    if [ -f "$SOCKO_MOUNT/$mod" ]; then
+        insmod "$SOCKO_MOUNT/$mod" 2>&1 | tee -a "$LOGFILE"
+        log "    $(echo $mod | sed 's/.ko//') loaded"
+    else
+        log "    ✗ $mod not found"
+    fi
+done
+
+log "  Loading vendor modules:"
+# FIXED: Use correct path after vendor mount
+VENDOR_MODULES_PATH="$ROOTFS_MOUNT/vendor/lib/modules"
+for mod in incrementalfs.ko kheaders.ko trace_irqsoff_bytedancy.ko trace_noschedule_bytedancy.ko trace_runqlat_bytedancy.ko; do
+    if [ -f "$VENDOR_MODULES_PATH/$mod" ]; then
+        insmod "$VENDOR_MODULES_PATH/$mod" 2>&1 | tee -a "$LOGFILE"
+        log "    $(echo $mod | sed 's/.ko//') loaded"
+    else
+        log "    ✗ $mod not found in $VENDOR_MODULES_PATH"
+    fi
+done
+
+log "  Verifying loaded modules:"
+lsmod | grep -E "sprd|mali" | tee -a "$LOGFILE"
+
+# 9. Virtual filesystems
+log "9. Mounting virtual filesystems..."
+mount -t proc proc "$ALPINE_ROOT/proc"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/proc;$CLEANUP_ACTIONS"
+
+mount -t sysfs sysfs "$ALPINE_ROOT/sys"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/sys;$CLEANUP_ACTIONS"
+
+mkdir -p "$ALPINE_ROOT/sdcard"
+mount --bind "$SD_MOUNT" "$ALPINE_ROOT/sdcard"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/sdcard;$CLEANUP_ACTIONS"
+
+# 10. Hardware configuration
+log "10. Running hardware configuration..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c "/usr/local/bin/setup-unisoc-hardware >/dev/null 2>&1"
+
+log "✓ Infrastructure setup complete"
+log ""
+
+# ============================================
+# === SYSTEM STATUS CHECK ===
+# ============================================
+
+log "========================================="
+log "=== SYSTEM STATUS CHECK ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== CPU INFO ==="
+    cat /proc/cpuinfo | grep -E "processor|BogoMIPS"
+    
+    echo ""
+    echo "=== MEMORY ==="
+    free -h
+    
+    echo ""
+    echo "=== STORAGE ==="
+    df -h | grep -E "Filesystem|/android|/sdcard"
+    
+    echo ""
+    echo "=== GPU DEVICES ==="
+    ls /dev/mali* /dev/dri/* 2>/dev/null || echo "No GPU devices found"
+    
+    echo ""
+    echo "=== THERMAL ZONES ==="
+    for tz in /sys/class/thermal/thermal_zone*/temp; do
+        if [ -f "$tz" ]; then
+            TEMP=$(cat "$tz" 2>/dev/null)
+            TYPE=$(cat $(dirname "$tz")/type 2>/dev/null)
+            echo "$TYPE: $((TEMP / 1000))°C"
+        fi
+    done
+    
+    echo ""
+    echo "=== NETWORK INTERFACES ==="
+    for iface in /sys/class/net/*; do
+        if [ -d "$iface" ]; then
+            NAME=$(basename "$iface")
+            STATE=$(cat "$iface/operstate" 2>/dev/null)
+            echo "$NAME: $STATE"
+        fi
+    done
+    
+    echo ""
+    echo "=== SENSOR DEVICES ==="
+    ls /dev/iio:device* /dev/sprd_sensor 2>/dev/null || echo "No sensor devices found"
+    
+    echo ""
+    echo "=== OS INFO ==="
+    cat /etc/os-release | grep PRETTY_NAME
+    uname -r
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === D-BUS INITIALIZATION ===
+# ============================================
+
+log "========================================="
+log "=== D-BUS INITIALIZATION ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Available D-Bus binaries ==="
+    ls -la /usr/bin/dbus-* 2>&1
+    
+    echo ""
+    echo "=== D-Bus version ==="
+    dbus-daemon --version
+    
+    echo ""
+    echo "=== Creating D-Bus directories ==="
+    mkdir -p /var/run/dbus
+    mkdir -p /var/lib/dbus
+    
+    # Generate machine-id if missing
+    if [ ! -f /var/lib/dbus/machine-id ]; then
+        echo "Generating machine-id..."
+        dbus-uuidgen > /var/lib/dbus/machine-id
+    fi
+    
+    echo ""
+    echo "=== Starting D-Bus daemon ==="
+    dbus-daemon --system --fork 2>&1
+    
+    sleep 3
+    
+    echo ""
+    echo "=== Verifying D-Bus is running ==="
+    ps | grep -v grep | grep dbus-daemon
+    
+    if ps | grep -v grep | grep dbus-daemon; then
+        echo "✓ D-Bus daemon running"
+        
+        echo ""
+        echo "=== Testing D-Bus connection ==="
+        dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>&1
+    else
+        echo "✗ D-Bus daemon failed to start"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === RC SERVICES TESTING ===
+# ============================================
+
+log "========================================="
+log "=== RC SERVICES TESTING ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Available RC Services ==="
+    ls /etc/init.d/ | grep -E "wpa_supplicant|rfkill|bluetooth|hybrislinks|ofono|networkmanager|pulseaudio|audiosystem|hadess|iio-sensor|elogind|phosh"
+    
+    echo ""
+    echo "=== Testing hybrislinks service ==="
+    rc-service hybrislinks start 2>&1
+    
+    echo ""
+    echo "=== Testing rfkill service ==="
+    rc-service rfkill start 2>&1
+    
+    echo ""
+    echo "=== Testing elogind service ==="
+    rc-service elogind start 2>&1
+    sleep 2
+    ps | grep -v grep | grep elogind || echo "elogind not running"
+    
+    echo ""
+    echo "=== Testing audiosystem-passthrough service ==="
+    rc-service audiosystem-passthrough start 2>&1
+    
+    echo ""
+    echo "=== Testing hadess-sensorfw-proxy service ==="
+    rc-service hadess-sensorfw-proxy start 2>&1
+    
+    echo ""
+    echo "=== Testing iio-sensor-proxy service ==="
+    rc-service iio-sensor-proxy start 2>&1
+    sleep 2
+    ps | grep -v grep | grep iio-sensor || echo "iio-sensor-proxy not running"
+    
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === AUDIO HAL & PULSEAUDIO SETUP ===
+# ============================================
+
+log "========================================="
+log "=== AUDIO HAL & PULSEAUDIO SETUP ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Loading Android Audio HAL ==="
+    # Ensure audio HAL is accessible
+    ls -la /vendor/lib*/hw/audio* 2>/dev/null || echo "Audio HAL not found"
+    
+    echo ""
+    echo "=== Starting PulseAudio-hybris ==="
+    rc-service pulseaudio start 2>&1
+    sleep 3
+    
+    if ps | grep -v grep | grep pulseaudio; then
+        echo "✓ PulseAudio running"
+        
+        echo ""
+        echo "=== Testing PulseAudio ==="
+        pulseaudio --check -v 2>&1
+        pactl info 2>&1 | head -10
+        
+        echo ""
+        echo "=== Available audio devices ==="
+        pactl list short sinks 2>&1
+        pactl list short sources 2>&1
+    else
+        echo "✗ PulseAudio failed to start"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === WIFI SETUP & TESTING ===
+# ============================================
+
+log "========================================="
+log "=== WIFI SETUP & TESTING ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== WiFi Interface Detection ==="
+    ip link show | grep -i wlan
+    WLAN_IF=$(ip link show 2>/dev/null | grep -o "wlan[0-9]*" | head -1)
+    
+    if [ -n "$WLAN_IF" ]; then
+        echo "✓ Found WiFi interface: $WLAN_IF"
+        
+        echo ""
+        echo "=== Starting WiFi manually ==="
+        ip link set "$WLAN_IF" up 2>&1
+        
+        echo ""
+        echo "=== Starting wpa_supplicant service ==="
+        rc-service wpa_supplicant start 2>&1
+        sleep 3
+        
+        if ps | grep -v grep | grep wpa_supplicant; then
+            echo "✓ wpa_supplicant service running"
+            
+            echo ""
+            echo "=== Testing wpa_cli ==="
+            wpa_cli -i "$WLAN_IF" status 2>&1
+            
+            echo ""
+            echo "=== Scanning networks ==="
+            wpa_cli -i "$WLAN_IF" scan 2>&1
+            sleep 5
+            wpa_cli -i "$WLAN_IF" scan_results 2>&1 | head -20
+        else
+            echo "✗ wpa_supplicant service failed"
+        fi
+    else
+        echo "✗ No WiFi interface found"
+        echo "WiFi modules status:"
+        lsmod | grep -i sprdwl
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === BLUETOOTH SETUP & TESTING ===
+# ============================================
+
+log "========================================="
+log "=== BLUETOOTH SETUP & TESTING ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Bluetooth Module Check ==="
+    lsmod | grep -i "sprdbt\|bluetooth"
+    
+    echo ""
+    echo "=== Starting Bluetooth service ==="
+    rc-service bluetooth start 2>&1
+    sleep 3
+    
+    if ps | grep -v grep | grep bluetoothd; then
+        echo "✓ bluetoothd service running"
+        
+        echo ""
+        echo "=== Testing bluetoothctl ==="
+        bluetoothctl list 2>&1
+        bluetoothctl show 2>&1
+        
+        echo ""
+        echo "=== Bluez test tools ==="
+        test-adapter list 2>&1 || echo "test-adapter not available"
+        test-device list 2>&1 || echo "test-device not available"
+    else
+        echo "✗ bluetoothd service failed"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === CELLULAR MODEM SETUP ===
+# ============================================
+
+log "========================================="
+log "=== CELLULAR MODEM SETUP ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Starting ofono-hybris ==="
+    rc-service ofono start 2>&1
+    sleep 3
+    
+    if ps | grep -v grep | grep ofonod; then
+        echo "✓ ofono running"
+        
+        echo ""
+        echo "=== Testing ofono ==="
+        list-modems 2>&1 || echo "list-modems not available"
+        
+        echo ""
+        echo "=== Starting ofono2mm bridge ==="
+        rc-service ofono2mm start 2>&1
+        sleep 2
+        
+        echo ""
+        echo "=== Starting ModemManager ==="
+        rc-service modemmanager start 2>&1
+        sleep 3
+        
+        if ps | grep -v grep | grep ModemManager; then
+            echo "✓ ModemManager running"
+            mmcli -L 2>&1 || echo "No modems detected"
+        else
+            echo "✗ ModemManager failed"
+        fi
+    else
+        echo "✗ ofono failed to start"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === NETWORKMANAGER SETUP ===
+# ============================================
+
+log "========================================="
+log "=== NETWORKMANAGER SETUP ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== Starting NetworkManager ==="
+    rc-service networkmanager start 2>&1
+    sleep 3
+    
+    if ps | grep -v grep | grep NetworkManager; then
+        echo "✓ NetworkManager running"
+        
+        echo ""
+        echo "=== Testing NetworkManager ==="
+        nmcli general status 2>&1
+        nmcli device status 2>&1
+        nmcli connection show 2>&1
+    else
+        echo "✗ NetworkManager failed to start"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === MOBILE UI COMPONENTS TESTING ===
+# ============================================
+
+log "========================================="
+log "=== MOBILE UI COMPONENTS TESTING ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    mkdir -p "$XDG_RUNTIME_DIR"
+    
+    echo "=== Testing sensorfw ==="
+    sensorfw-sensord --version 2>&1 || echo "sensorfw not available"
+    
+    echo ""
+    echo "=== Testing phoc-hybris (Wayland compositor) ==="
+    phoc --version 2>&1 || echo "phoc not available"
+    
+    echo ""
+    echo "=== Testing phosh-hybris ==="
+    phosh --version 2>&1 || echo "phosh not available"
+    
+    echo ""
+    echo "=== Testing squeekboard (virtual keyboard) ==="
+    squeekboard --help 2>&1 | head -5 || echo "squeekboard not available"
+    
+    echo ""
+    echo "=== Testing plymouth-hybris ==="
+    plymouth --version 2>&1 || echo "plymouth not available"
+    
+    echo ""
+    echo "=== Starting phosh service ==="
+    rc-service phosh start 2>&1 || echo "phosh service not available"
+    sleep 2
+    ps | grep -v grep | grep phosh || echo "phosh not running"
+    
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# ============================================
+# === COMPREHENSIVE SERVICE STATUS ===
+# ============================================
+
+log "========================================="
+log "=== COMPREHENSIVE SERVICE STATUS ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+    
+    echo "=== All Running Services ==="
+    rc-status | grep -E "started|crashed|stopped"
+    
+    echo ""
+    echo "=== Process Status ==="
+    ps | grep -E "dbus|wpa|bluetooth|ofono|NetworkManager|pulseaudio|phosh|elogind" | grep -v grep
+    
+    echo ""
+    echo "=== Service Dependencies Check ==="
+    for service in dbus wpa_supplicant bluetooth ofono networkmanager pulseaudio elogind; do
+        if rc-service "$service" status >/dev/null 2>&1; then
+            echo "✓ $service: OK"
+        else
+            echo "✗ $service: FAILED"
+        fi
+    done
+    
+    echo ""
+    echo "=== libhybris Integration Status ==="
+    ls -la /usr/lib/libhybris* 2>/dev/null | head -5
+    
+    echo ""
+    echo "=== Android HAL Access ==="
+    ls -la /vendor/lib*/hw/ 2>/dev/null | head -10
+    
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "========================================="
+log "=== TEST COMPLETE ==="
+log "========================================="
+
+# ============================================
+# === COMPLETE CLEANUP FUNCTION ===
+# ============================================
+
+cleanup_all() {
+    log ""
+    log "========================================="
+    log "=== PERFORMING COMPLETE CLEANUP ==="
+    log "========================================="
+    
+    # Stop all services in chroot first
+    log "Stopping all services in chroot..."
+    /system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+        export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+        
+        # Stop all RC services
+        for service in phosh elogind iio-sensor-proxy hadess-sensorfw-proxy audiosystem-passthrough networkmanager ofono2mm ofono bluetooth wpa_supplicant pulseaudio rfkill hybrislinks; do
+            rc-service "$service" stop 2>/dev/null || true
+        done
+        
+        # Kill remaining processes
+        pkill -f dbus-daemon 2>/dev/null || true
+        pkill -f wpa_supplicant 2>/dev/null || true
+        pkill -f bluetoothd 2>/dev/null || true
+        pkill -f ofonod 2>/dev/null || true
+        pkill -f NetworkManager 2>/dev/null || true
+        pkill -f pulseaudio 2>/dev/null || true
+        pkill -f phosh 2>/dev/null || true
+        pkill -f phoc 2>/dev/null || true
+        pkill -f elogind 2>/dev/null || true
+        
+        # Clean up runtime directories
+        rm -rf /var/run/dbus/* 2>/dev/null || true
+        rm -rf /tmp/runtime-root 2>/dev/null || true
+        
+    ' 2>/dev/null || true
+    
+    # Unload kernel modules
+    log "Unloading kernel modules..."
+    for mod in $(lsmod | grep -E "sprd|mali" | awk '{print $1}'); do
+        rmmod "$mod" 2>/dev/null || true
+        log "  Unloaded $mod"
+    done
+    
+    # Execute cleanup actions in reverse order
+    log "Executing filesystem cleanup..."
+    IFS=";"
+    for action in $CLEANUP_ACTIONS; do
+        [ -n "$action" ] && eval "$action" 2>/dev/null || true
+    done
+    
+    # Clean up temporary files
+    log "Cleaning temporary files..."
+    rm -rf "$TEMP_DIR" 2>/dev/null || true
+    rm -f "$SHORT_ROOTFS" 2>/dev/null || true
+    
+    log "✓ Complete cleanup finished"
+}
+
+# Set up trap for cleanup
+trap cleanup_all EXIT INT TERM
+
+log "Script completed. Log saved to: $LOGFILE"
+log "Press Ctrl+C to cleanup and exit, or cleanup will run automatically on script exit."
+
+# Perform cleanup and launch recovery
+cleanup_all
+exec /system/bin/realrecovery "$@"

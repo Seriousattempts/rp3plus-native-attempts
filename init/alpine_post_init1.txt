@@ -1,0 +1,741 @@
+#!/system/bin/sh
+
+# ============================================================================
+# === ALPINE INIT.RC POST-MOUNT TEST SCRIPT (v13) ===
+# ============================================================================
+#
+# COMPREHENSIVE TEST HISTORY & RESULTS:
+#
+# ===== Past problems testing with stock alphybris api 30 rootfs : =====
+#   Problem: Commands not found inside chroot 
+#   Root cause: wrong shell environment inside the chroot
+#   Problem: "Permission denied" mounting modules
+#   Root cause: mounting kernel modules to /mnt/alpine_root/vendor/socko, vendor image was read-only
+#   Problem: Timezone data (tzdata)
+#   Root cause: Bionic looks in different paths than Alpine's /usr/share/zoneinfo, non-fatal
+#   Problem: Not all rc-services selected can run
+#   Root cause: chronyd, boot-wlan, wcnss-enable requires kernel configurations
+#   Problem: Alpine error running binares, hardware node failure (setup-unisoc-hardware)
+#   Root cause: Didn't overlay symlinks from /mnt/alphybris to host root (/bin, /sbin, /usr, /lib, /var, /etc, /srv)
+#   Problem: pulseaudio not running
+#   Root cause (not fixed): no 'alsa' openrc service exists in current file, attempting vendor Android HAL
+#   Problem: Various files needed android share library files (.so)
+#   Root cause: LD_LIBRARY_PATH nor /etc/ld.so.conf wasn't being utilized
+#   Problem: gnome, phoc, phosh isn't loading a graphical interface
+#   Root cause (not fixed): elogind session loginctl list-sessions: "No sessions", no compositor set, no controlling tty
+#   Problem: bluetooth/wifi not launching
+#   Root cause (not fixed): alpine's bluetooth and wifi packages not launching successfully, switching to vendor Android HAL
+#   Problem: dbus issues
+#   Root cause: when running with user alphybris, su command had errors
+#   Problem:
+#   Root cause: 
+# ===== v6-v11: Graphics Failures =====
+# Test: gnome-session, phoc, phosh
+#   Common error: "User has no sessions" from elogind
+#   phoc errors:
+#     "Cannot open /dev/tty: No such device or address"
+#     "failed to start backend 'drm'"
+#   gnome-shell error:
+#     "Could not get session ID: User 0 has no sessions"
+#   phosh error:
+#     "No controlling tty found, aborting start"
+#   Root cause: Recovery has no TTY/VT, cannot create elogind session
+#
+# ===== v8-v11: phoc EGL/Mesa Issues =====
+# Test: phoc headless with libhybris
+#   Environment set:
+#     LD_LIBRARY_PATH=/android/system/lib64:...:/usr/lib
+#     HYBRIS_LD_LIBRARY_PATH=/android/system/lib64:...
+#   Result: Still tries Mesa first
+#     Error: "MESA-LOADER: failed to open swrast"
+#     Error: "/usr/lib/xorg/modules/dri/swrast_dri.so: No such file"
+#     Error: "Failed to initialize EGL"
+#   Root cause: phoc/wlroots compiled for Mesa, not libhybris
+#   Status: phoc binary incompatible with libhybris
+#
+# ===== v9-v11: Android HAL Service Issues =====
+# v9-v10: HAL services started, appeared in process list
+# v11: HAL services started but immediately crashed
+#   Linker errors (before v11 script ran):
+#     "android.hardware.bluetooth@1.1.so not found"
+#     "android.hardware.wifi@1.0.so not found"
+#   Root cause: Missing LD_LIBRARY_PATH for Android linker
+#
+# ===== v12 =====
+# Android HAL Services: ✓ ALL RUNNING
+#   Audio HAL (PID 3599): ✓ Still running after 3s
+#   Bluetooth HAL (PID 3621): ✓ Still running after 3s
+#   Wi-Fi HAL (PID 3643): ✓ Still running after 3s
+#   Success factor: Proper LD_LIBRARY_PATH with Android libs
+#
+# Libhybris Symlinks: ✗ FAILED IN v12
+#   All 6 symlinks missing (/libGLES_mali.so, /libc.so, etc)
+#   Reason: v12 ran hybrislinks inside chroot (wrong location)
+#   Compare to v6: Ran as root user, symlinks created correctly
+#   Solution: Revert to v6 approach (root user, not alphybris)
+#
+# elogind Session Creation: ✗ FAILED
+#   Attempted: loginctl enable-linger, setsid background shell
+#   Result: "No sessions" before and after
+#   Reason: No TTY in recovery, PAM not available
+#   Status: Impossible to create session without TTY
+#
+# phoc with libhybris: ✗ STILL USES MESA
+#   Despite HYBRIS_EGLPLATFORM=wayland, phoc seeks Mesa drivers
+#   Conclusion: phoc binary not compiled with libhybris support
+#
+# ===== v13/v14 APPROACH =====
+# 1. Revert to v6 style: root user (not alphybris), proper symlinks, worked
+# 2. Test polkit with elogind for session management, failed
+# 3. If sessions still fail: Switch to hwcomposer/SurfaceFlinger, failed
+# 4. Focus on working HAL services from v12, failed
+# 5. PAM elogind configuration modified successfully
+# 6.s Bootstrap library namespace workaround, symlinks created successfully
+# 7. HAL services with enhanced verification outside of chroot at /android/*, failed to locate files
+# 8. HWComposer with bootstrap libs, "Binder driver '/dev/binder' could not be opened. Terminating."
+# ===== What Works (Proven Stable) =====
+# Alpine's path overlay: for dir in bin sbin usr lib srv var etc data; do
+# Android symlinks 1: for subdir in system vendor; do
+# Android symlinks 2: if [ -d "$ALPINE_ROOT/android/system/apex" ]; then
+# Hardware command: ./usr/local/bin/setup-unisoc-hardware
+# Android hardware test: /android/system/bin/ip link show
+# Module command after mount: /sbin/insmod /mnt/vendor/socko/mali_gondul.ko
+# openrc initialization: /system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c
+# rc- services (limited number): (d-bus, hybrislinks, system d-bus, networkmanager, elogind, rfkill, sshd, hadess-sensorfw-proxy, ofono, ofono2mm)
+# tzdata with exec - system system -- /system/bin/tzdatacheck in init.recovery.common.rc
+# copying files from recovery binary to paths (cp /system/bin/surfaceflinger /android/bin/surfaceflinger)
+# ===== Known Blockers =====
+# ✗ elogind sessions (impossible without TTY)
+# ✗ phoc/wlroots (compiled for Mesa, not libhybris)
+# ✗ Alpine bluetooth/wifi (switching to Android HAL)
+# ✗ PulseAudio (no ALSA service, switching to Android audio HAL)
+# ✗ Binder access for HWComposer - Permissions correct but still can't open
+# ✗ Binaries run outside chroot, search host paths, 
+#                           but .so files are at /mnt/alpine_root/android/* paths
+#                           (HYPOTHESIS: Path mismatch between execution context and library location)
+
+# ===== v16 NEW TESTS =====
+#
+# AVAILABLE DISPLAY STACKS:
+# 1. Wayland: wayland-libs-*, mutter-43.3-r1, xwayland-22.1.9-r0
+# 2. X11: Complete X11 libs, Mesa OpenGL stack
+#
+# AVAILABLE AUDIO STACKS:
+# 1. PipeWire: pipewire-alsa, pipewire-pulse
+# 2. PulseAudio-Hybris: pulseaudio-hybris, pulseaudio-modules-droid, 
+#                       pulseaudio-modules-droid-hidl
+# 3. JACK: jack-1.9.21, pulseaudio-hybris-jack
+# 4. Call audio: callaudiod-hybris
+# 5. Haptic: feedbackd-hybris
+#
+# AVAILABLE NETWORK FEATURES:
+# 1. Cellular: networkmanager, mobile-broadband-provider-info, ofono-ril-plugin,
+#              ofono-ril-binder-plugin, libgrilio
+# 2. WiFi: networkmanager-wifi, wireless-regdb, avahi-daemon
+# 3. Location: geoclue
+# 4. Sensors: sensorfw, iio-sensor-proxy
+
+# - Installs start-mobile-display.sh, setup-hybris-env.sh, phoc.ini
+# - Creates mobile user for proper session management
+# - Launches Phoc + Phosh with Android HAL libraries
+# - Copies display logs to SD card for debugging
+
+
+# ============================================================================
+
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_post_init_test.log"
+
+ALPINE_ROOT="/mnt/alpine_root"
+ALPHYBRIS_ROOT="/mnt/alphybris"
+
+CLEANUP_ACTIONS=""
+
+# --------------------------------------------------
+# Logging helper
+# --------------------------------------------------
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+# --------------------------------------------------
+# Alpine PATH
+# --------------------------------------------------
+
+log "========================================="
+log "=== ALPINE PATH ENVIRONMENT ==="
+log "========================================="
+log ""
+
+log "Creating overlay symlinks..."
+for dir in bin sbin usr lib srv var etc data; do
+    if [ -d "$ALPHYBRIS_ROOT/$dir" ]; then
+        if [ "$dir" = "lib" ]; then
+            rm -rf /lib 2>/dev/null
+        fi
+        
+        if [ ! -e "/$dir" ] || [ -L "/$dir" ] || [ "$dir" = "lib" ]; then
+            rm -f "/$dir" 2>/dev/null
+            ln -sf "$ALPHYBRIS_ROOT/$dir" "/$dir"
+            CLEANUP_ACTIONS="rm -f /$dir;$CLEANUP_ACTIONS"
+            log "  ✓ /$dir -> $ALPHYBRIS_ROOT/$dir"
+        fi
+    fi
+done
+
+log ""
+KERNEL_VERSION=$(uname -r)
+log "Creating /lib/modules symlink for modprobe (kernel: $KERNEL_VERSION)..."
+
+# Create versioned directory
+mkdir -p "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" 2>/dev/null
+
+if [ -d "/lib/modules/$KERNEL_VERSION" ]; then
+    log "  ✓ /lib/modules/$KERNEL_VERSION exists"
+elif [ -d "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" ]; then
+    ln -sf "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" "/lib/modules/$KERNEL_VERSION"
+    log "  ✓ /lib/modules/$KERNEL_VERSION -> $ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION"
+else
+    mkdir -p "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION"
+    ln -sf "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" "/lib/modules/$KERNEL_VERSION"
+    log "  ⚠ Created empty /lib/modules/$KERNEL_VERSION"
+fi
+
+ln -sf "$ALPHYBRIS_ROOT/lib/modules" /lib/modules 2>/dev/null
+
+log ""
+log "Verifying Alpine dynamic linker..."
+if [ -f /lib/ld-musl-aarch64.so.1 ]; then
+    log "  ✓ ld-musl-aarch64.so.1 accessible"
+else
+    log "  ✗ Dynamic linker missing"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Create ALL /android/* symlinks
+# --------------------------------------------------
+
+log "========================================="
+log "=== CREATING HOST SYMLINKS ==="
+log "========================================="
+log ""
+
+log "Creating /android/* symlinks..."
+mkdir -p /android 2>/dev/null
+
+for subdir in system vendor; do
+    rm -f "/android/$subdir" 2>/dev/null
+    
+    if [ -d "$ALPINE_ROOT/android/$subdir" ]; then
+        ln -sf "$ALPINE_ROOT/android/$subdir" "/android/$subdir"
+        CLEANUP_ACTIONS="rm -f /android/$subdir;$CLEANUP_ACTIONS"
+        log "  ✓ /android/$subdir -> $ALPINE_ROOT/android/$subdir"
+    else
+        log "  ✗ $subdir not found"
+    fi
+done
+
+log ""
+log "Creating /apex symlink..."
+if [ -d "$ALPINE_ROOT/android/system/apex" ]; then
+    rm -f /apex 2>/dev/null
+    ln -sf "$ALPINE_ROOT/android/system/apex" /apex
+    CLEANUP_ACTIONS="rm -f /apex;$CLEANUP_ACTIONS"
+    log "  ✓ /apex -> $ALPINE_ROOT/android/system/apex"
+else
+    log "  ✗ APEX not found"
+fi
+
+log ""
+log "Copying SurfaceFlinger binary..."
+if [ -x /system/bin/surfaceflinger ]; then
+    mkdir -p /android/bin 2>/dev/null
+    cp /system/bin/surfaceflinger /android/bin/surfaceflinger
+    chmod 755 /android/bin/surfaceflinger
+    log "  ✓ /android/bin/surfaceflinger created"
+else
+    log "  ✗ /system/bin/surfaceflinger not found"
+fi
+
+log ""
+# --------------------------------------------------
+# Timezone + Property + Binderfs
+# --------------------------------------------------
+
+log "========================================="
+log "=== SYSTEM INFRASTRUCTURE ==="
+log "========================================="
+log ""
+
+if [ -x /system/bin/tzdatacheck ] && [ -d "$ALPHYBRIS_ROOT/usr/share/zoneinfo" ]; then
+    log "Running tzdatacheck..."
+    /system/bin/tzdatacheck "$ALPHYBRIS_ROOT/usr/share/zoneinfo" "$ALPHYBRIS_ROOT/usr/share/zoneinfo" 2>&1 | head -5 | tee -a "$LOGFILE"
+fi
+
+log ""
+if [ -d /dev/__properties__ ]; then
+    rm -rf "$ALPINE_ROOT/dev/__properties__" 2>/dev/null
+    mkdir -p "$ALPINE_ROOT/dev"
+    cp -r /dev/__properties__ "$ALPINE_ROOT/dev/__properties__"
+    log "✓ Property service copied"
+    CLEANUP_ACTIONS="rm -rf $ALPINE_ROOT/dev/__properties__;$CLEANUP_ACTIONS"
+fi
+
+log ""
+mkdir -p "$ALPINE_ROOT/dev/binderfs"
+if mount -t binder binder "$ALPINE_ROOT/dev/binderfs" 2>/dev/null; then
+    log "✓ Binderfs mounted"
+    CLEANUP_ACTIONS="umount $ALPINE_ROOT/dev/binderfs;$CLEANUP_ACTIONS"
+    chmod 666 "$ALPINE_ROOT/dev/binderfs"/* 2>/dev/null
+    ln -sf /dev/binderfs/binder "$ALPINE_ROOT/dev/binder"
+    ln -sf /dev/binderfs/hwbinder "$ALPINE_ROOT/dev/hwbinder"
+    ln -sf /dev/binderfs/vndbinder "$ALPINE_ROOT/dev/vndbinder"
+    CLEANUP_ACTIONS="rm -f $ALPINE_ROOT/dev/binder $ALPINE_ROOT/dev/hwbinder $ALPINE_ROOT/dev/vndbinder;$CLEANUP_ACTIONS"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Kernel modules
+# --------------------------------------------------
+
+log "========================================="
+log "=== KERNEL MODULE LOADING ==="
+log "========================================="
+log ""
+
+INSMOD_CMD="/sbin/insmod"
+log "Using insmod: $INSMOD_CMD"
+
+log ""
+SOCKO_MOUNT=""
+for try_mount in /mnt/vendor/socko "$ALPHYBRIS_ROOT/vendor/socko"; do
+    mkdir -p "$try_mount" 2>/dev/null
+    if [ -b "$SOCKO_PARTITION" ]; then
+        if mount -t ext4 -o ro "$SOCKO_PARTITION" "$try_mount" 2>/dev/null; then
+            log "✓ Socko mounted at $try_mount"
+            SOCKO_MOUNT="$try_mount"
+            CLEANUP_ACTIONS="umount $try_mount;$CLEANUP_ACTIONS"
+            break
+        fi
+    fi
+done
+
+if [ -n "$SOCKO_MOUNT" ]; then
+    log "Loading socko modules (excluding sprd_vdsp.ko)..."
+    for mod in mali_gondul.ko mmdvfs.ko sprd_cpp.ko sprd_sensor.ko sprd_flash_drv.ko sprdbt_tty.ko sprd_fm.ko sprdwl_ng.ko; do
+        if [ -f "$SOCKO_MOUNT/$mod" ]; then
+            $INSMOD_CMD "$SOCKO_MOUNT/$mod" 2>&1 | tee -a "$LOGFILE"
+            sleep 0.3
+        fi
+    done
+fi
+
+log ""
+log "Loading vendor modules..."
+VENDOR_MODULES="$ALPHYBRIS_ROOT/android/vendor/lib/modules"
+if [ -d "$VENDOR_MODULES" ]; then
+    for mod in incrementalfs.ko kheaders.ko; do
+        if [ -f "$VENDOR_MODULES/$mod" ]; then
+            $INSMOD_CMD "$VENDOR_MODULES/$mod" 2>&1 | tee -a "$LOGFILE"
+            sleep 0.3
+        fi
+    done
+fi
+
+log ""
+log "Loaded modules:"
+lsmod | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# Hardware setup
+# --------------------------------------------------
+
+log "========================================="
+log "=== UNISOC HARDWARE SETUP ==="
+log "========================================="
+log ""
+
+if [ -x "$ALPHYBRIS_ROOT/usr/local/bin/setup-unisoc-hardware" ]; then
+    (
+        cd "$ALPHYBRIS_ROOT" || exit 1
+        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        export ANDROID_TZDATA_ROOT="$ALPHYBRIS_ROOT/usr/share/zoneinfo"
+        ./usr/local/bin/setup-unisoc-hardware 2>&1 | tail -100
+        echo "Exit code: $?"
+    ) | tee -a "$LOGFILE"
+fi
+
+log ""
+
+# --------------------------------------------------
+# OpenRC
+# --------------------------------------------------
+
+log "========================================="
+log "=== OPENRC INITIALIZATION ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    /sbin/rc sysinit 2>&1 | tail -20
+    /sbin/rc boot 2>&1 | tail -20
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# D-Bus session
+# --------------------------------------------------
+
+log "========================================="
+log "=== D-BUS SESSION BUS ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export XDG_RUNTIME_DIR=/run/user/0
+    mkdir -p "$XDG_RUNTIME_DIR"
+    chmod 700 "$XDG_RUNTIME_DIR"
+    dbus-daemon --session --fork --address=unix:path=$XDG_RUNTIME_DIR/bus 2>&1
+    sleep 2
+    if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+        echo "✓ D-Bus session bus started"
+        ls -l "$XDG_RUNTIME_DIR/bus"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# Core services
+# --------------------------------------------------
+
+log "========================================="
+log "=== STARTING CORE SERVICES ==="
+log "========================================="
+log ""
+
+# Base system services needed before graphics
+SERVICES="hybrislinks dbus elogind networkmanager polkit sshd hadess-sensorfw-proxy ofono"
+
+for service in $SERVICES; do
+    log "Starting $service..."
+    /system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        /sbin/rc-service '"$service"' start 2>&1 | tail -10
+    ' 2>&1 | tee -a "$LOGFILE"
+    sleep 1
+done
+
+log ""
+log "Starting ofono2mm (with timeout)..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    timeout 10 /sbin/rc-service ofono2mm start 2>&1 | tail -10
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+# --------------------------------------------------
+# Create Mobile User for Wayland Session
+# --------------------------------------------------
+
+log "========================================="
+log "=== CREATING MOBILE USER ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    
+    if ! id mobile >/dev/null 2>&1; then
+        echo "Creating mobile user..."
+        adduser -D -h /home/mobile -s /bin/sh mobile
+        
+        for group in video audio input render dialout; do
+            addgroup mobile $group 2>/dev/null || true
+        done
+        
+        /bin/busybox mkdir -p /home/mobile/.local/share
+        /bin/busybox mkdir -p /home/mobile/.config
+        /bin/busybox mkdir -p /home/mobile/.cache
+        /bin/busybox chown -R mobile:mobile /home/mobile
+        
+        echo "  ✓ User mobile created"
+        echo "  ✓ Added to groups: video, audio, input, render, dialout"
+    else
+        echo "  ✓ User mobile already exists"
+    fi
+    
+    id mobile
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "NOTE: Alpine chroot has no /bin/su; running phoc/phosh as root with /run/user/0"
+log ""
+
+# --------------------------------------------------
+# Launch Wayland + phoc + phosh-hybris (as root)
+# --------------------------------------------------
+
+log "========================================="
+log "=== LAUNCHING HYBRIS WAYLAND SESSION ==="
+log "========================================="
+log ""
+
+log "Launching phoc + phosh-hybris as root (no su available)..."
+log ""
+
+# Set up /run/user/0 and /dev/null as root inside chroot
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    # Ensure /run/user/0 exists with proper permissions
+    /bin/busybox mkdir -p /run/user/0
+    /bin/busybox chmod 700 /run/user/0
+
+    # Ensure /dev/null is writable
+    if [ -e /dev/null ]; then
+        /bin/busybox chmod 666 /dev/null
+    fi
+
+    /bin/ls -ld /run/user/0
+    /bin/ls -l /dev/null 2>/dev/null || echo "no /dev/null in chroot"
+' 2>&1 | tee -a "$LOGFILE"
+
+# Now run phoc + phosh-hybris as root
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    export XDG_RUNTIME_DIR="/run/user/0"
+    export HOME="/root"
+    export WAYLAND_DISPLAY="wayland-0"
+    export XDG_SESSION_TYPE="wayland"
+
+    export LD_LIBRARY_PATH="/android/system_ext/lib64:/android/system/lib64:/android/vendor/lib64:/lib:/usr/lib"
+    export LIBHYBRIS_USE_WIFI=1
+    export GBM_BACKEND="/android/vendor/lib64/hw/gralloc.default.so"
+
+    # Sanity-check runtime dir
+    /bin/ls -ld "$XDG_RUNTIME_DIR" || echo "[WARN] XDG_RUNTIME_DIR not accessible"
+
+    # Start D-Bus session for root
+    if [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
+        echo "[INFO] Starting D-Bus session..."
+        dbus-daemon --session --fork --address=unix:path=$XDG_RUNTIME_DIR/bus 2>&1
+        sleep 1
+    fi
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+
+    # Start phoc compositor
+    echo "[INFO] Starting phoc..."
+    phoc -E --config=/etc/phoc/phoc.ini >"$XDG_RUNTIME_DIR/phoc.log" 2>&1 &
+    PHOC_PID=$!
+
+    WAIT_COUNT=0
+    while [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] && [ $WAIT_COUNT -lt 20 ]; do
+        sleep 0.5
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+    done
+
+    if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+        echo "[INFO] Wayland socket $WAYLAND_DISPLAY created"
+
+        echo "[INFO] Starting phosh-hybris..."
+        phosh-hybris >"$XDG_RUNTIME_DIR/phosh.log" 2>&1 &
+        PHOSH_PID=$!
+
+        sleep 5
+        echo "[INFO] phoc/phosh processes:"
+        /bin/ps | /bin/busybox grep -E "phoc|phosh" | /bin/busybox grep -v grep || echo "  (none)"
+        
+        echo "[INFO] phoc PID: $PHOC_PID"
+        echo "[INFO] phosh PID: $PHOSH_PID"
+    else
+        echo "[ERROR] Wayland socket not created after 10s"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "Hybris Wayland launch attempted (see phoc.log / phosh.log if present)."
+log ""
+
+# --------------------------------------------------
+# Copy display logs to SD card (best-effort)
+# --------------------------------------------------
+
+log "========================================="
+log "=== COPYING DISPLAY LOGS TO SD CARD ==="
+log "========================================="
+log ""
+
+ROOT_RUNTIME="$ALPINE_ROOT/run/user/0"
+if [ -d "$ROOT_RUNTIME" ]; then
+    if [ -f "$ROOT_RUNTIME/phoc.log" ]; then
+        cp "$ROOT_RUNTIME/phoc.log" "$SD_MOUNT/phoc.log"
+        PHOC_SIZE=$(wc -l < "$ROOT_RUNTIME/phoc.log" 2>/dev/null || echo "0")
+        log "  ✓ phoc.log copied to $SD_MOUNT/phoc.log ($PHOC_SIZE lines)"
+        log ""
+        log "  === Last 50 lines of phoc.log ==="
+        tail -50 "$ROOT_RUNTIME/phoc.log" 2>&1 | tee -a "$LOGFILE"
+        log "  ==================================="
+    else
+        log "  ⚠ phoc.log not found in $ROOT_RUNTIME"
+    fi
+
+    log ""
+
+    if [ -f "$ROOT_RUNTIME/phosh.log" ]; then
+        cp "$ROOT_RUNTIME/phosh.log" "$SD_MOUNT/phosh.log"
+        PHOSH_SIZE=$(wc -l < "$ROOT_RUNTIME/phosh.log" 2>/dev/null || echo "0")
+        log "  ✓ phosh.log copied to $SD_MOUNT/phosh.log ($PHOSH_SIZE lines)"
+        log ""
+        log "  === Last 50 lines of phosh.log ==="
+        tail -50 "$ROOT_RUNTIME/phosh.log" 2>&1 | tee -a "$LOGFILE"
+        log "  ===================================="
+    else
+        log "  ⚠ phosh.log not found in $ROOT_RUNTIME"
+    fi
+else
+    log "  ⚠ Runtime directory not found: $ROOT_RUNTIME"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Hardware test
+# --------------------------------------------------
+
+log "========================================="
+log "=== HARDWARE TEST ==="
+log "========================================="
+log ""
+log "  OS:"
+/bin/busybox uname -a | tee -a "$LOGFILE"
+log "  OS release:"
+if [ -f /etc/os-release ]; then
+    /bin/busybox cat /etc/os-release | tee -a "$LOGFILE"
+else
+    log "    /etc/os-release not found"
+fi
+log "  Network:"
+/android/system/bin/ip link show | /bin/busybox grep -E "wlan|seth|dummy" | /usr/bin/head -15 | tee -a "$LOGFILE"
+log ""
+log "  Modem:"
+/bin/ps | /bin/busybox grep ofono | /bin/busybox grep -v grep | tee -a "$LOGFILE" || log "    Not running"
+log ""
+log "  DRM/Display:"
+[ -c /dev/dri/card0 ] && log "    ✓ /dev/dri/card0" || log "    ✗ No DRM"
+log ""
+log "  Mali GPU:"
+[ -c /dev/mali0 ] && log "    ✓ /dev/mali0" || log "    ✗ No Mali"
+log ""
+log "  IIO Sensors:"
+[ -d /sys/bus/iio/devices ] && /bin/ls /sys/bus/iio/devices | tee -a "$LOGFILE" || log "    No IIO"
+log ""
+log "  Thermal sensors:"
+if ls /sys/class/thermal/thermal_zone* >/dev/null 2>&1; then
+    for z in /sys/class/thermal/thermal_zone*; do
+        [ -d "$z" ] || continue
+        ZNAME=$(cat "$z/type" 2>/dev/null || echo "$(basename "$z")")
+        ZTEMP=$(cat "$z/temp" 2>/dev/null || echo "N/A")
+        log "    $ZNAME: $ZTEMP"
+    done
+else
+    log "    No thermal zones found"
+fi
+log ""
+log "  Camera (I2C and V4L2):"
+if [ -d /sys/bus/i2c/devices ]; then
+    /bin/ls /sys/bus/i2c/devices | /bin/busybox grep -Ei "cam|sensor" | tee -a "$LOGFILE" || log "    No obvious camera I2C nodes"
+else
+    log "    No camera I2C (sysfs) directory"
+fi
+if [ -d /dev ]; then
+    /bin/ls /dev/video* 2>/dev/null | tee -a "$LOGFILE" || log "    No /dev/video* nodes"
+else
+    log "    /dev not accessible for video nodes"
+fi
+log ""
+log "  RAM:"
+/bin/busybox free -h | tee -a "$LOGFILE"
+log ""
+log "  Uptime:"
+/bin/busybox uptime | tee -a "$LOGFILE"
+log ""
+
+# --------------------------------------------------
+# Final status
+# --------------------------------------------------
+
+log "========================================="
+log "=== FINAL STATUS ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    echo "=== Alpine Processes ==="
+    /bin/ps | /bin/busybox grep -E "dbus|ofono|elogind|polkit|phoc|phosh|mutter" | /bin/busybox grep -v grep || echo "None"
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "=== TEST COMPLETE (v16 - Hybris Display Integration) ==="
+log "Main log: $LOGFILE"
+log "Display logs: $SD_MOUNT/phoc.log, $SD_MOUNT/phosh.log"
+log ""
+
+# --------------------------------------------------
+# Cleanup
+# --------------------------------------------------
+
+cleanup_all() {
+    log "=== CLEANUP ==="
+    
+    /system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        pkill -9 phoc phosh mutter gnome-session gnome-shell pipewire geoclue sensorfwd 2>/dev/null || true
+        for svc in sensorfw geoclue polkit elogind ofono2mm ofono udisks2 hadess-sensorfw-proxy sshd networkmanager dbus hybrislinks; do
+            /sbin/rc-service "$svc" stop 2>/dev/null || true
+        done
+    ' 2>&1 | tee -a "$LOGFILE"
+    
+    for mod in $(lsmod | /bin/busybox grep -E "sprd|mali|incremental" | /bin/busybox awk '{print $1}'); do
+        rmmod "$mod" 2>/dev/null
+    done
+    
+    IFS=";"
+    for action in $CLEANUP_ACTIONS; do
+        [ -n "$action" ] && eval "$action" 2>/dev/null || true
+    done
+    
+    for lib in libdl_android.so libc.so libm.so; do
+        [ -L "/android/system/lib64/$lib" ] && rm -f "/android/system/lib64/$lib"
+    done
+    
+    log "  ✓ Cleanup complete"
+}
+
+trap cleanup_all EXIT INT TERM
+cleanup_all
+
+log "Launching realrecovery..."
+exec /system/bin/realrecovery "$@"

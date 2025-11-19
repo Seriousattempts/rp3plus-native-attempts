@@ -1,0 +1,747 @@
+[2025-10-26 17:16:20] === AlpHybris Rootfs Test Script ===
+[2025-10-26 17:16:20] Script started with comprehensive logging enabled
+[2025-10-26 17:16:20] Process ID: 3132
+[2025-10-26 17:16:20] SD Card Path: /storage/3454-7DC4
+[2025-10-26 17:16:20] Script Base: /storage/3454-7DC4
+[2025-10-26 17:16:20] === Checking root access ===
+[2025-10-26 17:16:20] ✓ Running as root user
+[2025-10-26 17:16:20] Current user: root
+[2025-10-26 17:16:20] Current UID: 
+[2025-10-26 17:16:20] === Verifying helper scripts ===
+[2025-10-26 17:16:20] ✓ Found: setup-unisoc-hardware.sh
+[2025-10-26 17:16:20] ✓ Found: install-unisoc-service.sh
+[2025-10-26 17:16:20] ✓ Found: dev-nodes.sh
+[2025-10-26 17:16:20] ✓ All helper scripts found
+[2025-10-26 17:16:20] === Mounting linuxdata partition ===
+[2025-10-26 17:16:20] ✓ linuxdata partition already mounted
+[2025-10-26 17:16:20] EXECUTING: df -h '/data/linuxdata'
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/block/mmcblk0p77  54G  1.7G   52G   4% /data/linuxdata
+[2025-10-26 17:16:20] SUCCESS: Command completed successfully
+[2025-10-26 17:16:20] Mount verification:
+[2025-10-26 17:16:20] EXECUTING: df -h '/data/linuxdata'
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/block/mmcblk0p77  54G  1.7G   52G   4% /data/linuxdata
+[2025-10-26 17:16:20] SUCCESS: Command completed successfully
+[2025-10-26 17:16:21] EXECUTING: stat -f -c %T '/data/linuxdata'
+ext3
+[2025-10-26 17:16:21] SUCCESS: Command completed successfully
+[2025-10-26 17:16:21] EXECUTING: ls -la '/data/linuxdata'
+total 32
+drwxr-xr-x  4 root   root    4096 2025-10-26 16:47 .
+drwxrwx--x 52 system system  4096 2025-10-26 16:49 ..
+drwxrwxrwx  3 root   root    4096 2025-10-26 16:47 chroot-distro
+drwx------  2 root   root   16384 2025-10-26 16:47 lost+found
+[2025-10-26 17:16:21] SUCCESS: Command completed successfully
+[2025-10-26 17:16:21] === Testing chroot-distro environment ===
+[2025-10-26 17:16:21] ✓ Set CHROOT_DISTRO_PATH=/data/linuxdata/chroot-distro
+[2025-10-26 17:16:21] ✓ chroot-distro directory exists
+[2025-10-26 17:16:21] EXECUTING: ls -la '/data/linuxdata/chroot-distro'
+total 12
+drwxrwxrwx  3 root  root 4096 2025-10-26 16:47 .
+drwxr-xr-x  4 root  root 4096 2025-10-26 16:47 ..
+drwxr-xr-x 22 radio 123  4096 2025-10-26 16:49 alpine
+[2025-10-26 17:16:21] SUCCESS: Command completed successfully
+[2025-10-26 17:16:21] ✓ Alpine directory exists
+[2025-10-26 17:16:21] EXECUTING: ls -la '/data/linuxdata/chroot-distro/alpine' | head -20
+total 88
+drwxr-xr-x 22 radio 123  4096 2025-10-26 16:49 .
+drwxrwxrwx  3 root  root 4096 2025-10-26 16:47 ..
+-rw-r--r--  1 root  root    0 2023-04-30 08:06 .writable_image
+drwxr-xr-x 11 root  root 4096 2023-04-30 08:05 android
+lrwxrwxrwx  1 root  root   13 2023-04-30 08:03 apex -> /android/apex
+drwxr-xr-x  2 root  root 4096 2023-04-30 08:05 bin
+lrwxrwxrwx  1 root  root   15 2023-04-30 08:05 cache -> /android/cache/
+lrwxrwxrwx  1 root  root   14 2023-04-30 08:05 data -> /android/data/
+drwxr-xr-x  4 root  root 4096 2023-04-30 08:02 dev
+lrwxrwxrwx  1 root  root   13 2023-04-30 08:05 efs -> /android/efs/
+drwxr-xr-x 70 root  root 4096 2023-04-30 08:05 etc
+drwxr-xr-x  3 root  root 4096 2023-04-30 08:02 home
+lrwxrwxrwx  1 root  root   10 2023-04-30 08:05 init -> /sbin/init
+drwxr-xr-x 13 root  root 4096 2023-04-30 08:04 lib
+drwxr-xr-x  5 root  root 4096 2023-04-30 08:02 media
+lrwxrwxrwx  1 root  root   18 2023-04-30 08:05 metadata -> /android/metadata/
+drwxr-xr-x 12 root  root 4096 2023-04-30 08:05 mnt
+lrwxrwxrwx  1 root  root   13 2023-04-30 08:05 odm -> /android/odm/
+drwxr-xr-x  2 root  root 4096 2023-04-30 08:02 opt
+[2025-10-26 17:16:21] SUCCESS: Command completed successfully
+[2025-10-26 17:16:21] === Testing chroot system environment ===
+[2025-10-26 17:16:21] ✓ Alpine path exists: /data/linuxdata/chroot-distro/alpine
+[2025-10-26 17:16:21] Checking critical directories...
+[2025-10-26 17:16:21]   ✓ /dev/shm exists
+drwxrwxrwt 2 root root 4096 2023-04-30 08:02 /data/linuxdata/chroot-distro/alpine/dev/shm
+[2025-10-26 17:16:21]   ✓ /tmp exists
+drwxrwxrwt 3 root root 4096 2025-10-26 16:49 /data/linuxdata/chroot-distro/alpine/tmp
+[2025-10-26 17:16:21]   ✓ /tmp/runtime exists
+drwxrwxrwt 2 root root 4096 2025-10-26 16:49 /data/linuxdata/chroot-distro/alpine/tmp/runtime
+[2025-10-26 17:16:21] Checking device node permissions...
+[2025-10-26 17:16:21]   ✓ /dev/null exists (permissions: 666)
+[2025-10-26 17:16:21]   ✓ /dev/zero exists (permissions: 666)
+[2025-10-26 17:16:21]   ⚠ /dev/full missing
+[2025-10-26 17:16:21]   ✓ /dev/random exists (permissions: 666)
+[2025-10-26 17:16:21]   ✓ /dev/urandom exists (permissions: 666)
+[2025-10-26 17:16:21]   ⚠ /dev/fuse missing
+[2025-10-26 17:16:21]   ⚠ /dev/tty missing
+[2025-10-26 17:16:21]   ⚠ /dev/ptmx missing
+[2025-10-26 17:16:21] ✓ Chroot system environment test completed
+[2025-10-26 17:16:21] === Testing Android system partition bind-mounts ===
+[2025-10-26 17:16:21] Checking Android partition mount directories...
+[2025-10-26 17:16:21]   ⚠ /system directory missing
+[2025-10-26 17:16:21]   ✓ /system_ext directory exists
+[2025-10-26 17:16:21]     ✓ /system_ext is bind-mounted
+[2025-10-26 17:16:21] EXECUTING: mount | grep '/data/linuxdata/chroot-distro/alpine/system_ext'
+/dev/block/dm-5 on /data/linuxdata/chroot-distro/alpine/system_ext type ext4 (ro,seclabel,relatime)
+[2025-10-26 17:16:22] SUCCESS: Command completed successfully
+[2025-10-26 17:16:22]   ⚠ /vendor directory missing
+[2025-10-26 17:16:22]   ⚠ /product directory missing
+[2025-10-26 17:16:22] ✓ Android partition bind-mount test completed
+[2025-10-26 17:16:22] === Testing rootfs structure ===
+[2025-10-26 17:16:22] Checking standard Linux directories...
+[2025-10-26 17:16:22]   ✓ /bin exists (Size: 3.5M, Items: 96)
+[2025-10-26 17:16:22]   ⚠ /boot missing
+[2025-10-26 17:16:22]   ✓ /dev exists (Size: 12K, Items: 7)
+[2025-10-26 17:16:22]   ✓ /etc exists (Size: 20M, Items: 114)
+[2025-10-26 17:16:22]   ✓ /home exists (Size: 8.0K, Items: 1)
+[2025-10-26 17:16:22]   ✓ /lib exists (Size: 22M, Items: 65)
+[2025-10-26 17:16:22]   ✓ /media exists (Size: 16K, Items: 3)
+[2025-10-26 17:16:22]   ✓ /mnt exists (Size: 84K, Items: 11)
+[2025-10-26 17:16:22]   ✓ /opt exists (Size: 4.0K, Items: 0)
+[2025-10-26 17:16:22]   ✓ /proc exists (Size: 4.0K, Items: 0)
+[2025-10-26 17:16:22]   ✓ /root exists (Size: 8.0K, Items: 1)
+[2025-10-26 17:16:22]   ✓ /run exists (Size: 20K, Items: 4)
+[2025-10-26 17:16:22]   ✓ /sbin exists (Size: 9.0M, Items: 165)
+[2025-10-26 17:16:23]   ✓ /srv exists (Size: 4.0K, Items: 0)
+[2025-10-26 17:16:23]   ✓ /sys exists (Size: 4.0K, Items: 0)
+[2025-10-26 17:16:23]   ✓ /tmp exists (Size: 8.0K, Items: 1)
+[2025-10-26 17:16:24]   ✓ /usr exists (Size: 1.2G, Items: 7)
+[2025-10-26 17:16:24]   ✓ /var exists (Size: 451M, Items: 12)
+[2025-10-26 17:16:24] 
+[2025-10-26 17:16:24] Checking AlpHybris-specific directories...
+[2025-10-26 17:16:24]   ✓ /android exists (Size: 40K, Items: 9)
+[2025-10-26 17:16:24]   ✓ /usr/bin/droid exists (Size: 12K, Items: 2)
+[2025-10-26 17:16:24] ✓ Rootfs structure test completed
+[2025-10-26 17:16:24] === Checking available users in Alpine rootfs ===
+[2025-10-26 17:16:24] Users in /etc/passwd:
+root:x:0:0:root:/root:/bin/ash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+sync:x:5:0:sync:/sbin:/bin/sync
+shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+halt:x:7:0:halt:/sbin:/sbin/halt
+mail:x:8:12:mail:/var/mail:/sbin/nologin
+news:x:9:13:news:/usr/lib/news:/sbin/nologin
+uucp:x:10:14:uucp:/var/spool/uucppublic:/sbin/nologin
+operator:x:11:0:operator:/root:/sbin/nologin
+man:x:13:15:man:/usr/man:/sbin/nologin
+postmaster:x:14:12:postmaster:/var/mail:/sbin/nologin
+cron:x:16:16:cron:/var/spool/cron:/sbin/nologin
+ftp:x:21:21::/var/lib/ftp:/sbin/nologin
+sshd:x:22:22:sshd:/dev/null:/sbin/nologin
+at:x:25:25:at:/var/spool/cron/atjobs:/sbin/nologin
+squid:x:31:31:Squid:/var/cache/squid:/sbin/nologin
+xfs:x:33:33:X Font Server:/etc/X11/fs:/sbin/nologin
+games:x:35:35:games:/usr/games:/sbin/nologin
+cyrus:x:85:12::/usr/cyrus:/sbin/nologin
+vpopmail:x:89:89::/var/vpopmail:/sbin/nologin
+ntp:x:123:123:NTP:/var/empty:/sbin/nologin
+smmsp:x:209:209:smmsp:/var/spool/mqueue:/sbin/nologin
+guest:x:405:100:guest:/dev/null:/sbin/nologin
+nobody:x:65534:65534:nobody:/:/sbin/nologin
+alphybris:x:32011:32011:Linux User,,,:/home/alphybris:/bin/bash
+messagebus:x:100:102:messagebus:/dev/null:/sbin/nologin
+dhcp:x:101:103:dhcp:/var/lib/dhcp:/sbin/nologin
+system:x:700:700::/home/system:/sbin/nologin
+aid_system:x:1000:1000::/home/aid_system:/sbin/nologin
+aid_radio:x:1001:1001::/home/aid_radio:/sbin/nologin
+aid_bluetooth:x:1002:1002::/home/aid_bluetooth:/sbin/nologin
+aid_graphics:x:1003:1003::/home/aid_graphics:/sbin/nologin
+aid_input:x:1004:1004::/home/aid_input:/sbin/nologin
+aid_audio:x:1005:1005::/home/aid_audio:/sbin/nologin
+aid_camera:x:1006:1006::/home/aid_camera:/sbin/nologin
+aid_log:x:1007:1007::/home/aid_log:/sbin/nologin
+aid_compass:x:1008:1008::/home/aid_compass:/sbin/nologin
+aid_mount:x:1009:1009::/home/aid_mount:/sbin/nologin
+aid_wifi:x:1010:1010::/home/aid_wifi:/sbin/nologin
+aid_adb:x:1011:1011::/home/aid_adb:/sbin/nologin
+aid_install:x:1012:1012::/home/aid_install:/sbin/nologin
+aid_media:x:1013:1013::/home/aid_media:/sbin/nologin
+aid_dhcp:x:1014:1014::/home/aid_dhcp:/sbin/nologin
+aid_sdcard_rw:x:1015:1015::/home/aid_sdcard_rw:/sbin/nologin
+aid_vpn:x:1016:1016::/home/aid_vpn:/sbin/nologin
+aid_keystore:x:1017:1017::/home/aid_keystore:/sbin/nologin
+aid_usb:x:1018:1018::/home/aid_usb:/sbin/nologin
+aid_drm:x:1019:1019::/home/aid_drm:/sbin/nologin
+aid_mdnsr:x:1020:1020::/home/aid_mdnsr:/sbin/nologin
+aid_gps:x:1021:1021::/home/aid_gps:/sbin/nologin
+aid_media_rw:x:1023:1023::/home/aid_media_rw:/sbin/nologin
+aid_mtp:x:1024:1024::/home/aid_mtp:/sbin/nologin
+aid_drmrpc:x:1026:1026::/home/aid_drmrpc:/sbin/nologin
+aid_nfc:x:1027:1027::/home/aid_nfc:/sbin/nologin
+aid_sdcard_r:x:1028:1028::/home/aid_sdcard_r:/sbin/nologin
+aid_clat:x:1029:1029::/home/aid_clat:/sbin/nologin
+aid_loop_radio:x:1030:1030::/home/aid_loop_radio:/sbin/nologin
+aid_mediadrm:x:1031:1031::/home/aid_mediadrm:/sbin/nologin
+aid_package_info:x:1032:1032::/home/aid_package_info:/sbin/nologin
+aid_sdcard_pics:x:1033:1033::/home/aid_sdcard_pics:/sbin/nologin
+aid_sdcard_av:x:1034:1034::/home/aid_sdcard_av:/sbin/nologin
+aid_sdcard_all:x:1035:1035::/home/aid_sdcard_all:/sbin/nologin
+aid_logd:x:1036:1036::/home/aid_logd:/sbin/nologin
+aid_shared_relro:x:1037:1037::/home/aid_shared_relro:/sbin/nologin
+aid_dbus:x:1038:1038::/home/aid_dbus:/sbin/nologin
+aid_tlsdate:x:1039:1039::/home/aid_tlsdate:/sbin/nologin
+aid_mediaex:x:1040:1040::/home/aid_mediaex:/sbin/nologin
+aid_audioserver:x:1041:1041::/home/aid_audioserver:/sbin/nologin
+aid_metrics_coll:x:1042:1042::/home/aid_metrics_coll:/sbin/nologin
+aid_metricsd:x:1043:1043::/home/aid_metricsd:/sbin/nologin
+aid_webserv:x:1044:1044::/home/aid_webserv:/sbin/nologin
+aid_debuggerd:x:1045:1045::/home/aid_debuggerd:/sbin/nologin
+aid_mediacodec:x:1046:1046::/home/aid_mediacodec:/sbin/nologin
+aid_cameraserver:x:1047:1047::/home/aid_cameraserver:/sbin/nologin
+aid_firewall:x:1048:1048::/home/aid_firewall:/sbin/nologin
+aid_trunks:x:1049:1049::/home/aid_trunks:/sbin/nologin
+aid_nvram:x:1050:1050::/home/aid_nvram:/sbin/nologin
+aid_dns:x:1051:1051::/home/aid_dns:/sbin/nologin
+aid_dns_tether:x:1052:1052::/home/aid_dns_tether:/sbin/nologin
+aid_webview_zygote:x:1053:1053::/home/aid_webview_zygote:/sbin/nologin
+aid_vehicle_network:x:1054:1054::/home/aid_vehicle_network:/sbin/nologin
+aid_media_audio:x:1055:1055::/home/aid_media_audio:/sbin/nologin
+aid_media_video:x:1056:1056::/home/aid_media_video:/sbin/nologin
+aid_media_image:x:1057:1057::/home/aid_media_image:/sbin/nologin
+aid_tombstoned:x:1058:1058::/home/aid_tombstoned:/sbin/nologin
+aid_media_obb:x:1059:1059::/home/aid_media_obb:/sbin/nologin
+aid_ese:x:1060:1060::/home/aid_ese:/sbin/nologin
+aid_ota_update:x:1061:1061::/home/aid_ota_update:/sbin/nologin
+aid_automotive_evs:x:1062:1062::/home/aid_automotive_evs:/sbin/nologin
+aid_lowpan:x:1063:1063::/home/aid_lowpan:/sbin/nologin
+aid_hsm:x:1064:1064::/home/aid_hsm:/sbin/nologin
+aid_reserved_disk:x:1065:1065::/home/aid_reserved_disk:/sbin/nologin
+aid_statsd:x:1066:1066::/home/aid_statsd:/sbin/nologin
+aid_incidentd:x:1067:1067::/home/aid_incidentd:/sbin/nologin
+aid_secure_element:x:1068:1068::/home/aid_secure_element:/sbin/nologin
+aid_lmkd:x:1069:1069::/home/aid_lmkd:/sbin/nologin
+aid_llkd:x:1070:1070::/home/aid_llkd:/sbin/nologin
+aid_iorapd:x:1071:1071::/home/aid_iorapd:/sbin/nologin
+aid_gpu_service:x:1072:1072::/home/aid_gpu_service:/sbin/nologin
+aid_network_stack:x:1073:1073::/home/aid_network_stack:/sbin/nologin
+aid_gsid:x:1074:1074::/home/aid_gsid:/sbin/nologin
+aid_fsverity_cert:x:1075:1075::/home/aid_fsverity_cert:/sbin/nologin
+aid_credstore:x:1076:1076::/home/aid_credstore:/sbin/nologin
+aid_external_storage:x:1077:1077::/home/aid_external_storage:/sbin/nologin
+aid_ext_data_rw:x:1078:1078::/home/aid_ext_data_rw:/sbin/nologin
+aid_ext_obb_rw:x:1079:1079::/home/aid_ext_obb_rw:/sbin/nologin
+aid_context_hub:x:1180:1180::/home/aid_context_hub:/sbin/nologin
+aid_virtualizationservice:x:1181:1181::/home/aid_virtualizationservice:/sbin/nologin
+aid_artd:x:1182:1182::/home/aid_artd:/sbin/nologin
+aid_uwb:x:1183:1183::/home/aid_uwb:/sbin/nologin
+aid_thread_network:x:1184:1184::/home/aid_thread_network:/sbin/nologin
+aid_diced:x:1185:1185::/home/aid_diced:/sbin/nologin
+aid_dmesgd:x:1186:1186::/home/aid_dmesgd:/sbin/nologin
+aid_jc_weaver:x:1187:1187::/home/aid_jc_weaver:/sbin/nologin
+aid_jc_strongbox:x:1188:1188::/home/aid_jc_strongbox:/sbin/nologin
+aid_jc_identitycred:x:1189:1189::/home/aid_jc_identitycred:/sbin/nologin
+aid_sdk_sandbox:x:1090:1090::/home/aid_sdk_sandbox:/sbin/nologin
+aid_security_log_writer:x:1091:1091::/home/aid_security_log_writer:/sbin/nologin
+aid_prng_seeder:x:1092:1092::/home/aid_prng_seeder:/sbin/nologin
+aid_shell:x:2000:2000::/home/aid_shell:/sbin/nologin
+aid_cache:x:2001:2001::/home/aid_cache:/sbin/nologin
+aid_diag:x:2002:2002::/home/aid_diag:/sbin/nologin
+aid_net_bt_admin:x:3001:3001::/home/aid_net_bt_admin:/sbin/nologin
+aid_net_bt:x:3002:3002::/home/aid_net_bt:/sbin/nologin
+aid_inet:x:3003:3003::/home/aid_inet:/sbin/nologin
+aid_net_raw:x:3004:3004::/home/aid_net_raw:/sbin/nologin
+aid_net_admin:x:3005:3005::/home/aid_net_admin:/sbin/nologin
+aid_net_bw_stats:x:3006:3006::/home/aid_net_bw_stats:/sbin/nologin
+aid_net_bw_acct:x:3007:3007::/home/aid_net_bw_acct:/sbin/nologin
+aid_readproc:x:3009:3009::/home/aid_readproc:/sbin/nologin
+aid_wakelock:x:3010:3010::/home/aid_wakelock:/sbin/nologin
+aid_uhid:x:3011:3011::/home/aid_uhid:/sbin/nologin
+aid_everybody:x:9997:9997::/home/aid_everybody:/sbin/nologin
+aid_misc:x:9998:9998::/home/aid_misc:/sbin/nologin
+aid_nobody:x:9999:9999::/home/aid_nobody:/sbin/nologin
+radio:x:10000:10000::/home/radio:/sbin/nologin
+bluetooth:x:10001:10001::/home/bluetooth:/sbin/nologin
+wifi:x:10002:10002::/home/wifi:/sbin/nologin
+usb:x:10003:85::/home/usb:/sbin/nologin
+vpn:x:10004:10004::/home/vpn:/sbin/nologin
+drmrpc:x:10006:10006::/home/drmrpc:/sbin/nologin
+oem_2901:x:10007:10007::/home/oem_2901:/sbin/nologin
+oem_2905:x:10008:10008::/home/oem_2905:/sbin/nologin
+uhid:x:10009:10009::/home/uhid:/sbin/nologin
+polkitd:x:102:104:polkitd:/var/empty:/sbin/nologin
+colord:x:103:106:colord:/var/lib/colord:/sbin/nologin
+pulse:x:104:108:PulseAudio daemon:/var/run/pulse:/sbin/nologin
+geoclue:x:105:109:Linux User,,,:/var/lib/geoclue:/sbin/nologin
+avahi:x:86:86:Avahi System User:/var/run/avahi-daemon:/sbin/nologin
+chrony:x:106:111:chrony:/var/log/chrony:/sbin/nologin
+[2025-10-26 17:16:24] 
+[2025-10-26 17:16:24] User summary:
+[2025-10-26 17:16:24] Total users: 153
+[2025-10-26 17:16:24] 
+[2025-10-26 17:16:24] Checking for key users:
+[2025-10-26 17:16:24]   ✓ root exists (UID: 0, Home: /root)
+[2025-10-26 17:16:24]   ⚠ p3plus does not exist
+[2025-10-26 17:16:24]   ⚠ alpine does not exist
+[2025-10-26 17:16:24]   ✓ nobody exists (UID: 65534, Home: /)
+[2025-10-26 17:16:24] ✓ User check completed
+[2025-10-26 17:16:24] === Obtaining list of system groups ===
+[2025-10-26 17:16:24] Groups in /etc/group:
+root:x:0:root
+bin:x:1:root,bin,daemon
+daemon:x:2:root,bin,daemon
+sys:x:3:root,bin,adm
+adm:x:4:root,adm,daemon
+tty:x:5:
+disk:x:6:root,adm
+lp:x:7:lp
+mem:x:8:
+kmem:x:9:
+wheel:x:10:root,alphybris
+floppy:x:11:root
+mail:x:12:mail
+news:x:13:news
+uucp:x:14:uucp
+man:x:15:man
+cron:x:16:cron
+console:x:17:
+audio:x:18:pulse,alphybris
+cdrom:x:19:
+dialout:x:20:root
+ftp:x:21:
+sshd:x:22:
+input:x:23:
+at:x:25:at
+tape:x:26:root
+video:x:27:root
+netdev:x:28:
+readproc:x:30:
+squid:x:31:squid
+xfs:x:33:xfs
+kvm:x:34:kvm
+games:x:35:
+shadow:x:42:
+cdrw:x:80:
+www-data:x:82:
+usb:x:85:
+vpopmail:x:89:
+users:x:100:games
+ntp:x:123:
+nofiles:x:200:
+smmsp:x:209:smmsp
+locate:x:245:
+abuild:x:300:alphybris
+utmp:x:406:
+ping:x:999:
+nogroup:x:65533:
+nobody:x:65534:
+plugdev:x:101:alphybris
+alphybris:x:32011:
+messagebus:x:102:messagebus
+dhcp:x:103:dhcp
+system:x:700:alphybris
+aid_system:x:1000:alphybris
+aid_radio:x:1001:
+aid_bluetooth:x:1002:
+aid_graphics:x:1003:
+aid_input:x:1004:
+aid_audio:x:1005:
+aid_camera:x:1006:
+aid_log:x:1007:
+aid_compass:x:1008:
+aid_mount:x:1009:
+aid_wifi:x:1010:
+aid_adb:x:1011:
+aid_install:x:1012:
+aid_media:x:1013:
+aid_dhcp:x:1014:
+aid_sdcard_rw:x:1015:
+aid_vpn:x:1016:
+aid_keystore:x:1017:
+aid_usb:x:1018:
+aid_drm:x:1019:
+aid_mdnsr:x:1020:
+aid_gps:x:1021:
+aid_media_rw:x:1023:
+aid_mtp:x:1024:
+aid_drmrpc:x:1026:
+aid_nfc:x:1027:
+aid_sdcard_r:x:1028:
+aid_clat:x:1029:
+aid_loop_radio:x:1030:
+aid_mediadrm:x:1031:
+aid_package_info:x:1032:
+aid_sdcard_pics:x:1033:
+aid_sdcard_av:x:1034:
+aid_sdcard_all:x:1035:
+aid_logd:x:1036:
+aid_shared_relro:x:1037:
+aid_dbus:x:1038:
+aid_tlsdate:x:1039:
+aid_mediaex:x:1040:
+aid_audioserver:x:1041:
+aid_metrics_coll:x:1042:
+aid_metricsd:x:1043:
+aid_webserv:x:1044:
+aid_debuggerd:x:1045:
+aid_mediacodec:x:1046:
+aid_cameraserver:x:1047:
+aid_firewall:x:1048:
+aid_trunks:x:1049:
+aid_nvram:x:1050:
+aid_dns:x:1051:
+aid_dns_tether:x:1052:
+aid_webview_zygote:x:1053:
+aid_vehicle_network:x:1054:
+aid_media_audio:x:1055:
+aid_media_video:x:1056:
+aid_media_image:x:1057:
+aid_tombstoned:x:1058:
+aid_media_obb:x:1059:
+aid_ese:x:1060:
+aid_ota_update:x:1061:
+aid_automotive_evs:x:1062:
+aid_lowpan:x:1063:
+aid_hsm:x:1064:
+aid_reserved_disk:x:1065:
+aid_statsd:x:1066:
+aid_incidentd:x:1067:
+aid_secure_element:x:1068:
+aid_lmkd:x:1069:
+aid_llkd:x:1070:
+aid_iorapd:x:1071:
+aid_gpu_service:x:1072:
+aid_network_stack:x:1073:
+aid_gsid:x:1074:
+aid_fsverity_cert:x:1075:
+aid_credstore:x:1076:
+aid_external_storage:x:1077:
+aid_ext_data_rw:x:1078:
+aid_ext_obb_rw:x:1079:
+aid_context_hub:x:1180:
+aid_virtualizationservice:x:1181:
+aid_artd:x:1182:
+aid_uwb:x:1183:
+aid_thread_network:x:1184:
+aid_diced:x:1185:
+aid_dmesgd:x:1186:
+aid_jc_weaver:x:1187:
+aid_jc_strongbox:x:1188:
+aid_jc_identitycred:x:1189:
+aid_sdk_sandbox:x:1090:
+aid_security_log_writer:x:1091:
+aid_prng_seeder:x:1092:
+aid_shell:x:2000:
+aid_cache:x:2001:
+aid_diag:x:2002:
+aid_net_bt_admin:x:3001:
+aid_net_bt:x:3002:
+aid_inet:x:3003:
+aid_net_raw:x:3004:
+aid_net_admin:x:3005:
+aid_net_bw_stats:x:3006:
+aid_net_bw_acct:x:3007:
+aid_readproc:x:3009:
+aid_wakelock:x:3010:
+aid_uhid:x:3011:
+aid_everybody:x:9997:
+aid_misc:x:9998:
+aid_nobody:x:9999:
+radio:x:10000:alphybris
+bluetooth:x:10001:
+wifi:x:10002:
+vpn:x:10004:
+drmrpc:x:10006:
+oem_2901:x:10007:
+oem_2905:x:10008:
+uhid:x:10009:
+polkitd:x:104:polkitd
+feedbackd:x:105:
+colord:x:106:colord
+pulse-access:x:107:
+pulse:x:108:pulse
+geoclue:x:109:geoclue
+avahi:x:86:avahi
+camera:x:110:
+chrony:x:111:chrony
+android_graphics:x:32012:alphybris
+android_input:x:32013:alphybris
+android_audio:x:32014:alphybris
+android_net_bt_admin:x:32015:alphybris
+android_net_bt:x:32016:alphybris
+android_inet:x:32017:alphybris
+android_inet_raw:x:32018:alphybris
+android_inet_admin:x:32019:alphybris
+autologin:x:32020:alphybris
+rfkill:x:32021:alphybris
+power:x:32022:alphybris
+storage:x:32023:alphybris
+log:x:32024:
+[2025-10-26 17:16:24] 
+[2025-10-26 17:16:24] Group summary:
+[2025-10-26 17:16:25] Total groups: 190
+[2025-10-26 17:16:25] 
+[2025-10-26 17:16:25] Group names list:
+abuild
+adm
+aid_adb
+aid_artd
+aid_audio
+aid_audioserver
+aid_automotive_evs
+aid_bluetooth
+aid_cache
+aid_camera
+aid_cameraserver
+aid_clat
+aid_compass
+aid_context_hub
+aid_credstore
+aid_dbus
+aid_debuggerd
+aid_dhcp
+aid_diag
+aid_diced
+aid_dmesgd
+aid_dns
+aid_dns_tether
+aid_drm
+aid_drmrpc
+aid_ese
+aid_everybody
+aid_ext_data_rw
+aid_ext_obb_rw
+aid_external_storage
+aid_firewall
+aid_fsverity_cert
+aid_gps
+aid_gpu_service
+aid_graphics
+aid_gsid
+aid_hsm
+aid_incidentd
+aid_inet
+aid_input
+aid_install
+aid_iorapd
+aid_jc_identitycred
+aid_jc_strongbox
+aid_jc_weaver
+aid_keystore
+aid_llkd
+aid_lmkd
+aid_log
+aid_logd
+aid_loop_radio
+aid_lowpan
+aid_mdnsr
+aid_media
+aid_media_audio
+aid_media_image
+aid_media_obb
+aid_media_rw
+aid_media_video
+aid_mediacodec
+aid_mediadrm
+aid_mediaex
+aid_metrics_coll
+aid_metricsd
+aid_misc
+aid_mount
+aid_mtp
+aid_net_admin
+aid_net_bt
+aid_net_bt_admin
+aid_net_bw_acct
+aid_net_bw_stats
+aid_net_raw
+aid_network_stack
+aid_nfc
+aid_nobody
+aid_nvram
+aid_ota_update
+aid_package_info
+aid_prng_seeder
+aid_radio
+aid_readproc
+aid_reserved_disk
+aid_sdcard_all
+aid_sdcard_av
+aid_sdcard_pics
+aid_sdcard_r
+aid_sdcard_rw
+aid_sdk_sandbox
+aid_secure_element
+aid_security_log_writer
+aid_shared_relro
+aid_shell
+aid_statsd
+aid_system
+aid_thread_network
+aid_tlsdate
+aid_tombstoned
+aid_trunks
+aid_uhid
+aid_usb
+aid_uwb
+aid_vehicle_network
+aid_virtualizationservice
+aid_vpn
+aid_wakelock
+aid_webserv
+aid_webview_zygote
+aid_wifi
+alphybris
+android_audio
+android_graphics
+android_inet
+android_inet_admin
+android_inet_raw
+android_input
+android_net_bt
+android_net_bt_admin
+at
+audio
+autologin
+avahi
+bin
+bluetooth
+camera
+cdrom
+cdrw
+chrony
+colord
+console
+cron
+daemon
+dhcp
+dialout
+disk
+drmrpc
+feedbackd
+floppy
+ftp
+games
+geoclue
+input
+kmem
+kvm
+locate
+log
+lp
+mail
+man
+mem
+messagebus
+netdev
+news
+nobody
+nofiles
+nogroup
+ntp
+oem_2901
+oem_2905
+ping
+plugdev
+polkitd
+power
+pulse
+pulse-access
+radio
+readproc
+rfkill
+root
+shadow
+smmsp
+squid
+sshd
+storage
+sys
+system
+tape
+tty
+uhid
+usb
+users
+utmp
+uucp
+video
+vpn
+vpopmail
+wheel
+wifi
+www-data
+xfs
+[2025-10-26 17:16:25] 
+[2025-10-26 17:16:25] Hardware access groups:
+[2025-10-26 17:16:25]   ✓ audio exists (GID: 18, Members: pulse,alphybris)
+[2025-10-26 17:16:25]   ✓ video exists (GID: 27, Members: root)
+[2025-10-26 17:16:25]   ✓ input exists (GID: 23, No members)
+[2025-10-26 17:16:25]   ✓ bluetooth exists (GID: 10001, No members)
+[2025-10-26 17:16:25]   ⚠ graphics does not exist
+[2025-10-26 17:16:25]   ✓ netdev exists (GID: 28, No members)
+[2025-10-26 17:16:25]   ✓ usb exists (GID: 85, No members)
+[2025-10-26 17:16:25]   ✓ dialout exists (GID: 20, Members: root)
+[2025-10-26 17:16:25] ✓ System groups check completed
+[2025-10-26 17:16:25] === Testing installed packages and binaries ===
+[2025-10-26 17:16:25] Checking for essential binaries...
+[2025-10-26 17:16:25]   ✓ sh found
+[2025-10-26 17:16:25]   ✓ bash found
+[2025-10-26 17:16:25]   ✓ ls found
+[2025-10-26 17:16:25]   ✓ cat found
+[2025-10-26 17:16:25]   ✓ grep found
+[2025-10-26 17:16:25]   ✓ sed found
+[2025-10-26 17:16:25]   ✓ awk found
+[2025-10-26 17:16:25]   ✓ find found
+[2025-10-26 17:16:25]   ✓ mount found
+[2025-10-26 17:16:25]   ✓ umount found
+[2025-10-26 17:16:25]   ✓ chmod found
+[2025-10-26 17:16:25]   ✓ chown found
+[2025-10-26 17:16:25] 
+[2025-10-26 17:16:26] Checking for system utilities...
+[2025-10-26 17:16:26]   ✓ dbus-daemon found
+[2025-10-26 17:16:26]   ✓ sudo found
+[2025-10-26 17:16:26]   ✓ openrc found
+[2025-10-26 17:16:26] 
+[2025-10-26 17:16:26] Listing /usr/bin contents:
+[2025-10-26 17:16:26] EXECUTING: ls -1 '/data/linuxdata/chroot-distro/alpine/usr/bin' | head -30
+2to3
+2to3-3.10
+WebKitWebDriver-4.1
+WebKitWebDriver-5.0
+Xwayland
+[
+[[
+android_bootctl
+android_getprop
+android_logcat
+android_lshal
+android_reboot
+android_setprop
+appstreamcli
+aserver
+autologin
+autopoint
+awk
+basename
+bc
+bd_info
+bd_list_titles
+bd_splice
+bdftruncate
+beep
+blkdiscard
+bluemoon
+bluetooth-sendto
+bluetoothctl
+bluez-simple-agent
+[2025-10-26 17:16:26] SUCCESS: Command completed successfully
+[2025-10-26 17:16:26] ✓ Package test completed
+[2025-10-26 17:16:26] 
+[2025-10-26 17:16:26] === Test Complete ===
+[2025-10-26 17:16:26] AlpHybris rootfs test completed
+[2025-10-26 17:16:26] Full log saved to: /storage/3454-7DC4/alphybris_test.log
+[2025-10-26 17:16:26] Test completed at Sun Oct 26 17:16:26 EDT 2025
+[2025-10-26 17:16:26] ✓ Backup log created at /data/alphybris_test_backup.log
+[2025-10-26 17:16:26] 
+[2025-10-26 17:16:26] Review the log file for detailed information about your AlpHybris installation

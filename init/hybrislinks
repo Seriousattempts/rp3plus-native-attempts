@@ -1,0 +1,140 @@
+#!/sbin/openrc-run
+# Unisoc RP3Plus focused
+
+description="Create essential libhybris symlinks for direct-mounted Android"
+
+depend() {
+    after localmount devfs
+    before udevhack bluebinder phosh ofono ofono2mm hadess-sensorfw-proxy \
+           audiosystem-passthrough pulseaudio dbus
+}
+
+start() {
+    ebegin "Starting hybrislinks service"
+    
+    # Extract keylayout files
+    extract_keylayouts
+    
+    # Link only essential libraries
+    link_essential_libs
+    
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping hybrislinks service"
+    eend 0
+}
+
+extract_keylayouts() {
+    local keylayout_zip="/etc/Vendor_2022_Product_3001.zip"
+    local keylayout_dest="/android/vendor/usr/keylayout"
+    
+    if [ ! -f "${keylayout_zip}" ]; then
+        return 0
+    fi
+    
+    mkdir -p "${keylayout_dest}"
+    
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -j -o "${keylayout_zip}" "*.kl" -d "${keylayout_dest}" 2>/dev/null || true
+    elif command -v busybox >/dev/null 2>&1; then
+        busybox unzip -j -o "${keylayout_zip}" "*.kl" -d "${keylayout_dest}" 2>/dev/null || true
+    fi
+}
+
+link_essential_libs() {
+    local ANDROID_MOUNT="/android"
+    local SYSTEM_PATH="${ANDROID_MOUNT}/system"
+    local VENDOR_PATH="${ANDROID_MOUNT}/vendor"
+    
+    # Verify Android system is mounted
+    if [ ! -f "${SYSTEM_PATH}/build.prop" ]; then
+        eerror "Android system not mounted at ${SYSTEM_PATH}"
+        return 1
+    fi
+    
+    # Get SDK version
+    local ANDROID_SDK_VERSION=$(grep "ro.build.version.sdk=" "${SYSTEM_PATH}/build.prop" | cut -d "=" -f2)
+    
+    # Detect architecture
+    local LIBDIR
+    if [ "$(getconf LONG_BIT)" = "32" ]; then
+        LIBDIR="lib"
+    else
+        LIBDIR="lib64"
+    fi
+    
+    einfo "Android SDK ${ANDROID_SDK_VERSION}, architecture ${LIBDIR}"
+    
+    # ================================================================
+    # 1. MALI GPU DRIVER
+    # ================================================================
+    if [ -f "${VENDOR_PATH}/${LIBDIR}/egl/libGLES_mali.so" ]; then
+        ln -sf "${VENDOR_PATH}/${LIBDIR}/egl/libGLES_mali.so" "/libGLES_mali.so"
+        einfo "Mali GPU driver linked"
+    else
+        eerror "Mali GPU driver not found - graphics will not work!"
+        return 1
+    fi
+    
+    # ================================================================
+    # 2. ARM GRAPHICS NDK (Allegedly Optional, testing for Wayland)
+    # ================================================================
+    # Try V2 first (newer), fallback to V1
+    if [ -f "${VENDOR_PATH}/${LIBDIR}/arm.graphics-V2-ndk.so" ]; then
+        ln -sf "${VENDOR_PATH}/${LIBDIR}/arm.graphics-V2-ndk.so" "/arm.graphics-V2-ndk.so"
+        einfo "ARM Graphics V2 NDK linked"
+    elif [ -f "${VENDOR_PATH}/${LIBDIR}/arm.graphics-V1-ndk.so" ]; then
+        ln -sf "${VENDOR_PATH}/${LIBDIR}/arm.graphics-V1-ndk.so" "/arm.graphics-V1-ndk.so"
+        einfo "ARM Graphics V1 NDK linked"
+    fi
+    
+    # ================================================================
+    # 3. AUDIO ROUTING
+    # ================================================================
+    # Try direct path first, then VNDK versioned path
+    if [ -f "${SYSTEM_PATH}/${LIBDIR}/libaudioroute.so" ]; then
+        ln -sf "${SYSTEM_PATH}/${LIBDIR}/libaudioroute.so" "/libaudioroute.so"
+        einfo "Audio routing linked (direct)"
+    elif [ -f "${SYSTEM_PATH}/${LIBDIR}/vndk-${ANDROID_SDK_VERSION}/libaudioroute.so" ]; then
+        ln -sf "${SYSTEM_PATH}/${LIBDIR}/vndk-${ANDROID_SDK_VERSION}/libaudioroute.so" "/libaudioroute.so"
+        einfo "Audio routing linked (VNDK-${ANDROID_SDK_VERSION})"
+    else
+        ewarn "libaudioroute.so not found - audio routing may not work"
+    fi
+    
+    # ================================================================
+    # 4. BIONIC RUNTIME
+    # ================================================================
+    if [ "${ANDROID_SDK_VERSION}" -ge 29 ]; then
+        local bionic_linked=false
+        
+        for apex_dir in \
+            "${SYSTEM_PATH}/apex/com.android.runtime/${LIBDIR}/bionic" \
+            "${SYSTEM_PATH}/apex/com.android.runtime.release/${LIBDIR}/bionic" \
+            "${SYSTEM_PATH}/apex/com.android.runtime.debug/${LIBDIR}/bionic"
+        do
+            if [ -d "${apex_dir}" ]; then
+                for lib in libc.so libm.so libdl.so; do
+                    if [ -f "${apex_dir}/${lib}" ]; then
+                        ln -sf "${apex_dir}/${lib}" "/${lib}"
+                    fi
+                done
+                einfo "Bionic runtime linked from ${apex_dir}"
+                bionic_linked=true
+                break
+            fi
+        done
+        
+        if ! ${bionic_linked}; then
+            eerror "CRITICAL: Bionic runtime not found - libhybris will fail completely!"
+            return 1
+        fi
+    else
+        einfo "Android ${ANDROID_SDK_VERSION} < 10, skipping APEX bionic symlinks"
+    fi
+    
+    einfo "Essential libraries linked successfully"
+    return 0
+}

@@ -1,0 +1,393 @@
+[17:23:41] =========================================
+[17:23:41] === ALPINE PATH ENVIRONMENT ===
+[17:23:41] =========================================
+[17:23:41] 
+[17:23:41] Creating overlay symlinks...
+[17:23:42]   ✓ /bin -> /mnt/alphybris/bin
+[17:23:42]   ✓ /sbin -> /mnt/alphybris/sbin
+[17:23:42]   ✓ /usr -> /mnt/alphybris/usr
+[17:23:42]   ✓ /lib -> /mnt/alphybris/lib
+[17:23:42]   ✓ /srv -> /mnt/alphybris/srv
+[17:23:42]   ✓ /var -> /mnt/alphybris/var
+[17:23:42]   ✓ /etc -> /mnt/alphybris/etc
+[17:23:42] 
+[17:23:42] Creating /lib/modules symlink for modprobe (kernel: 4.14.193)...
+[17:23:43]   ✓ /lib/modules/4.14.193 exists
+[17:23:43] 
+[17:23:43] Verifying Alpine dynamic linker...
+[17:23:43]   ✓ ld-musl-aarch64.so.1 accessible
+[17:23:43] 
+[17:23:43] =========================================
+[17:23:43] === CREATING HOST SYMLINKS ===
+[17:23:43] =========================================
+[17:23:43] 
+[17:23:43] Creating /android/* symlinks...
+[17:23:43]   ✓ /android/system -> /mnt/alpine_root/android/system
+[17:23:43]   ✓ /android/vendor -> /mnt/alpine_root/android/vendor
+[17:23:43] 
+[17:23:44] Creating /apex symlink...
+[17:23:44]   ✓ /apex -> /mnt/alpine_root/android/system/apex
+[17:23:44] 
+[17:23:44] Copying SurfaceFlinger binary...
+[17:23:44]   ✓ /android/bin/surfaceflinger created
+[17:23:44] 
+[17:23:44] =========================================
+[17:23:44] === SYSTEM INFRASTRUCTURE ===
+[17:23:44] =========================================
+[17:23:44] 
+[17:23:44] Running tzdatacheck...
+[17:23:44] 
+[17:23:45] ✓ Property service copied
+[17:23:45] 
+[17:23:45] ✓ Binderfs mounted
+[17:23:45] 
+[17:23:45] =========================================
+[17:23:45] === KERNEL MODULE LOADING ===
+[17:23:45] =========================================
+[17:23:45] 
+[17:23:45] Using insmod: /sbin/insmod
+[17:23:45] 
+[17:23:45] ✓ Socko mounted at /mnt/vendor/socko
+[17:23:46] Loading socko modules (excluding sprd_vdsp.ko)...
+[17:23:52] 
+[17:23:52] Loading vendor modules...
+[17:23:53] 
+[17:23:53] Loaded modules:
+Module                  Size  Used by    Tainted: G S
+kheaders             3387392  0 
+incrementalfs          57344  0 
+sprdwl_ng             327680  0 
+sprd_fm                53248  0 
+sprdbt_tty             36864  0 
+sprd_flash_drv         16384  0 
+sprd_sensor            90112  0 
+sprd_cpp               45056  0 
+mmdvfs                110592  0 
+mali_gondul           532480  0 
+[17:23:53] 
+[17:23:53] =========================================
+[17:23:53] === UNISOC HARDWARE SETUP ===
+[17:23:53] =========================================
+[17:23:53] 
+17:23:59 -   ✓ Configured: /dev/video12 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video13 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video14 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video15 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video2 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video3 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video4 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video5 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video6 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video7 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video8 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/video9 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/media0 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/media1 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/media2 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/media3 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev0 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev1 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev2 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev3 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev4 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev5 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev6 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/v4l-subdev7 (666 root:root)
+17:23:59 -   Total V4L2 devices configured: 28
+17:23:59 - === Configuring RS Communication Devices ===
+17:23:59 -   ✓ Configured: /dev/rstouch (666 root:root)
+17:23:59 - === Configuring Special Function Devices ===
+17:23:59 -   ✓ Configured: /dev/autotest0 (666 root:root)
+17:23:59 -   ✓ Configured: /dev/retrostation_hdmi (666 root:root)
+17:23:59 - === Hardware Configuration Completed at Wed Nov 19 17:23:59 UTC 2025 ===
+
+==========================================
+UNISOC Hardware Configuration Summary
+==========================================
+17:23:59 - === Virtual Filesystems ===
+17:23:59 -   ✓ /dev/pts: mounted
+17:23:59 -   ✓ /dev/shm: mounted
+17:23:59 -   ✓ /tmp: mounted as tmpfs
+17:23:59 -     ✓ /tmp/runtime exists
+17:23:59 -   ✓ /run: mounted
+17:23:59 -   ✓ /apex: mounted as tmpfs
+17:23:59 - === Android/Halium Directories ===
+17:23:59 -   ✓ /dev/__properties__ exists
+17:23:59 -   ✓ /dev/socket exists
+17:23:59 - === Android Binder IPC ===
+17:23:59 -   ✓ binderfs mounted at /dev/binderfs
+17:23:59 -     Binder devices: 0
+17:23:59 - === UNISOC Communication Devices ===
+17:23:59 -   LTE devices: 47
+17:23:59 -   Log devices: 5
+17:23:59 -   Power management: 3
+17:23:59 - === Serial Interfaces ===
+17:23:59 -   TTY Gadget (USB): 8
+17:23:59 -   Standard Serial: 2
+17:23:59 -   Bluetooth: 2
+17:23:59 - === I2C Buses and Camera Sensors ===
+17:23:59 -   I2C buses configured: 6
+17:23:59 -   I2C-0 (0x70300000) - Main Camera Bus:
+17:23:59 -     ✓ sensor-main@20 (0x20)
+17:23:59 -     ✓ deputy-camera@21 (0x21)
+17:23:59 -   I2C-1 (0x70400000) - Secondary Camera Bus:
+17:23:59 -     ✓ sensor-main2@2a (0x2A)
+17:23:59 -     ✓ sensor-sub@6c (0x6C)
+17:23:59 -   I2C-5 (0x32060000) - AON Power Management:
+17:23:59 -     ✓ PM device@60 (0x60)
+17:23:59 -     ✓ PM device@62 (0x62)
+17:23:59 - === Camera System ===
+17:23:59 -   Video devices: 16
+17:23:59 -   Media controllers: 4
+17:23:59 -   V4L2 subdevices: 8
+17:23:59 -   ✓ sprd_sensor module loaded
+17:23:59 -   ✓ sprd_cpp module loaded
+17:23:59 -   Camera regulators: 0/3 available
+17:23:59 - === Media Processing Hardware ===
+17:23:59 -   UNISOC media accelerators: 4/5
+17:23:59 -   ✓ Mali GPU (/dev/mali0)
+17:23:59 -   ✓ DRM Graphics (/dev/dri/card0)
+17:23:59 - === Audio System ===
+17:23:59 -   ALSA devices: 28
+17:23:59 -   Audio pipes: 7
+17:23:59 - === Wireless and GNSS ===
+17:23:59 -   Wireless devices: 2
+17:23:59 -   GNSS devices: 4
+17:23:59 - === System Buses and Controllers ===
+17:23:59 -   GPIO controllers: 6
+17:23:59 -   Input devices: 6
+17:23:59 -   IIO sensors: 2
+17:23:59 -   USB devices: 1
+17:23:59 - === Network and System Services ===
+17:23:59 -   Network devices: 2
+17:23:59 -   System service devices: 6/6
+17:23:59 - === Special Function Devices ===
+17:23:59 -   ✓ FM Radio
+17:23:59 -   ✓ HDMI Interface
+17:23:59 -   ✓ Real-Time Clock
+17:23:59 -   ✓ Memory Mapper
+
+Full log: /var/log/unisoc_hardware.log
+==========================================
+Exit code: 0
+[17:23:59] 
+[17:23:59] =========================================
+[17:23:59] === OPENRC INITIALIZATION ===
+[17:23:59] =========================================
+[17:23:59] 
+ * rc is deprecated, please use openrc instead.
+
+ * /proc is already mounted
+ * Mounting /run ...
+ * /run/openrc: creating directory
+
+ * /run/lock: creating directory
+ * /run/lock: correcting owner
+Service `pulseaudio' needs non existent service `alsa'
+ * Remounting tmpfs on /dev ...mount: /dev: mount point not mounted or bad option.
+       dmesg(1) may have more information after failed mount system call.
+ [ !! ]
+mknod: /dev/null: File exists
+ * Mounting /dev/pts ... [ ok ]
+ * Mounting /dev/shm ... [ ok ]
+   OpenRC 0.45.2 is starting up Linux 4.14.193 (aarch64)
+
+ * Caching service dependencies ... [ ok ]
+ * Loading modules ...modprobe: can't open 'modules.dep': No such file or directory
+modprobe: can't open 'modules.dep': No such file or directory
+modprobe: can't open 'modules.dep': No such file or directory
+ [ ok ]
+ * Setting system clock using the hardware clock [UTC] ...modprobe: can't open 'modules.dep': No such file or directory
+modprobe: can't open 'modules.dep': No such file or directory
+modprobe: can't open 'modules.dep': No such file or directory
+hwclock: Cannot access the Hardware Clock via any known method.
+hwclock: Use the --verbose option to see the details of our search for an access method.
+
+ * Failed to set the system clock
+                                        [ !! ]
+ * Checking local filesystems  ... [ ok ]
+ * Remounting filesystems ... [ ok ]
+ * Mounting local filesystems ... [ ok ]
+ * Configuring kernel parameters ... [ ok ]
+ * Creating user login records ... [ ok ]
+ * Cleaning /tmp directory ... [ ok ]
+ * Setting hostname ... [ ok ]
+ * Starting busybox syslog ... [ ok ]
+[17:24:02] 
+[17:24:02] =========================================
+[17:24:02] === D-BUS SESSION BUS ===
+[17:24:02] =========================================
+[17:24:02] 
+✓ D-Bus session bus started
+srwxrwxrwx    1 root     root             0 Nov 19 17:24 /run/user/0/bus
+[17:24:04] 
+[17:24:04] =========================================
+[17:24:04] === STARTING CORE SERVICES ===
+[17:24:04] =========================================
+[17:24:04] 
+[17:24:04] Starting hybrislinks...
+ * Starting hybrislinks service ...Archive:  /etc/Vendor_2022_Product_3001.zip
+  inflating: /android/vendor/usr/keylayout/Vendor_2022_Product_3001.kl  
+ * Android SDK 30, architecture lib64
+ * Mali GPU driver linked
+ * ARM Graphics V2 NDK linked
+ * Audio routing linked (direct)
+ * Bionic runtime linked from /android/system/apex/com.android.runtime/lib64/bionic
+ * Essential libraries linked successfully
+ [ ok ]
+[17:24:06] Starting dbus...
+ * /run/dbus: creating directory
+ * /run/dbus: correcting owner
+ * Starting System Message Bus ... [ ok ]
+[17:24:07] Starting elogind...
+ * Starting System login manager ... [ ok ]
+[17:24:08] Starting networkmanager...
+ * Starting networkmanager ... [ ok ]
+[17:24:09] Starting polkit...
+ * Starting Polkit System Daemon ... [ ok ]
+[17:24:10] Starting sshd...
+ * Starting sshd ... [ ok ]
+[17:24:12] Starting hadess-sensorfw-proxy...
+ * Starting SensorFW ... [ ok ]
+ * /run/hadess-sensorfw-proxy: creating directory
+ * Starting hadess-sensorfw-proxy ... [ ok ]
+[17:24:13] Starting ofono...
+ * Starting ofonod ... [ ok ]
+[17:24:14] 
+[17:24:14] Starting ofono2mm (with timeout)...
+ * Starting ofono2mm ... [ ok ]
+[17:24:19] 
+[17:24:19] =========================================
+[17:24:19] === CREATING MOBILE USER ===
+[17:24:19] =========================================
+[17:24:19] 
+  ✓ User mobile already exists
+uid=1022(mobile) gid=1022(mobile) groups=1022(mobile),18(audio),20(dialout),23(input),27(video)
+[17:24:20] 
+[17:24:20] NOTE: Alpine chroot has no /bin/su; running phoc/phosh as root with /run/user/0
+[17:24:20] 
+[17:24:20] =========================================
+[17:24:20] === LAUNCHING HYBRIS WAYLAND SESSION ===
+[17:24:20] =========================================
+[17:24:20] 
+[17:24:20] Launching phoc + phosh-hybris as root (no su available)...
+[17:24:20] 
+drwx------    3 root     root            80 Nov 19 17:24 /run/user/0
+-rw-rw-rw-    1 root     root             0 Nov 19 17:24 /dev/null
+drwx------    3 root     root            80 Nov 19 17:24 /run/user/0
+[INFO] Starting phoc...
+[ERROR] Wayland socket not created after 10s
+[17:24:30] 
+[17:24:30] Hybris Wayland launch attempted (see phoc.log / phosh.log if present).
+[17:24:30] 
+[17:24:30] =========================================
+[17:24:30] === COPYING DISPLAY LOGS TO SD CARD ===
+[17:24:31] =========================================
+[17:24:31] 
+[17:24:31]   ✓ phoc.log copied to /sdcard/phoc.log (4 lines)
+[17:24:31] 
+[17:24:31]   === Last 50 lines of phoc.log ===
+
+(phoc:3633): phoc-wlroots-CRITICAL **: 17:24:20.882: [backend/wayland/backend.c:269] Could not connect to remote display: No such file or directory
+
+(phoc:3633): phoc-server-CRITICAL **: 17:24:20.882: Failed to create server: Could not create backend
+[17:24:31]   ===================================
+[17:24:31] 
+[17:24:31]   ⚠ phosh.log not found in /mnt/alpine_root/run/user/0
+[17:24:31] 
+[17:24:31] =========================================
+[17:24:31] === HARDWARE TEST ===
+[17:24:31] =========================================
+[17:24:31] 
+[17:24:31]   OS:
+Linux alphybris 4.14.193 #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023 aarch64 Linux
+[17:24:32]   OS release:
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.17.3
+PRETTY_NAME="Alpine Linux v3.17"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+[17:24:32]   Network:
+[17:24:32] 
+[17:24:32]   Modem:
+ 3510 radio     0:01 /usr/bin/ofonod -n --nobacktrace
+ 3557 root      0:06 python3 /usr/bin/ofono2mm
+[17:24:32] 
+[17:24:32]   DRM/Display:
+[17:24:32]     ✓ /dev/dri/card0
+[17:24:32] 
+[17:24:32]   Mali GPU:
+[17:24:32]     ✓ /dev/mali0
+[17:24:32] 
+[17:24:32]   IIO Sensors:
+iio:device0
+iio:device1
+trigger0
+[17:24:32] 
+[17:24:33]   Thermal sensors:
+[17:24:33]     board-thmzone: 33653
+[17:24:33]     soc-thmzone: 38827
+[17:24:33]     ank4-thmzone: 36447
+[17:24:33]     ank5-thmzone: 36190
+[17:24:33]     cputop-thmzone: 36954
+[17:24:33]     gpuank2-thmzone: 35693
+[17:24:33]     cluster0-thmzone: 38827
+[17:24:34]     cluster1-thmzone: 39077
+[17:24:34]     osctsen-thmzone: N/A
+[17:24:34]     outtsen-thmzone: N/A
+[17:24:34]     battery: 28500
+[17:24:34]     prometheus6-tzone0: 37044
+[17:24:34]     prometheus6-tzone1: 38827
+[17:24:34]     prometheus7-thmzone: 39077
+[17:24:34]     ank0-thmzone: 38860
+[17:24:35]     ank1-thmzone: 38827
+[17:24:35]     gpu-thmzone: 37475
+[17:24:35]     ank2-thmzone: 36697
+[17:24:35]     ank3-thmzone: 36704
+[17:24:35] 
+[17:24:35]   Camera (I2C and V4L2):
+/dev/video0
+/dev/video1
+/dev/video10
+/dev/video11
+/dev/video12
+/dev/video13
+/dev/video14
+/dev/video15
+/dev/video2
+/dev/video3
+/dev/video4
+/dev/video5
+/dev/video6
+/dev/video7
+/dev/video8
+/dev/video9
+[17:24:35] 
+[17:24:35]   RAM:
+              total        used        free      shared  buff/cache   available
+Mem:           3.4G       88.7M        3.1G       26.4M      207.2M        3.3G
+Swap:             0           0           0
+[17:24:35] 
+[17:24:35]   Uptime:
+ 17:24:35 up 0 min,  0 users,  load average: 2.82, 0.77, 0.26
+[17:24:36] 
+[17:24:36] =========================================
+[17:24:36] === FINAL STATUS ===
+[17:24:36] =========================================
+[17:24:36] 
+=== Alpine Processes ===
+ 3133 root      0:00 dbus-daemon --session --fork --address=unix:path=/run/user/0/bus
+ 3232 messageb  0:05 /usr/bin/dbus-daemon --system --nofork --nopidfile --syslog-only
+ 3266 root      0:00 supervise-daemon elogind --start --respawn-delay 2 --respawn-max 5 --respawn-period 1800 /usr/libexec/elogind/elogind --
+ 3267 root      0:00 /usr/libexec/elogind/elogind
+ 3354 root      0:00 supervise-daemon polkit --start --respawn-delay 2 --respawn-max 5 --respawn-period 1800 /usr/lib/polkit-1/polkitd -- --no-debug
+ 3355 polkitd   0:00 /usr/lib/polkit-1/polkitd --no-debug
+ 3510 radio     0:02 /usr/bin/ofonod -n --nobacktrace
+ 3557 root      0:08 python3 /usr/bin/ofono2mm
+[17:24:36] 
+[17:24:36] === TEST COMPLETE (v16 - Hybris Display Integration) ===
+[17:24:36] Main log: /sdcard/alpine_post_init_test.log
+[17:24:36] Display logs: /sdcard/phoc.log, /sdcard/phosh.log
+[17:24:36] 
+[17:24:36] === CLEANUP ===

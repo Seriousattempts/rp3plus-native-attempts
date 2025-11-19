@@ -1,0 +1,148 @@
+# --------------------------------------------------
+# OpenRC
+# --------------------------------------------------
+
+log "========================================="
+log "=== OPENRC INITIALIZATION ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    /sbin/rc sysinit 2>&1 | tail -20
+    /sbin/rc boot 2>&1 | tail -20
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# D-Bus session
+# --------------------------------------------------
+
+log "========================================="
+log "=== D-BUS SESSION BUS ==="
+log "========================================="
+log ""
+
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export XDG_RUNTIME_DIR=/run/user/0
+    mkdir -p "$XDG_RUNTIME_DIR"
+    chmod 700 "$XDG_RUNTIME_DIR"
+    dbus-daemon --session --fork --address=unix:path=$XDG_RUNTIME_DIR/bus 2>&1
+    sleep 2
+    if [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+        echo "✓ D-Bus session bus started"
+        ls -l "$XDG_RUNTIME_DIR/bus"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# Core services
+# --------------------------------------------------
+
+log "========================================="
+log "=== STARTING CORE SERVICES ==="
+log "========================================="
+log ""
+
+# Base system services needed before graphics
+SERVICES="hybrislinks dbus elogind networkmanager polkit sshd hadess-sensorfw-proxy ofono"
+
+for service in $SERVICES; do
+    log "Starting $service..."
+    /system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        /sbin/rc-service '"$service"' start 2>&1 | tail -10
+    ' 2>&1 | tee -a "$LOGFILE"
+    sleep 1
+done
+
+log ""
+log "Starting ofono2mm (with timeout)..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    timeout 10 /sbin/rc-service ofono2mm start 2>&1 | tail -10
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+# --------------------------------------------------
+# Sensor and location services
+# --------------------------------------------------
+
+log "========================================="
+log "=== SENSOR & LOCATION SERVICES ==="
+log "========================================="
+log ""
+
+# Avahi BEFORE GeoClue (required for certain providers)
+log "  Starting Avahi (mDNS)..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    if command -v avahi-daemon >/dev/null 2>&1; then
+        avahi-daemon -k 2>/dev/null || true
+        sleep 1
+        avahi-daemon -D
+        sleep 1
+
+        if pgrep avahi-daemon >/dev/null 2>&1; then
+            echo "  ✓ avahi-daemon started"
+        else
+            echo "  ✗ avahi-daemon failed to start"
+        fi
+    else
+        echo "  ⚠ avahi-daemon binary not found"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "  Testing SensorFW (for gyro/accelerometer)..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    
+    if [ -x /usr/sbin/sensorfwd ]; then
+        /sbin/rc-service sensorfw start 2>&1 | tail -10
+        sleep 2
+        
+        if [ -x /usr/bin/monitor-sensor ]; then
+            timeout 5 /usr/bin/monitor-sensor 2>&1 || echo "  (No immediate sensor data)"
+        fi
+    else
+        echo "  ⚠ SensorFW not installed"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""
+log "  Testing GeoClue (for location services)..."
+/system/bin/busybox chroot "$ALPINE_ROOT" /bin/sh -c '
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    
+    export XDG_RUNTIME_DIR=/run/user/0
+    /bin/busybox mkdir -p "$XDG_RUNTIME_DIR"
+    /bin/busybox chmod 700 "$XDG_RUNTIME_DIR"
+    
+    if [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
+        dbus-daemon --session --fork --address=unix:path=$XDG_RUNTIME_DIR/bus 2>&1
+        sleep 1
+    fi
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+    
+    if [ -x /usr/libexec/geoclue ]; then
+        /usr/libexec/geoclue &
+        GEOCLUE_PID=$!
+        sleep 2
+        
+        if kill -0 $GEOCLUE_PID 2>/dev/null; then
+            echo "  ✓ GeoClue started (PID: $GEOCLUE_PID)"
+        else
+            echo "  ✗ GeoClue failed"
+        fi
+    else
+        echo "  ⚠ GeoClue not installed"
+    fi
+' 2>&1 | tee -a "$LOGFILE"
+
+log ""

@@ -1,0 +1,1229 @@
+
+Goal:
+- Alpine + libhybris in Android 11 recovery while init second_stage is PID1.
+- Run alpine as if it's a direct execution using busybox as the global chroot command (/system/bin/chroot)
+-- File paths will get too long using /system/bin/busybox or pointing to the rootfs located at /mnt/alpine_root/var/lib/lxc/android/rootfs/system, create global shorten name with busybox or sh first for continuous use of extended paths while keeping the file the same.
+- Keep the logs comprehensive. I need to know what happened per result, not a short footnote
+
+✓ Binderfs support (full Android IPC)
+✓ Loop devices
+✓ ext4, exfat filesystems
+✓ Namespace support: UTS_NS, NET_NS
+✗ NO PID_NS, NO USER_NS (can't use LXC)
+✗ No Panfrost drivers
+
+init.recovery.common.rc:
+Service definitions are parsed (not started)
+on init triggers
+on fs triggers (mounts filesystems)
+on post-fs-data triggers
+on boot triggers
+Property triggers fire based on bootmode and other runtime conditions
+
+Super partition mmcblk0p50:
+"system" 2048 2692280
+"system_ext" 2695168 741136
+"vendor" 3436544 3700976
+"product" 7139328 1190008
+
+[10:47:38] --- Recovery Process Execution Environment Test ---
+[10:47:38] Current umask: 077
+[10:47:38] Current user: uid=0(root) gid=0(root) groups=0(root) context=u:r:recovery:s0
+[10:47:38] Current working directory: /
+[10:47:38] Process limits:
+[10:47:38]   -t: time(cpu-seconds)     unlimited
+[10:47:38]   -f: file(blocks)          unlimited
+[10:47:38]   -c: coredump(blocks)      0
+[10:47:38]   -d: data(KiB)             unlimited
+[10:47:38]   -s: stack(KiB)            8192
+[10:47:38]   -l: lockedmem(KiB)        64
+[10:47:38]   -n: nofiles(descriptors)  1024
+[10:47:38]   -p: processes             13884
+[10:47:39]   -i: sigpending            13884
+[10:47:39]   -q: msgqueue(bytes)       819200
+
+[10:47:36] busybox chroot test:
+[10:47:36]   BusyBox v1.36.1-osm0sis (2023-05-25 15:23:56 ADT) multi-call binary.
+[10:47:36]   
+[10:47:36]   Usage: chroot NEWROOT [PROG ARGS]
+[10:47:36] busybox applets:
+[10:47:37]   ✓ ash
+[10:47:37]   ✓ chroot
+[10:47:37]   ✓ fbsplash
+[10:47:37]   ✓ fdflush
+[10:47:37]   ✓ flash_eraseall
+[10:47:37]   ✓ flash_lock
+[10:47:37]   ✓ flash_unlock
+[10:47:37]   ✓ hush
+[10:47:37]   ✓ mount
+[10:47:37]   ✓ mountpoint
+[10:47:37]   ✓ sh
+[10:47:37]   ✓ sha1sum
+[10:47:37]   ✓ sha256sum
+[10:47:37]   ✓ sha3sum
+[10:47:37]   ✓ sha512sum
+[10:47:37]   ✓ showkey
+[10:47:37]   ✓ shred
+[10:47:38]   ✓ shuf
+[10:47:38]   ✓ umount
+[10:47:38]   ✓ unshare
+
+[10:47:39] --- Kernel Capabilities ---
+[10:47:39] Process capabilities:
+[10:47:39]   CapInh:	0000000000000000
+[10:47:39]   CapPrm:	0000003fffffffff
+[10:47:39]   CapEff:	0000003fffffffff
+[10:47:39]   CapBnd:	0000003fffffffff
+[10:47:39]   CapAmb:	0000000000000000
+
+[03:16:08] --- All Mounts ---
+rootfs on / type rootfs (rw,seclabel)
+tmpfs on /dev type tmpfs (rw,seclabel,nosuid,relatime,mode=755)
+devpts on /dev/pts type devpts (rw,seclabel,relatime,mode=600,ptmxmode=000)
+proc on /proc type proc (rw,relatime,gid=3009,hidepid=2)
+sysfs on /sys type sysfs (rw,seclabel,relatime)
+selinuxfs on /sys/fs/selinux type selinuxfs (rw,relatime)
+tmpfs on /mnt type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+tmpfs on /apex type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755)
+tmpfs on /linkerconfig type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755)
+tmpfs on /mnt/installer type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+tmpfs on /mnt/androidwritable type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000)
+none on /acct type cgroup (rw,nosuid,nodev,noexec,relatime,cpuacct)
+tmpfs on /linkerconfig type tmpfs (rw,seclabel,nosuid,nodev,noexec,relatime,mode=755)
+tmpfs on /tmp type tmpfs (rw,seclabel,relatime)
+none on /config type configfs (rw,nosuid,nodev,noexec,relatime)
+binder on /dev/binderfs type binder (rw,relatime,max=1048576,stats=global)
+none on /sys/fs/fuse/connections type fusectl (rw,relatime)
+bpf on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,relatime)
+pstore on /sys/fs/pstore type pstore (rw,seclabel,nosuid,nodev,noexec,relatime)
+adb on /dev/usb-ffs/adb type functionfs (rw,relatime)
+fastboot on /dev/usb-ffs/fastboot type functionfs (rw,relatime)
+/dev/block/mmcblk1p1 on /boot type exfat (rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro)
+[03:16:08] 
+[03:16:08] --- /proc/mounts ---
+rootfs / rootfs rw,seclabel 0 0
+tmpfs /dev tmpfs rw,seclabel,nosuid,relatime,mode=755 0 0
+devpts /dev/pts devpts rw,seclabel,relatime,mode=600,ptmxmode=000 0 0
+proc /proc proc rw,relatime,gid=3009,hidepid=2 0 0
+sysfs /sys sysfs rw,seclabel,relatime 0 0
+selinuxfs /sys/fs/selinux selinuxfs rw,relatime 0 0
+tmpfs /mnt tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+tmpfs /apex tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755 0 0
+tmpfs /linkerconfig tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755 0 0
+tmpfs /mnt/installer tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+tmpfs /mnt/androidwritable tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755,gid=1000 0 0
+none /acct cgroup rw,nosuid,nodev,noexec,relatime,cpuacct 0 0
+tmpfs /linkerconfig tmpfs rw,seclabel,nosuid,nodev,noexec,relatime,mode=755 0 0
+tmpfs /tmp tmpfs rw,seclabel,relatime 0 0
+none /config configfs rw,nosuid,nodev,noexec,relatime 0 0
+binder /dev/binderfs binder rw,relatime,max=1048576,stats=global 0 0
+none /sys/fs/fuse/connections fusectl rw,relatime 0 0
+bpf /sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime 0 0
+pstore /sys/fs/pstore pstore rw,seclabel,nosuid,nodev,noexec,relatime 0 0
+adb /dev/usb-ffs/adb functionfs rw,relatime 0 0
+fastboot /dev/usb-ffs/fastboot functionfs rw,relatime 0 0
+/dev/block/mmcblk1p1 /boot exfat rw,relatime,fmask=0077,dmask=0077,iocharset=utf8,namecase=0,errors=remount-ro 0 0
+
+[03:16:08] --- Block Devices ---
+total 0
+drwxr-xr-x  4 root   root       2400 2025-11-03 03:16 .
+drwxr-xr-x 14 root   root       3420 2025-11-03 03:16 ..
+drwxr-xr-x  2 root   root       1640 2025-11-03 03:16 by-name
+brw-------  1 root   root     7,   0 2025-11-03 03:16 loop0
+brw-------  1 root   root     7,   1 2025-11-03 03:16 loop1
+brw-------  1 root   root     7,  10 2025-11-03 03:16 loop10
+brw-------  1 root   root     7,  11 2025-11-03 03:16 loop11
+brw-------  1 root   root     7,  12 2025-11-03 03:16 loop12
+brw-------  1 root   root     7,  13 2025-11-03 03:16 loop13
+brw-------  1 root   root     7,  14 2025-11-03 03:16 loop14
+brw-------  1 root   root     7,  15 2025-11-03 03:16 loop15
+brw-------  1 root   root     7,   2 2025-11-03 03:16 loop2
+brw-------  1 root   root     7,   3 2025-11-03 03:16 loop3
+brw-------  1 root   root     7,   4 2025-11-03 03:16 loop4
+brw-------  1 root   root     7,   5 2025-11-03 03:16 loop5
+brw-------  1 root   root     7,   6 2025-11-03 03:16 loop6
+brw-------  1 root   root     7,   7 2025-11-03 03:16 loop7
+brw-------  1 root   root     7,   8 2025-11-03 03:16 loop8
+brw-------  1 root   root     7,   9 2025-11-03 03:16 loop9
+brw-------  1 root   root   179,   0 2025-11-03 03:16 mmcblk0
+brw-------  1 root   root   179,   8 2025-11-03 03:16 mmcblk0boot0
+brw-------  1 root   root   179,  16 2025-11-03 03:16 mmcblk0boot1
+brw-------  1 root   root   179,   1 2025-11-03 03:16 mmcblk0p1
+brw-------  1 root   root   259,   3 2025-11-03 03:16 mmcblk0p10
+brw-------  1 root   root   259,   4 2025-11-03 03:16 mmcblk0p11
+brw-------  1 root   root   259,   5 2025-11-03 03:16 mmcblk0p12
+brw-------  1 root   root   259,   6 2025-11-03 03:16 mmcblk0p13
+brw-------  1 root   root   259,   7 2025-11-03 03:16 mmcblk0p14
+brw-------  1 root   root   259,   8 2025-11-03 03:16 mmcblk0p15
+brw-------  1 root   root   259,   9 2025-11-03 03:16 mmcblk0p16
+brw-------  1 root   root   259,  10 2025-11-03 03:16 mmcblk0p17
+brw-------  1 root   root   259,  11 2025-11-03 03:16 mmcblk0p18
+brw-------  1 root   root   259,  12 2025-11-03 03:16 mmcblk0p19
+brw-rw----  1 system system 179,   2 2025-11-03 03:16 mmcblk0p2
+brw-------  1 root   root   259,  13 2025-11-03 03:16 mmcblk0p20
+brw-------  1 root   root   259,  14 2025-11-03 03:16 mmcblk0p21
+brw-------  1 root   root   259,  15 2025-11-03 03:16 mmcblk0p22
+brw-rw----  1 system system 259,  16 2025-11-03 03:16 mmcblk0p23
+brw-------  1 root   root   259,  17 2025-11-03 03:16 mmcblk0p24
+brw-------  1 root   root   259,  18 2025-11-03 03:16 mmcblk0p25
+brw-------  1 root   root   259,  19 2025-11-03 03:16 mmcblk0p26
+brw-------  1 root   root   259,  20 2025-11-03 03:16 mmcblk0p27
+brw-------  1 root   root   259,  21 2025-11-03 03:16 mmcblk0p28
+brw-------  1 root   root   259,  22 2025-11-03 03:16 mmcblk0p29
+brw-------  1 root   root   179,   3 2025-11-03 03:16 mmcblk0p3
+brw-------  1 root   root   259,  23 2025-11-03 03:16 mmcblk0p30
+brw-------  1 root   root   259,  24 2025-11-03 03:16 mmcblk0p31
+brw-------  1 root   root   259,  25 2025-11-03 03:16 mmcblk0p32
+brw-------  1 root   root   259,  26 2025-11-03 03:16 mmcblk0p33
+brw-------  1 root   root   259,  27 2025-11-03 03:16 mmcblk0p34
+brw-------  1 root   root   259,  28 2025-11-03 03:16 mmcblk0p35
+brw-------  1 root   root   259,  29 2025-11-03 03:16 mmcblk0p36
+brw-------  1 root   root   259,  30 2025-11-03 03:16 mmcblk0p37
+brw-------  1 root   root   259,  31 2025-11-03 03:16 mmcblk0p38
+brw-------  1 root   root   259,  32 2025-11-03 03:16 mmcblk0p39
+brw-------  1 root   root   179,   4 2025-11-03 03:16 mmcblk0p4
+brw-------  1 root   root   259,  33 2025-11-03 03:16 mmcblk0p40
+brw-------  1 root   root   259,  34 2025-11-03 03:16 mmcblk0p41
+brw-------  1 root   root   259,  35 2025-11-03 03:16 mmcblk0p42
+brw-------  1 root   root   259,  36 2025-11-03 03:16 mmcblk0p43
+brw-------  1 root   root   259,  37 2025-11-03 03:16 mmcblk0p44
+brw-------  1 root   root   259,  38 2025-11-03 03:16 mmcblk0p45
+brw-------  1 root   root   259,  39 2025-11-03 03:16 mmcblk0p46
+brw-------  1 root   root   259,  40 2025-11-03 03:16 mmcblk0p47
+brw-------  1 root   root   259,  41 2025-11-03 03:16 mmcblk0p48
+brw-------  1 root   root   259,  42 2025-11-03 03:16 mmcblk0p49
+brw-------  1 root   root   179,   5 2025-11-03 03:16 mmcblk0p5
+brw-------  1 root   root   259,  43 2025-11-03 03:16 mmcblk0p50
+brw-------  1 root   root   259,  44 2025-11-03 03:16 mmcblk0p51
+brw-------  1 root   root   259,  45 2025-11-03 03:16 mmcblk0p52
+brw-------  1 root   root   259,  46 2025-11-03 03:16 mmcblk0p53
+brw-------  1 root   root   259,  47 2025-11-03 03:16 mmcblk0p54
+brw-------  1 root   root   259,  48 2025-11-03 03:16 mmcblk0p55
+brw-------  1 root   root   259,  49 2025-11-03 03:16 mmcblk0p56
+brw-------  1 root   root   259,  50 2025-11-03 03:16 mmcblk0p57
+brw-------  1 root   root   259,  51 2025-11-03 03:16 mmcblk0p58
+brw-rw----  1 system system 259,  52 2025-11-03 03:16 mmcblk0p59
+brw-------  1 root   root   179,   6 2025-11-03 03:16 mmcblk0p6
+brw-------  1 root   root   259,  53 2025-11-03 03:16 mmcblk0p60
+brw-------  1 root   root   259,  54 2025-11-03 03:16 mmcblk0p61
+brw-------  1 root   root   259,  55 2025-11-03 03:16 mmcblk0p62
+brw-------  1 root   root   259,  56 2025-11-03 03:16 mmcblk0p63
+brw-------  1 root   root   259,  57 2025-11-03 03:16 mmcblk0p64
+brw-------  1 root   root   259,  58 2025-11-03 03:16 mmcblk0p65
+brw-------  1 root   root   259,  59 2025-11-03 03:16 mmcblk0p66
+brw-------  1 root   root   259,  60 2025-11-03 03:16 mmcblk0p67
+brw-------  1 root   root   259,  61 2025-11-03 03:16 mmcblk0p68
+brw-------  1 root   root   259,  62 2025-11-03 03:16 mmcblk0p69
+brw-------  1 root   root   179,   7 2025-11-03 03:16 mmcblk0p7
+brw-------  1 root   root   259,  63 2025-11-03 03:16 mmcblk0p70
+brw-------  1 root   root   259,  64 2025-11-03 03:16 mmcblk0p71
+brw-------  1 root   root   259,  65 2025-11-03 03:16 mmcblk0p72
+brw-------  1 root   root   259,  66 2025-11-03 03:16 mmcblk0p73
+brw-------  1 root   root   259,  67 2025-11-03 03:16 mmcblk0p74
+brw-------  1 root   root   259,  68 2025-11-03 03:16 mmcblk0p75
+brw-------  1 root   root   259,  69 2025-11-03 03:16 mmcblk0p76
+brw-------  1 root   root   259,  70 2025-11-03 03:16 mmcblk0p77
+brw-------  1 root   root   259,   1 2025-11-03 03:16 mmcblk0p8
+brw-------  1 root   root   259,   2 2025-11-03 03:16 mmcblk0p9
+brw-------  1 root   root   179,  24 2025-11-03 03:16 mmcblk1
+brw-------  1 root   root   179,  25 2025-11-03 03:16 mmcblk1p1
+drwxr-xr-x  4 root   root         80 2025-11-03 03:16 platform
+brw-------  1 root   root   259,   0 2025-11-03 03:16 pmem0
+brw-------  1 root   root     1,   0 2025-11-03 03:16 ram0
+brw-------  1 root   root     1,   1 2025-11-03 03:16 ram1
+brw-------  1 root   root     1,  10 2025-11-03 03:16 ram10
+brw-------  1 root   root     1,  11 2025-11-03 03:16 ram11
+brw-------  1 root   root     1,  12 2025-11-03 03:16 ram12
+brw-------  1 root   root     1,  13 2025-11-03 03:16 ram13
+brw-------  1 root   root     1,  14 2025-11-03 03:16 ram14
+brw-------  1 root   root     1,  15 2025-11-03 03:16 ram15
+brw-------  1 root   root     1,   2 2025-11-03 03:16 ram2
+brw-------  1 root   root     1,   3 2025-11-03 03:16 ram3
+brw-------  1 root   root     1,   4 2025-11-03 03:16 ram4
+brw-------  1 root   root     1,   5 2025-11-03 03:16 ram5
+brw-------  1 root   root     1,   6 2025-11-03 03:16 ram6
+brw-------  1 root   root     1,   7 2025-11-03 03:16 ram7
+brw-------  1 root   root     1,   8 2025-11-03 03:16 ram8
+brw-------  1 root   root     1,   9 2025-11-03 03:16 ram9
+brw-------  1 root   root   254,   0 2025-11-03 03:16 zram0
+
+# Clean up any existing merged directory (checks to see if already available, if so cleans up to prevents duplicates and remove old cache)
+Extract super_partitions' partitions:
+- mount_partition "system" 2048 2692280
+- mount_partition "system_ext" 2695168 741136
+- mount_partition "vendor" 3436544 3700976
+- mount_partition "product" 7139328 1190008
+
+We will be overlaying partitions and directories. Do not assume or create list of subdirectories, always overlay all unless I specifically mention to exclude something.
+Overlay super_partitions' system.img (exclude /system/bin and /linkerconfig) to /.
+- mount_partition "system" 2048 2692280
+- system.img root directory:
+lost+found
+acct
+apex
+bin
+cache
+config
+data
+data_mirror
+debug_ramdisk
+dev
+etc
+linkerconfig
+metadata
+mnt
+odm
+oem
+postinstall
+proc
+product
+storage
+sys
+system
+system_ext
+vendor
+bugreports
+d
+default.prop
+init
+init.environ.rc
+init.recovery.common.rc
+init.recovery.ums512_1h10.rc
+init.recovery.ums512_1h10_go.rc
+init.recovery.ums512_20c10.rc
+init.recovery.ums512_2h10.rc
+sdcard
+Move files from system.img /system/bin to /system/bin but specifically don't override files
+- This means only files not found in moving destination will be moved while the rest isn't overwritten
+Overlay $alpine root to / (exclude /system)
+- The other paths are being double overlayed, that's intended
+Mount the following virtual file systems (if not available, create):
+/dev/pts
+/dev/shm
+/tmp mounted as tmpfs
+/tmp/runtime
+/run
+Overlay the rest of super_partitions to / (make folder path for /system_ext, /product]
+- mount_partition "system_ext" 2695168 741136
+- mount_partition "vendor" 3436544 3700976
+- mount_partition "product" 7139328 1190008
+
+Now we need to set up the expected format of lxc. This is an android built with lineage os to run in a container. We aren't using a container but we need to set up everything as if we're. The android-rootfs.img to use for this is located at $ALPINE/var/lib/lxc/android/android-rootfs.img.
+We need to extract that android-rootfs's /system to $ALPINE/var/lib/lxc/android/rootfs/ where it's expected to be.
+
+Set the expected global environments that's expected from $ALPINE/var/lib/lxc/android/android-rootfs.img/init.environ.rc:
+# expected global environment
+on early-init
+    export ANDROID_BOOTLOGO 1
+    export ANDROID_ROOT /system
+    export ANDROID_ASSETS /system/app
+    export ANDROID_DATA /data
+    export ANDROID_STORAGE /storage
+    export ANDROID_ART_ROOT /apex/com.android.art
+    export ANDROID_I18N_ROOT /apex/com.android.i18n
+    export ANDROID_TZDATA_ROOT /apex/com.android.tzdata
+    export EXTERNAL_STORAGE /sdcard
+    export ASEC_MOUNTPOINT /mnt/asec
+    export BOOTCLASSPATH /apex/com.android.art/javalib/core-oj.jar:/apex/com.android.art/javalib/core-libart.jar:/apex/com.android.art/javalib/core-icu4j.jar:/apex/com.android.art/javalib/okhttp.jar:/apex/com.android.art/javalib/bouncycastle.jar:/apex/com.android.art/javalib/apache-xml.jar
+    export DEX2OATBOOTCLASSPATH /apex/com.android.art/javalib/core-oj.jar:/apex/com.android.art/javalib/core-libart.jar:/apex/com.android.art/javalib/core-icu4j.jar:/apex/com.android.art/javalib/okhttp.jar:/apex/com.android.art/javalib/bouncycastle.jar:/apex/com.android.art/javalib/apache-xml.jar
+    export SYSTEMSERVERCLASSPATH 
+
+When running the android device in it's normal os (not recovery), these are how /apex are used with loop devices:
+      adb shell cat /proc/mounts | grep loop
+adb shell mount | grep loop
+/dev/block/loop6 /apex/com.android.extservices@310852000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop6 /apex/com.android.extservices ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop7 /apex/com.android.tethering@311011010 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop7 /apex/com.android.tethering ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop8 /apex/com.android.runtime@1 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop8 /apex/com.android.runtime ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop9 /apex/com.android.tzdata@301700904 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop9 /apex/com.android.tzdata ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop10 /apex/com.android.wifi@300000000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop10 /apex/com.android.wifi ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop11 /apex/com.android.permission@311014000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop11 /apex/com.android.permission ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop12 /apex/com.android.os.statsd@311012000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop12 /apex/com.android.os.statsd ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop13 /apex/com.android.cellbroadcast@311010000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop13 /apex/com.android.cellbroadcast ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop14 /apex/com.android.conscrypt@310911000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop14 /apex/com.android.conscrypt ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop15 /apex/com.android.sdkext@310912000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop15 /apex/com.android.sdkext ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop16 /apex/com.android.neuralnetworks@310850000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop16 /apex/com.android.neuralnetworks ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop17 /apex/com.android.art@1 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop17 /apex/com.android.art ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop18 /apex/com.android.i18n@1 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop18 /apex/com.android.i18n ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop19 /apex/com.android.apex.cts.shim@1 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop19 /apex/com.android.apex.cts.shim ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop20 /apex/com.android.resolv@311011010 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop20 /apex/com.android.resolv ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop21 /apex/com.android.vndk.v30@1 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop21 /apex/com.android.vndk.v30 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop22 /apex/com.android.media@311012000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop22 /apex/com.android.media ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop23 /apex/com.android.adbd@310852000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop23 /apex/com.android.adbd ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop24 /apex/com.android.ipsec@311010000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop24 /apex/com.android.ipsec ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop25 /apex/com.android.media.swcodec@311015000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop25 /apex/com.android.media.swcodec ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop26 /apex/com.android.mediaprovider@300000000 ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+/dev/block/loop26 /apex/com.android.mediaprovider ext4 ro,dirsync,seclabel,nodev,noatime 0 0
+
+- Duplicate /vendor, /system_ext and /product to $ALPINE/var/lib/lxc/android/rootfs/system/
+1. That means the same files in /vendor should be found at $ALPINE/var/lib/lxc/android/rootfs/system/vendor
+- Duplicate $ALPINE/var/lib/lxc/android/rootfs/system/apex to /apex
+
+Load Kernels (socko & /vendor/lib/modules)
+
+socko:
+mali_gondul.ko
+mmdvfs.ko
+sprd_cpp.ko
+sprd_flash_drv.ko
+sprd_fm.ko
+sprd_sensor.ko
+sprdbt_tty.ko
+sprdwl_ng
+
+/vendor/lib/modules:
+incrementalfs.ko
+kheaders.ko
+
+Camera GPIO Initialization:
+    # Export camera GPIOs based on device tree analysis
+    # GPIO controller base: 128 (from 32070000.gpio)
+    
+    # Main Camera (I2C 0x20) - pins relative to base 128
+    # AVDD: 25, DVDD: 15, Power-Down: 46, Reset: 44
+    CAM_MAIN_AVDD=\$((128 + 25))
+    CAM_MAIN_DVDD=\$((128 + 15))
+    CAM_MAIN_PWDN=\$((128 + 46))
+    CAM_MAIN_RST=\$((128 + 44))
+    
+    # Second Main Camera (I2C 0x2A) - Reset: 41
+    CAM_MAIN2_RST=\$((128 + 41))
+    
+    echo 'Exporting camera GPIOs...'
+    
+    for gpio in \$CAM_MAIN_AVDD \$CAM_MAIN_DVDD \$CAM_MAIN_PWDN \$CAM_MAIN_RST \$CAM_MAIN2_RST; do
+        if [ ! -d /sys/class/gpio/gpio\$gpio ]; then
+            echo \$gpio > /sys/class/gpio/export 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo out > /sys/class/gpio/gpio\$gpio/direction 2>/dev/null
+                echo 0 > /sys/class/gpio/gpio\$gpio/value 2>/dev/null
+                echo \"  ✓ Exported GPIO \$gpio\"
+            else
+                echo \"  ✗ Failed to export GPIO \$gpio\"
+            fi
+        else
+            echo \"  • GPIO \$gpio already exported\"
+        fi
+    done
+    
+    echo '✓ Camera GPIO initialization complete'
+" 2>&1 | tee -a "$LOGFILE"
+
+log "✓ Camera GPIOs configured"
+
+- We aren't using lxc but certain expectations are expected to be set while using chroot
+. $ALPINE/etc/lxc/default.conf has the following:
+"
+lxc.net.0.type = veth
+lxc.net.0.link = lxcbr0
+lxc.net.0.flags = up
+lxc.net.0.hwaddr = 00:16:3e:xx:xx:xx
+"
+2. $ALPINE/etc/init.d/lxc-android has the following:
+"
+#!/sbin/openrc-run
+
+name="lxc-container-%I"
+description="LXC Container: %I"
+
+# Make sure android-mount is started first
+depend() {
+  need lxc
+  need android-mount
+}
+
+start_pre() {
+  # Move the container start-up to start_pre
+  # This will allow the notification script to block if necessary
+  # unmount schedtune and cpuset as they can both cause issues during and after the container starts
+  umount -l /sys/fs/cgroup/cpuset || true
+  umount -l /sys/fs/cgroup/schedtune || true
+  lxc-start -d -n android
+}
+
+start() {
+  # Start the notification script in background
+  start-stop-daemon --start --background --exec /usr/lib/lxc-android/lxc-android-notify
+}
+
+stop() {
+  # Stop the notification script
+  start-stop-daemon --stop --exec /usr/lib/lxc-android/lxc-android-notify --quiet --oknodo
+  # Stop the container
+  /usr/lib/lxc-android/lxc-android-stop
+}
+
+pidfile="/run/openrc/lxc-container-%I.pid"
+command="/usr/sbin/openrc-run"
+
+# Delegate control to the container
+control_group="android"
+
+"
+Run $ALPINE/var/lib/lxc/android/pre-start.sh (any line that calls $LXC_ROOTFS_PATH, change to /)
+
+Run default runlevel services:
+
+$ALPINE/etc/init.d/
+
+- Boot Runlevel
+-- Storage preparation
+swap
+fsck
+root
+-- System identity
+machine-id
+hostname
+sysctl
+-- Time initialization
+hwclock
+swclock
+-- Local filesystems
+localmount
+mtab
+-- Cleanup tasks
+bootmisc
+
+- Default Runlevel (Main Services)
+-- Resource control
+cgroups
+-- Android integration
+hybrislinks
+lmk-disable
+-- Session management
+dbus
+-- Hardware enablement
+wcnss-enable, boot-wlan, ipa-enable
+-- IPC bus (required by most services)
+elogind
+-- Wireless radios
+bluetooth, bluebinder, rfkill
+-- Connectivity
+wpa_supplicant, ofono
+-- Network management
+networkmanager
+-- Sensors
+sensorfw, hadess-sensorfw-proxy, iio-sensor-proxy
+-- Audio
+audiosystem-passthrough, pulseaudio
+-- Time sync
+chronyd
+-- Desktop integration
+polkit, openrc-settingsd
+-- User interface (last)
+phosh
+
+
+=== INSTALLED PACKAGES INVENTORY ===
+Total packages installed: 690
+
+=== ALL INSTALLED PACKAGES ===
+abseil-cpp-20220623.1-r1
+accountsservice-22.08.8-r0
+adwaita-icon-theme-43-r0
+agetty-2.38.1-r1
+agetty-openrc-0.45.2-r7
+alphybris-base-api30-1.0-r0
+alpine-base-3.17.3-r0
+alpine-baselayout-3.4.0-r0
+alpine-baselayout-data-3.4.0-r0
+alpine-conf-3.15.1-r1
+alpine-keys-2.4-r1
+alpine-release-3.17.3-r0
+alsa-lib-1.2.8-r0
+alsa-plugins-pulse-1.2.7.1-r0
+android-headers-30-1.0-r0
+aom-libs-3.5.0-r0
+apk-polkit-rs-2.0.0-r0
+apk-tools-2.12.10-r1
+appstream-0.15.5-r2
+argon2-libs-20190702-r2
+aspell-libs-0.60.8-r2
+at-spi2-core-2.46.0-r0
+atkmm-2.28.3-r0
+audiosystem-passthrough-1.3.0-r0
+autologin-1.0.0-r4
+avahi-0.8-r6
+avahi-glib-0.8-r6
+avahi-libs-0.8-r6
+bash-5.2.15-r0
+blkid-2.38.1-r1
+bluebinder-61-r0
+bluez-5.66-r1
+bluez-libs-5.66-r1
+bluez-obexd-5.66-r1
+bluez-openrc-5.66-r1
+boost1.80-thread-1.80.0-r3
+brotli-libs-1.0.9-r9
+bsd-compat-headers-0.7.2-r3
+bubblewrap-0.7.0-r0
+busybox-1.35.0-r29
+busybox-binsh-1.35.0-r29
+busybox-openrc-1.35.0-r29
+busybox-suid-1.35.0-r29
+bzip2-dev-1.0.8-r4
+ca-certificates-20220614-r4
+ca-certificates-bundle-20220614-r4
+cairo-1.17.6-r3
+cairo-gobject-1.17.6-r3
+cairomm-1.14.4-r0
+callaudiod-hybris-0.1.4-r0
+callaudiod-hybris-libs-0.1.4-r0
+caribou-0.4.21-r7
+cdparanoia-libs-10.2-r11
+cfdisk-2.38.1-r1
+chrony-4.3-r0
+chrony-openrc-4.3-r0
+cjson-1.7.15-r3
+colord-1.4.6-r1
+colord-gtk-0.3.0-r0
+cracklib-2.9.8-r0
+cracklib-words-2.9.8-r0
+cryptsetup-libs-2.5.0-r2
+cups-libs-2.4.2-r1
+cups-pk-helper-0.2.7-r0
+dbus-1.14.4-r0
+dbus-dev-1.14.4-r0
+dbus-glib-0.112-r1
+dbus-libs-1.14.4-r0
+dbus-openrc-1.14.4-r0
+dbus-x11-1.14.4-r0
+dconf-0.40.0-r2
+device-mapper-2.03.17-r1
+device-mapper-event-libs-2.03.17-r1
+device-mapper-libs-2.03.17-r1
+device-mapper-udev-2.03.17-r1
+deviceinfo-0.1.1-r0
+dhcp-4.4.3_p1-r1
+dhcp-openrc-4.4.3_p1-r1
+dhcp-server-vanilla-4.4.3_p1-r1
+dmraid-1.0.0_rc16-r1
+docbook-xml-4.5-r8
+docbook-xsl-1.79.2-r8
+duktape-2.7.0-r0
+efivar-libs-38-r1
+elogind-246.10-r5
+elogind-openrc-246.10-r5
+enchant2-2.3.3-r1
+eog-43.2-r0
+epiphany-43.1-r0
+eudev-3.2.11-r4
+eudev-hwids-3.2.11-r4
+eudev-libs-3.2.11-r4
+eudev-openrc-3.2.11-r4
+evince-43.1-r0
+evince-libs-43.1-r0
+evolution-3.46.3-r1
+evolution-data-server-3.46.3-r0
+exempi-libs-2.6.3-r0
+exiv2-0.27.5-r1
+faac-1.30-r2
+faad2-libs-2.10.1-r0
+fdk-aac-2.0.2-r1
+feedbackd-device-themes-0_git20220202-r0
+feedbackd-hybris-0.0.2-r0
+ffmpeg-libs-5.1.3-r0
+fftw-single-libs-3.3.10-r1
+findmnt-2.38.1-r1
+firefox-109.0.1-r0
+flac-libs-1.4.2-r0
+flock-2.38.1-r1
+folks-0.15.5-r1
+font-adobe-source-code-pro-2.038-r0
+font-cantarell-0.303.1-r1
+font-util-1.3.3-r0
+fontconfig-2.14.1-r0
+freetype-2.12.1-r0
+fribidi-1.0.12-r0
+fstrim-2.38.1-r1
+fuse3-libs-3.12.0-r0
+fwupd-1.8.8-r0
+fwupd-openrc-1.8.8-r0
+gcr-3.41.1-r1
+gcr-base-3.41.1-r1
+gcr-ssh-agent-3.41.1-r1
+gcr4-base-4.0.0-r0
+gdb-12.1-r2
+gdbm-1.23-r0
+gdk-pixbuf-2.42.10-r0
+geoclue-2.6.0-r0
+geocode-glib-3.26.4-r1
+gettext-0.21.1-r1
+gettext-asprintf-0.21.1-r1
+gettext-dev-0.21.1-r1
+gettext-libs-0.21.1-r1
+gexiv2-0.14.0-r1
+gfbgraph-0.2.5-r1
+giflib-5.2.1-r2
+gjs-1.74.1-r0
+glib-2.74.6-r0
+glib-dev-2.74.6-r0
+glib-networking-2.74.0-r2
+glibmm-2.66.5-r0
+gmp-6.2.1-r2
+gnome-apps-core-43-r0
+gnome-autoar-0.4.3-r0
+gnome-bluetooth-42.5-r0
+gnome-bluetooth-libs-42.5-r0
+gnome-calculator-43.0.1-r0
+gnome-calendar-43.1-r1
+gnome-clocks-43.0-r0
+gnome-console-43.0-r0
+gnome-contacts-43.1-r0
+gnome-control-center-43.2-r0
+gnome-desktop-43.2-r0
+gnome-disk-utility-43.0-r0
+gnome-keyring-42.1-r0
+gnome-maps-43.4-r0
+gnome-online-accounts-3.46.0-r0
+gnome-session-43.0-r0
+gnome-settings-daemon-hybris-43.0-r0
+gnome-shell-43.3-r0
+gnome-shell-schemas-43.3-r0
+gnome-software-42.4-r1
+gnome-software-lib-42.4-r1
+gnome-software-plugin-apk-0.11.0-r0
+gnome-system-monitor-42.0-r0
+gnome-text-editor-43.2-r0
+gnome-tweaks-40.10-r4
+gnome-weather-43.0-r0
+gnupg-gpgconf-2.2.40-r0
+gnutls-3.7.8-r3
+gobject-introspection-1.74.0-r1
+gom-0.4-r3
+gpg-2.2.40-r0
+gpg-agent-2.2.40-r0
+gpgme-1.18.0-r0
+gpgsm-2.2.40-r0
+gptfdisk-1.0.9-r2
+graphene-1.10.8-r1
+graphite2-1.3.14-r2
+grilo-0.3.15-r1
+grilo-libs-0.3.15-r1
+grilo-plugins-0.3.15-r2
+gsettings-desktop-schemas-43.0-r0
+gsound-1.0.3-r1
+gspell-1.12.0-r1
+gst-plugins-bad-hybris-1.20.6-r0
+gst-plugins-base-1.20.6-r0
+gst-plugins-good-1.20.6-r0
+gstreamer-1.20.6-r0
+gtk+2.0-2.24.33-r7
+gtk+3.0-3.24.36-r0
+gtk-update-icon-cache-3.24.36-r0
+gtk4.0-4.8.3-r0
+gtkmm3-3.24.7-r0
+gtksourceview5-5.6.2-r0
+gvfs-1.50.3-r0
+gvfs-afc-1.50.3-r0
+gvfs-afp-1.50.3-r0
+gvfs-archive-1.50.3-r0
+gvfs-avahi-1.50.3-r0
+gvfs-cdda-1.50.3-r0
+gvfs-dav-1.50.3-r0
+gvfs-fuse-1.50.3-r0
+gvfs-goa-1.50.3-r0
+gvfs-gphoto2-1.50.3-r0
+gvfs-mtp-1.50.3-r0
+gvfs-nfs-1.50.3-r0
+gvfs-smb-1.50.3-r0
+hadess-sensorfw-proxy-0.1.0-r0
+halium-wrappers-21-r0
+harfbuzz-5.3.1-r1
+harfbuzz-icu-5.3.1-r1
+hexdump-2.38.1-r1
+hicolor-icon-theme-0.17-r2
+highlight-4.4-r0
+htop-3.2.1-r1
+hwdata-0.364-r0
+hwdata-net-0.364-r0
+hwdata-pci-0.364-r0
+hwdata-pnp-0.364-r0
+hwdata-usb-0.364-r0
+hybris-gsi-11.0-0.1-r0
+hybris-quirks-0.1-r0
+hybris-usb-0.1-r1
+hyphen-2.8.8-r2
+ibus-1.5.27-r0
+icu-data-full-72.1-r1
+icu-libs-72.1-r1
+ifupdown-ng-0.12.1-r1
+ifupdown-ng-wifi-0.12.1-r1
+iio-sensor-proxy-3.4-r0
+iio-sensor-proxy-openrc-3.4-r0
+iptables-1.8.8-r2
+iptables-openrc-1.8.8-r2
+iso-codes-4.12.0-r0
+jack-1.9.21-r0
+jansson-2.14-r0
+json-c-0.16-r2
+json-glib-1.6.6-r1
+keyutils-libs-1.6.3-r1
+kmod-libs-30-r1
+krb5-conf-1.0-r2
+krb5-libs-1.20.1-r0
+lame-3.100-r2
+lcms2-2.14-r0
+ldb-2.5.3-r0
+libaccountsservice-22.08.8-r0
+libacl-2.3.1-r1
+libadwaita-1.2.3-r0
+libaio-0.3.113-r0
+libarchive-3.6.1-r2
+libass-0.16.0-r1
+libassuan-2.5.5-r1
+libasyncns-0.8-r1
+libatasmart-0.19-r2
+libatk-1.0-2.46.0-r0
+libatk-bridge-2.0-2.46.0-r0
+libavc1394-0.5.4-r3
+libblkid-2.38.1-r1
+libblockdev-2.28-r0
+libbluray-1.3.3-r0
+libbsd-0.11.7-r0
+libbytesize-2.7-r1
+libbz2-1.0.8-r4
+libc-utils-0.7.2-r3
+libcaca-0.99_beta20-r0
+libcanberra-0.30-r9
+libcanberra-gstreamer-0.30-r9
+libcanberra-gtk3-0.30-r9
+libcap-2.66-r0
+libcap-ng-0.8.3-r1
+libcap-utils-2.66-r0
+libcap2-2.66-r0
+libcbor-0.9.0-r1
+libcdio-2.1.0-r1
+libcdio-paranoia-10.2.2.0.1-r1
+libcloudproviders-0.3.1-r0
+libcmark-0.30.3-r0
+libcolord-1.4.6-r1
+libcom_err-1.46.6-r0
+libcrypto3-3.0.8-r4
+libcurl-8.0.1-r0
+libdaemon-0.14-r3
+libdav1d-1.0.0-r2
+libdazzle-3.44.0-r0
+libdc1394-2.2.6-r1
+libde265-1.0.11-r1
+libdjvulibre-3.5.28-r2
+libdrm-2.4.114-r0
+libdv-1.0.0-r7
+libdvdcss-1.4.3-r0
+libdvdnav-6.1.1-r0
+libdvdread-6.1.3-r0
+libeconf-0.4.7-r0
+libedit-20221030.3.1-r0
+libedit-dev-20221030.3.1-r0
+libeditorconfig-0.12.5-r1
+libelf-0.187-r2
+libelogind-246.10-r5
+libepoxy-1.5.10-r0
+libevdev-1.13.0-r0
+libevent-2.1.12-r5
+libexif-0.6.24-r0
+libexpat-2.5.0-r0
+libfdisk-2.38.1-r1
+libffi-3.4.4-r0
+libffi-dev-3.4.4-r0
+libfontenc-1.1.6-r0
+libgbinder-1.3.33-r0
+libgbinder-dev-1.3.33-r0
+libgbinder-radio-1.5.4-r0
+libgcab-1.4-r3
+libgcc-12.2.1_git20220924-r4
+libgcrypt-1.10.1-r0
+libgdata-0.18.1-r1
+libgee-0.20.6-r0
+libglibutil-1.0.67-r0
+libglibutil-dev-1.0.67-r0
+libgomp-12.2.1_git20220924-r4
+libgpg-error-1.46-r1
+libgphoto2-2.5.30-r0
+libgrilio-1.0.44-r0
+libgsf-1.14.50-r0
+libgtop-2.40.0-r1
+libgudev-237-r1
+libgusb-0.4.3-r0
+libgweather4-4.2.0-r0
+libgxps-0.3.2-r1
+libhandy-0.0.13-r5
+libhandy1-1.8.2-r0
+libhybris-1.0_git20230409-r0
+libhybris-egl-1.0_git20230409-r0
+libhybris-gles-1.0_git20230409-r0
+libical-3.0.16-r1
+libice-1.0.10-r1
+libidn2-2.3.4-r0
+libiec61883-1.2.0-r3
+libimobiledevice-1.3.0-r4
+libinput-1.22.1-r0
+libinput-libs-1.22.1-r0
+libinput-tools-1.22.1-r0
+libintl-0.21.1-r1
+libiptcdata-1.0.5-r1
+libjcat-0.1.12-r0
+libjpeg-turbo-2.1.4-r0
+libksba-1.6.3-r0
+libldap-2.6.3-r6
+libltdl-2.4.7-r1
+libmanette-0.2.6-r2
+libmbim-1.28.2-r0
+libmce-glib-1.0.13-r0
+libmd-1.0.4-r0
+libmediaart-1.9.6-r0
+libmm-glib-1.20.4-r0
+libmms-0.6.4-r1
+libmnl-1.0.5-r0
+libmodplug-0.8.9.0-r2
+libmount-2.38.1-r1
+libmtp-1.1.20-r2
+libndp-1.8-r1
+libnfs-5.0.2-r0
+libnftnl-1.2.4-r0
+libnice-0.1.19-r0
+libnl3-3.7.0-r0
+libnm-1.40.16-r0
+libnma-1.10.4-r1
+libnotify-0.8.1-r1
+liboauth-1.0.3-r4
+libogg-1.3.5-r2
+libosinfo-1.10.0-r2
+libpcre2-16-10.42-r0
+libpcre2-32-10.42-r0
+libpeas-1.34.0-r0
+libphonenumber-8.13.0-r0
+libplist-2.2.0-r2
+libpng-1.6.38-r0
+libportal-0.6-r0
+libportal-gtk3-0.6-r0
+libportal-gtk4-0.6-r0
+libprotobuf-3.21.9-r0
+libproxy-0.4.18-r1
+libproxy-gnome3-0.4.18-r1
+libpsl-0.21.1-r1
+libpulse-14.2-r6
+libpulse-mainloop-glib-14.2-r6
+libpwquality-1.4.4-r3
+libqmi-1.32.2-r0
+libqrtr-glib-1.2.2-r0
+libraw1394-2.1.2-r3
+librist-0.2.7-r0
+librsvg-2.55.1-r0
+librtmp-2.4_git20190330-r2
+libsamplerate-0.2.2-r0
+libsasl-2.1.28-r3
+libseccomp-2.5.4-r0
+libsecret-0.20.5-r0
+libshout-2.4.6-r1
+libshumate-1.0.3-r0
+libsigc++-2.10.8-r0
+libsm-1.2.3-r1
+libsmartcols-2.38.1-r1
+libsmbclient-4.16.10-r0
+libsndfile-1.1.0-r2
+libsodium-1.0.18-r2
+libsoup-2.74.3-r0
+libsoup3-3.2.2-r0
+libsrt-1.5.1-r0
+libsrtp-2.4.2-r3
+libssh-0.10.4-r0
+libssl3-3.0.8-r4
+libstdc++-12.2.1_git20220924-r4
+libstemmer-2.2.0-r0
+libtasn1-4.19.0-r0
+libtheora-1.1.1-r16
+libtirpc-conf-1.3.3-r0
+libtirpc-nokrb-1.3.3-r0
+libtracker-3.4.2-r0
+libunistring-1.1-r0
+libusb-1.0.26-r0
+libusbmuxd-2.0.2-r2
+libutempter-1.2.1-r5
+libuuid-2.38.1-r1
+libva-2.16.0-r0
+libvdpau-1.5-r0
+libverto-0.3.2-r1
+libvorbis-1.3.7-r0
+libvpx-1.12.0-r1
+libwacom-2.5.0-r0
+libwbclient-4.16.10-r0
+libwebp-1.2.4-r1
+libwoff2common-1.0.2-r2
+libwoff2enc-1.0.2-r2
+libwpe-1.14.0-r0
+libwpebackend-fdo-1.14.2-r0
+libwspcodec-2.2.6-r0
+libx11-1.8.4-r0
+libxau-1.0.10-r0
+libxcb-1.15-r0
+libxcomposite-0.4.5-r1
+libxcursor-1.2.1-r1
+libxcvt-0.1.2-r0
+libxdamage-1.1.5-r1
+libxdmcp-1.1.4-r0
+libxext-1.3.5-r0
+libxfixes-6.0.0-r0
+libxfont2-2.0.6-r0
+libxft-2.3.7-r0
+libxi-1.8-r0
+libxinerama-1.1.5-r0
+libxkbcommon-1.4.1-r0
+libxkbcommon-x11-1.4.1-r0
+libxkbfile-1.1.1-r0
+libxklavier-5.4-r6
+libxml2-2.10.4-r0
+libxml2-utils-2.10.4-r0
+libxmlb-0.3.10-r0
+libxrandr-1.5.3-r0
+libxrender-0.9.11-r0
+libxshmfence-1.3.1-r0
+libxslt-1.1.37-r1
+libxtst-1.2.4-r0
+libxv-1.0.11-r3
+libxxf86vm-1.1.5-r0
+libzbar-0.23.92-r1
+libzmq-4.3.4-r1
+linux-headers-5.19.5-r0
+linux-pam-1.5.2-r1
+lmdb-0.9.29-r2
+logger-2.38.1-r1
+losetup-2.38.1-r1
+lsb-release-minimal-12.0-r0
+lsblk-2.38.1-r1
+lua5.3-libs-5.3.6-r4
+lua5.4-libs-5.4.4-r6
+lvm2-libs-2.03.17-r1
+lxc-5.0.2-r0
+lxc-android-1.0-r1
+lxc-openrc-5.0.2-r0
+lz4-libs-1.9.4-r1
+mbedtls-2.28.3-r0
+mcookie-2.38.1-r1
+mesa-22.2.5-r1
+mesa-egl-22.2.5-r1
+mesa-gbm-22.2.5-r1
+mesa-gl-22.2.5-r1
+mesa-glapi-22.2.5-r1
+mesa-gles-22.2.5-r1
+mobile-broadband-provider-info-20221107-r0
+modemmanager-1.20.4-r0
+modemmanager-openrc-1.20.4-r0
+mount-2.38.1-r1
+mozjs102-102.3.0-r2
+mpc1-1.2.1-r1
+mpdecimal-2.5.1-r1
+mpfr4-4.1.0-r0
+mpg123-libs-1.31.1-r0
+mtdev-1.1.6-r1
+multipath-tools-0.9.3-r2
+multipath-tools-openrc-0.9.3-r2
+musl-1.2.3-r4
+musl-fts-1.2.7-r3
+musl-locales-0.1.0-r0
+musl-utils-1.2.3-r4
+mutter-43.3-r1
+mutter-schemas-43.3-r1
+nano-7.0-r0
+nano-syntax-7.0-r0
+nautilus-43.2-r0
+ncurses-dev-6.3_p20221119-r0
+ncurses-libs-6.3_p20221119-r0
+ncurses-terminfo-base-6.3_p20221119-r0
+ndctl-libs-74-r0
+neon-0.32.4-r0
+nettle-3.8.1-r0
+networkmanager-1.40.16-r0
+networkmanager-cli-1.40.16-r0
+networkmanager-common-1.40.16-r0
+networkmanager-openrc-1.40.16-r0
+networkmanager-tui-1.40.16-r0
+networkmanager-wifi-1.40.16-r0
+newt-0.52.23-r0
+nghttp2-libs-1.51.0-r0
+npth-1.6-r2
+nspr-4.35-r0
+nss-3.85-r1
+numactl-2.0.16-r1
+nuspell-libs-5.1.2-r1
+ofono-hybris-1.29-r0
+ofono-ril-binder-plugin-1.2.7-r0
+ofono-ril-plugin-1.0.6-r0
+ofono2mm-72-r0
+openexr-3.1.5-r3
+openjpeg-2.5.0-r0
+openrc-0.45.2-r7
+openrc-settingsd-1.1.0-r0
+openrc-settingsd-openrc-1.1.0-r0
+openssh-9.1_p1-r2
+openssh-client-common-9.1_p1-r2
+openssh-client-default-9.1_p1-r2
+openssh-keygen-9.1_p1-r2
+openssh-server-9.1_p1-r2
+openssh-server-common-9.1_p1-r2
+openssh-sftp-server-9.1_p1-r2
+opus-1.3.1-r1
+orc-0.4.33-r0
+osinfo-db-20221018-r0
+p11-kit-0.24.1-r1
+pango-1.50.13-r0
+pangomm-2.46.3-r0
+parse-android-dynparts-10-r0
+parted-3.5-r0
+partx-2.38.1-r1
+pciutils-libs-3.9.0-r0
+pcre-8.45-r2
+pcre2-10.42-r0
+pcre2-dev-10.42-r0
+pcsc-lite-libs-1.9.9-r0
+perl-5.36.0-r1
+phoc-hybris-0.25.0-r0
+phosh-hybris-0.25.1-r1
+pinentry-1.2.1-r0
+pipewire-alsa-0.3.61-r0
+pipewire-libs-0.3.61-r0
+pixman-0.42.2-r0
+pkgconf-1.9.4-r0
+plymouth-hybris-0.9.5-r0
+plymouth-themes-0.9.5-r0
+polkit-122-r0
+polkit-common-122-r0
+polkit-libs-122-r0
+polkit-openrc-122-r0
+poppler-22.11.0-r0
+poppler-glib-22.11.0-r0
+popt-1.19-r0
+protobuf-c-1.4.1-r1
+pulseaudio-hybris-14.2-r6
+pulseaudio-hybris-alsa-14.2-r6
+pulseaudio-hybris-bluez-14.2-r6
+pulseaudio-hybris-jack-14.2-r6
+pulseaudio-hybris-utils-14.2-r6
+pulseaudio-hybris-zeroconf-14.2-r6
+pulseaudio-modules-droid-99-r0
+pulseaudio-modules-droid-hidl-1.5.0-r0
+py3-dbus-1.3.2-r0
+py3-dbus-next-0.2.3-r0
+py3-gobject3-3.42.2-r0
+py3-libevdev-0.11-r0
+py3-udev-0.24.0-r0
+py3-yaml-6.0-r0
+python3-3.10.11-r0
+qt5-qtbase-5.15.6_git20221010-r0
+readline-8.2.0-r0
+rest-0.8.1-r3
+rest1-0.9.1-r0
+runuser-2.38.1-r1
+samba-libs-4.16.10-r0
+samba-util-libs-4.16.10-r0
+sbc-2.0-r0
+scanelf-1.3.5-r1
+screen-4.9.0-r0
+sdbus-cpp-1.2.0-r0
+sdl2-2.26.5-r0
+sensorfw-0.12.6-r1
+sensorfw-openrc-0.12.6-r1
+setpriv-2.38.1-r1
+sfdisk-2.38.1-r1
+shadow-4.13-r0
+shared-mime-info-2.2-r2
+skalibs-2.12.0.1-r0
+slang-2.3.3-r0
+sound-theme-freedesktop-0.8-r0
+soundtouch-2.3.2-r1
+soxr-0.1.3-r3
+spandsp-0.0.6-r2
+speex-1.2.1-r0
+speexdsp-1.2.1-r0
+sqlite-libs-3.40.1-r0
+squeekboard-1.22.0-r0
+ssl_client-1.35.0-r29
+startup-notification-0.12-r4
+strace-6.0-r0
+sudo-1.9.12_p2-r1
+taglib-1.13-r0
+talloc-2.3.4-r0
+tdb-libs-1.4.6-r0
+telepathy-glib-0.24.2-r1
+tevent-0.13.0-r0
+tiff-4.4.0-r3
+tmux-3.3a-r0
+totem-pl-parser-3.26.6-r0
+tpm2-tss-esys-3.2.0-r0
+tpm2-tss-mu-3.2.0-r0
+tpm2-tss-sys-3.2.0-r0
+tracker-3.4.2-r0
+tracker-miners-3.4.3-r0
+tzdata-2023c-r0
+udev-init-scripts-35-r1
+udev-init-scripts-openrc-35-r1
+udisks2-2.9.4-r1
+udisks2-libs-2.9.4-r1
+umount-2.38.1-r1
+unudhcpd-0.2.1-r0
+unzip-6.0-r13
+upower-1.90.0-r2
+urfkill-0.5.0_git20210401-r3
+urfkill-openrc-0.5.0_git20210401-r3
+userspace-rcu-0.13.2-r0
+util-linux-2.38.1-r1
+util-linux-dev-2.38.1-r1
+util-linux-misc-2.38.1-r1
+util-linux-openrc-2.38.1-r1
+utmps-libs-0.1.2.0-r1
+uuidgen-2.38.1-r1
+v4l-utils-libs-1.22.1-r2
+vidstab-1.1.0-r2
+volume_key-0.3.12-r3
+vte3-gtk4-0.70.2-r0
+waked-0.1.1-r3
+waked-openrc-0.1.1-r3
+wavpack-5.5.0-r0
+wayland-libs-client-1.21.0-r1
+wayland-libs-cursor-1.21.0-r1
+wayland-libs-egl-1.21.0-r1
+wayland-libs-server-1.21.0-r1
+webkit2gtk-4.1-2.38.6-r0
+webkit2gtk-5.0-2.38.6-r0
+webrtc-audio-processing-0.3.1-r6
+wipefs-2.38.1-r1
+wireless-regdb-2022.08.12-r0
+wlr-randr-0.2.0-r1
+wlroots-hybris-0.12.0-r0
+wpa_supplicant-2.10-r4
+wpa_supplicant-openrc-2.10-r4
+x264-libs-0.164_git20220602-r0
+x265-libs-3.5-r3
+xcb-util-0.4.0-r3
+xcb-util-wm-0.4.2-r0
+xdg-dbus-proxy-0.1.4-r0
+xkbcomp-1.4.5-r1
+xkeyboard-config-2.37-r0
+xorg-server-common-21.1.8-r0
+xvidcore-1.3.7-r1
+xwayland-22.1.9-r0
+xz-libs-5.2.9-r0
+yaml-0.2.5-r0
+yaml-cpp-0.7.0-r0
+zlib-1.2.13-r0
+zlib-dev-1.2.13-r0
+zstd-libs-1.5.5-r0

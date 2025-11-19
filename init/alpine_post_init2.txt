@@ -1,0 +1,362 @@
+#!/system/bin/sh
+
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_post_init_test.log"
+
+ALPINE_ROOT="/mnt/alpine_root"
+ALPHYBRIS_ROOT="/mnt/alphybris"
+
+CLEANUP_ACTIONS=""
+
+# --------------------------------------------------
+# Logging helper
+# --------------------------------------------------
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+# --------------------------------------------------
+# Alpine PATH
+# --------------------------------------------------
+
+log "========================================="
+log "=== ALPINE PATH ENVIRONMENT ==="
+log "========================================="
+log ""
+
+log "Creating overlay symlinks..."
+for dir in bin sbin usr lib srv var etc data; do
+    if [ -d "$ALPHYBRIS_ROOT/$dir" ]; then
+        if [ "$dir" = "lib" ]; then
+            rm -rf /lib 2>/dev/null
+        fi
+        
+        if [ ! -e "/$dir" ] || [ -L "/$dir" ] || [ "$dir" = "lib" ]; then
+            rm -f "/$dir" 2>/dev/null
+            ln -sf "$ALPHYBRIS_ROOT/$dir" "/$dir"
+            CLEANUP_ACTIONS="rm -f /$dir;$CLEANUP_ACTIONS"
+            log "  ✓ /$dir -> $ALPHYBRIS_ROOT/$dir"
+        fi
+    fi
+done
+
+log ""
+KERNEL_VERSION=$(uname -r)
+log "Creating /lib/modules symlink for modprobe (kernel: $KERNEL_VERSION)..."
+
+# Create versioned directory
+mkdir -p "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" 2>/dev/null
+
+if [ -d "/lib/modules/$KERNEL_VERSION" ]; then
+    log "  ✓ /lib/modules/$KERNEL_VERSION exists"
+elif [ -d "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" ]; then
+    ln -sf "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" "/lib/modules/$KERNEL_VERSION"
+    log "  ✓ /lib/modules/$KERNEL_VERSION -> $ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION"
+else
+    mkdir -p "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION"
+    ln -sf "$ALPHYBRIS_ROOT/lib/modules/$KERNEL_VERSION" "/lib/modules/$KERNEL_VERSION"
+    log "  ⚠ Created empty /lib/modules/$KERNEL_VERSION"
+fi
+
+ln -sf "$ALPHYBRIS_ROOT/lib/modules" /lib/modules 2>/dev/null
+
+log ""
+log "Verifying Alpine dynamic linker..."
+if [ -f /lib/ld-musl-aarch64.so.1 ]; then
+    log "  ✓ ld-musl-aarch64.so.1 accessible"
+else
+    log "  ✗ Dynamic linker missing"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Create ALL /android/* symlinks
+# --------------------------------------------------
+
+log "========================================="
+log "=== CREATING HOST SYMLINKS ==="
+log "========================================="
+log ""
+
+log "Creating /android/* symlinks..."
+mkdir -p /android 2>/dev/null
+
+for subdir in system vendor; do
+    rm -f "/android/$subdir" 2>/dev/null
+    
+    if [ -d "$ALPINE_ROOT/android/$subdir" ]; then
+        ln -sf "$ALPINE_ROOT/android/$subdir" "/android/$subdir"
+        CLEANUP_ACTIONS="rm -f /android/$subdir;$CLEANUP_ACTIONS"
+        log "  ✓ /android/$subdir -> $ALPINE_ROOT/android/$subdir"
+    else
+        log "  ✗ $subdir not found"
+    fi
+done
+
+log ""
+log "Creating /apex symlink..."
+if [ -d "$ALPINE_ROOT/android/system/apex" ]; then
+    rm -f /apex 2>/dev/null
+    ln -sf "$ALPINE_ROOT/android/system/apex" /apex
+    CLEANUP_ACTIONS="rm -f /apex;$CLEANUP_ACTIONS"
+    log "  ✓ /apex -> $ALPINE_ROOT/android/system/apex"
+else
+    log "  ✗ APEX not found"
+fi
+
+log ""
+# --------------------------------------------------
+# Timezone + Property + Binderfs
+# --------------------------------------------------
+
+log "========================================="
+log "=== SYSTEM INFRASTRUCTURE ==="
+log "========================================="
+log ""
+
+if [ -x /system/bin/tzdatacheck ] && [ -d "$ALPHYBRIS_ROOT/usr/share/zoneinfo" ]; then
+    log "Running tzdatacheck..."
+    /system/bin/tzdatacheck "$ALPHYBRIS_ROOT/usr/share/zoneinfo" "$ALPHYBRIS_ROOT/usr/share/zoneinfo" 2>&1 | head -5 | tee -a "$LOGFILE"
+fi
+
+log ""
+if [ -d /dev/__properties__ ]; then
+    rm -rf "$ALPINE_ROOT/dev/__properties__" 2>/dev/null
+    mkdir -p "$ALPINE_ROOT/dev"
+    cp -r /dev/__properties__ "$ALPINE_ROOT/dev/__properties__"
+    log "✓ Property service copied"
+    CLEANUP_ACTIONS="rm -rf $ALPINE_ROOT/dev/__properties__;$CLEANUP_ACTIONS"
+fi
+
+log ""
+mkdir -p "$ALPINE_ROOT/dev/binderfs"
+if mount -t binder binder "$ALPINE_ROOT/dev/binderfs" 2>/dev/null; then
+    log "✓ Binderfs mounted"
+    CLEANUP_ACTIONS="umount $ALPINE_ROOT/dev/binderfs;$CLEANUP_ACTIONS"
+    chmod 666 "$ALPINE_ROOT/dev/binderfs"/* 2>/dev/null
+    ln -sf /dev/binderfs/binder "$ALPINE_ROOT/dev/binder"
+    ln -sf /dev/binderfs/hwbinder "$ALPINE_ROOT/dev/hwbinder"
+    ln -sf /dev/binderfs/vndbinder "$ALPINE_ROOT/dev/vndbinder"
+    CLEANUP_ACTIONS="rm -f $ALPINE_ROOT/dev/binder $ALPINE_ROOT/dev/hwbinder $ALPINE_ROOT/dev/vndbinder;$CLEANUP_ACTIONS"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Kernel modules
+# --------------------------------------------------
+
+log "========================================="
+log "=== KERNEL MODULE LOADING ==="
+log "========================================="
+log ""
+
+INSMOD_CMD="/sbin/insmod"
+log "Using insmod: $INSMOD_CMD"
+
+log ""
+SOCKO_MOUNT=""
+for try_mount in /mnt/vendor/socko "$ALPHYBRIS_ROOT/vendor/socko"; do
+    mkdir -p "$try_mount" 2>/dev/null
+    if [ -b "$SOCKO_PARTITION" ]; then
+        if mount -t ext4 -o ro "$SOCKO_PARTITION" "$try_mount" 2>/dev/null; then
+            log "✓ Socko mounted at $try_mount"
+            SOCKO_MOUNT="$try_mount"
+            CLEANUP_ACTIONS="umount $try_mount;$CLEANUP_ACTIONS"
+            break
+        fi
+    fi
+done
+
+if [ -n "$SOCKO_MOUNT" ]; then
+    log "Loading socko modules (excluding sprd_vdsp.ko)..."
+    for mod in mali_gondul.ko mmdvfs.ko sprd_cpp.ko sprd_sensor.ko sprd_flash_drv.ko sprdbt_tty.ko sprd_fm.ko sprdwl_ng.ko; do
+        if [ -f "$SOCKO_MOUNT/$mod" ]; then
+            $INSMOD_CMD "$SOCKO_MOUNT/$mod" 2>&1 | tee -a "$LOGFILE"
+            sleep 0.3
+        fi
+    done
+fi
+
+log ""
+log "Loading vendor modules..."
+VENDOR_MODULES="$ALPHYBRIS_ROOT/android/vendor/lib/modules"
+if [ -d "$VENDOR_MODULES" ]; then
+    for mod in incrementalfs.ko kheaders.ko; do
+        if [ -f "$VENDOR_MODULES/$mod" ]; then
+            $INSMOD_CMD "$VENDOR_MODULES/$mod" 2>&1 | tee -a "$LOGFILE"
+            sleep 0.3
+        fi
+    done
+fi
+
+log ""
+log "Loaded modules:"
+lsmod | tee -a "$LOGFILE"
+
+log ""
+
+# --------------------------------------------------
+# One-shot Alpine login on tty1 via chroot
+# --------------------------------------------------
+
+log "========================================="
+log "=== ALPINE GETTY TEST (tty1) ==="
+log "========================================="
+log ""
+
+log "Binding /dev, /proc, /sys into Alpine root..."
+mkdir -p "$ALPINE_ROOT/dev" "$ALPINE_ROOT/proc" "$ALPINE_ROOT/sys"
+mount -o bind /dev  "$ALPINE_ROOT/dev"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/dev;$CLEANUP_ACTIONS"
+mount -o bind /proc "$ALPINE_ROOT/proc"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/proc;$CLEANUP_ACTIONS"
+mount -o bind /sys  "$ALPINE_ROOT/sys"
+CLEANUP_ACTIONS="umount $ALPINE_ROOT/sys;$CLEANUP_ACTIONS"
+
+log "Current host tty is: $(/system/bin/toybox tty 2>/dev/null || tty 2>/dev/null)"
+log "Spawning Alpine /sbin/getty on /dev/tty1..."
+log "If /dev/tty1 exists, switch to it and log in; then exit to resume this script."
+
+chroot "$ALPINE_ROOT" /sbin/getty 38400 tty1 linux
+
+log "Returned from Alpine getty session"
+
+# --------------------------------------------------
+# Hardware setup
+# --------------------------------------------------
+
+log "========================================="
+log "=== UNISOC HARDWARE SETUP ==="
+log "========================================="
+log ""
+
+if [ -x "$ALPHYBRIS_ROOT/usr/local/bin/setup-unisoc-hardware" ]; then
+    (
+        cd "$ALPHYBRIS_ROOT" || exit 1
+        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        export ANDROID_TZDATA_ROOT="$ALPHYBRIS_ROOT/usr/share/zoneinfo"
+        ./usr/local/bin/setup-unisoc-hardware 2>&1 | tail -100
+        echo "Exit code: $?"
+    ) | tee -a "$LOGFILE"
+fi
+
+log ""
+
+# --------------------------------------------------
+# Hardware test
+# --------------------------------------------------
+
+log "========================================="
+log "=== HARDWARE TEST ==="
+log "========================================="
+log ""
+
+log "Checking tty from Android side after Alpine session:"
+(/system/bin/toybox tty 2>/dev/null || tty 2>/dev/null) | tee -a "$LOGFILE"
+
+log ""
+log "  OS:"
+/bin/busybox uname -a | tee -a "$LOGFILE"
+log "  OS release:"
+if [ -f /etc/os-release ]; then
+    /bin/busybox cat /etc/os-release | tee -a "$LOGFILE"
+else
+    log "    /etc/os-release not found"
+fi
+log "  Network:"
+/android/system/bin/ip link show | /bin/busybox grep -E "wlan|seth|dummy" | /usr/bin/head -15 | tee -a "$LOGFILE"
+log ""
+log "  Modem:"
+/bin/ps | /bin/busybox grep ofono | /bin/busybox grep -v grep | tee -a "$LOGFILE" || log "    Not running"
+log ""
+log "  DRM/Display:"
+[ -c /dev/dri/card0 ] && log "    ✓ /dev/dri/card0" || log "    ✗ No DRM"
+log ""
+log "  Mali GPU:"
+[ -c /dev/mali0 ] && log "    ✓ /dev/mali0" || log "    ✗ No Mali"
+log ""
+log "  IIO Sensors:"
+[ -d /sys/bus/iio/devices ] && /bin/ls /sys/bus/iio/devices | tee -a "$LOGFILE" || log "    No IIO"
+log ""
+log "  Thermal sensors:"
+if ls /sys/class/thermal/thermal_zone* >/dev/null 2>&1; then
+    for z in /sys/class/thermal/thermal_zone*; do
+        [ -d "$z" ] || continue
+        ZNAME=$(cat "$z/type" 2>/dev/null || echo "$(basename "$z")")
+        ZTEMP=$(cat "$z/temp" 2>/dev/null || echo "N/A")
+        log "    $ZNAME: $ZTEMP"
+    done
+else
+    log "    No thermal zones found"
+fi
+log ""
+log "  Camera (I2C and V4L2):"
+if [ -d /sys/bus/i2c/devices ]; then
+    /bin/ls /sys/bus/i2c/devices | /bin/busybox grep -Ei "cam|sensor" | tee -a "$LOGFILE" || log "    No obvious camera I2C nodes"
+else
+    log "    No camera I2C (sysfs) directory"
+fi
+if [ -d /dev ]; then
+    /bin/ls /dev/video* 2>/dev/null | tee -a "$LOGFILE" || log "    No /dev/video* nodes"
+else
+    log "    /dev not accessible for video nodes"
+fi
+log ""
+log "  RAM:"
+/bin/busybox free -h | tee -a "$LOGFILE"
+log ""
+log "  Uptime:"
+/bin/busybox uptime | tee -a "$LOGFILE"
+log ""
+
+# --------------------------------------------------
+# Final status
+# --------------------------------------------------
+
+log "========================================="
+log "=== FINAL STATUS ==="
+log "========================================="
+log ""
+
+log "=== TEST COMPLETE  ==="
+log "Main log: $LOGFILE"
+log ""
+
+# --------------------------------------------------
+# Cleanup
+# --------------------------------------------------
+
+cleanup_all() {
+    log "=== CLEANUP ==="
+    
+    for mod in $(lsmod | /bin/busybox grep -E "sprd|mali|incremental" | /bin/busybox awk '{print $1}'); do
+        rmmod "$mod" 2>/dev/null
+    done
+    
+    IFS=";"
+    for action in $CLEANUP_ACTIONS; do
+        [ -n "$action" ] && eval "$action" 2>/dev/null || true
+    done
+    
+    log "  ✓ Cleanup complete"
+}
+
+trap cleanup_all EXIT INT TERM
+cleanup_all
+
+log "Launching realrecovery..."
+exec /system/bin/realrecovery "$@"
