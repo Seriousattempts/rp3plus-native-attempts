@@ -1,0 +1,97 @@
+
+
+Running 3(+) different Linux Distros at the same time, if you can with screen access
+Tested on a "4GB" Car Multimedia player booted into Android 11 ums512_1h10_natv board.
+Note, people game on a 4GB Windows Machine. Proof before I upgraded and added 16GB of Ram https://www.amazon.com/dp/B07RF1XD36 (Only games I played were arcade games during year of the arcade).
+
+
+Let Android be the init as you run things around it in a recovery environment.
+- Modify other .rc file through init.rc and init.recovery.common.rc to use shared libraries and arm binaries
+
+I used an sd card formatted by SD Card Formatter (recommended when testing GarlicOS)
+
+You need an unlocked bootloader.
+- Dunno if one's available for your device but crack that sucker open.
+You need to know your device nodes, ones created by ueventd.rc (unless you have a ubport/drodian port than use that to obtain the dev nodes!)
+- You can use adb shell to determine what's build by the kernel and ueventd and what's made only accessible by software
+You need access to your recovery ramdisk. Either via boot.img, vendor_boot.img or somewhere else
+- You're busting it open, modifying it and reclosing it as if you never touched it
+
+
+- If you have access to the latest payload.bin update for your device, extract the partitions with payload_dumper on your pc
+1. Can check needroms and other sites for your device to save on the hassle as well (see any of my uboot, vendor paths in the repository for how I tested with other files)
+-- Download Android_boot_image_editor to open that .img that uses the recovery ramdisk using ./gradlew unpack on your pc
+1. Linux only! Windows use WSL/Ubuntu/VirtualBox/whateveruseslinuxcmdline
+--- Copy boot.json and save that thang somewhere else. boot.img uses avb verification, idk about vendor_boot or other recovery ramdisks.
+
+Gotta use TWRP for pure linux commands to take over.
+- Regardless if your boot.img uses recovery ramdisk or not, take that boot.img and build twrp boot.img with hovatek
+-- After being built, install the magisk apk for your android device. Then use that twrp boot.img to build the new boot.img with magisk. Congrats, you have a magisk twrp boot.img!
+--- With that new boot.img, open that ramdisk with Android_boot_image_editor and replace that boot.json with the stock boot.json
+---- Do the whole (Settings, About, smack last item 7 times, go back a page, go a panel above at System, go to developer options, enable usb debugging (LOOK AT YOUR MEMORY!)
+----- Plug to a PC with platform-tools, type:
+1. adb devices (accept on your android if you never did usb debugging before)
+2. adb reboot bootloader
+- fastboot getvar all
+3. fastboot flash boot_a your_magisk_twrp_boot.img (this is based on Android 11/12 [I tested 11] and it uses dynamic partitions)
+- If boot.img doesn't use recovery ramdisk use your vendor_boot or wherever your recovery ramdisk is located in the respective partition and flash that along with twrp boot.img (there's something you can type when accessing the bootloader to print all your partitions to cmd, don't remember).
+4. fastboot reboot
+------ You can boot into recovery by typing "adb reboot recovery" when your pc detects your device or boot into recovery via hardware presses.
+------- Dunno if anything changes to boot into TWRP if your boot.img doesn't use a recovery ramdisk.
+-------- Your boot.img NEEDs magisk to continue if you're gonna build your own distro parition from scratch using your android device as the builder
+
+Get a list of all your partition mounts and loop devices. (bootloader doesn't expose loop devices, I don't think)
+- Build a script that will export the results to a txt to your external sd (if your device has one).
+1. Here's how my TWRP.txt looks (forgot how I got it thouuuuugh sgdisk something something)
+-- find the userdata partition (oh, you're reformatting the device btw, userdata has the most room, which has your data, which we're separating [you probably understand divorce by now at your age])
+--- we're slicing that mofo in half (see Zach misunderstanding and how I partition76)
+
+After you reboot back into recovery, you have a choice.
+- If you plan to build your own distro:
+1. Run a modified version of my 77.sh file
+2. Erasing your data and then erasing data and metadata at the same time before booting into system
+3. Install linux through termux with magisk and a few magisk packages installed
+
+If you already have a distro ext4 to use:
+- Extract a pre-existing ext4 distro to your newly split partition (see any script with 77* for install example)
+0. You can modify files after extracting to that distro, along with repackaging (move.sh, folder.sh, any 88*.sh)
+1. No systemd distros unless you're gonna run it in a container because your kernel allows it (PID 1 is init second_stage in recvery)
+2. If it does have the namespace kernels (or you can rebuild that example kernel [lucky f#*k] look into libhybris distros (.
+- You need a tty dev node or config_vt in your kernel based on currently available libhybris distros (Alphybris/Manjaro libyhbris)
+
+For building your own custom distro for your device, I used chroot-distro; magisk required.
+- Boot into android and set up your device
+-- Check your storage to confirm it's been sliced in half
+--- Since you already have magisk, now download termux, chroot-distro and UPDATE-Busybox.Installer.v1.36.1-ALL-signed from osm0sis
+---- Install termux, go to magisk and both chroot-distro and busybox installer, restart after installing the second one
+----- Now use termux to install chroot-distro to your other halfed userdata, install packages, device nodes, etc (see my alpine.sh/debian.sh)
+
+Modify a new boot.img/vendor_boot.img/whatever_usesrecovery.img
+- Now you need to modify your recovery .img ramdisk to boot into the newly installed partition (I used Android_boot_image_editor, again!)
+-- You can inspect some of the files within the partitions that are accessible (like system.img, vendor.img, socko.img, etc)
+--- You may need to use the 1.36 busybox and move it to your /system/bin folder. Also take some /system/bin files that you may think about using with your init.rc to help boot into your ext4 linux partition
+---- Also get the ueventd.rc for both system and vendor, combine them into a new ueventd.rc for your /system/etc
+----- Extract your ld.config.txt via adb shell (copy /system/etc/ld.config.txt /linkerconfig/ld.config.txt), think of a way to use it to replace your /system/etc/ld.config.txt
+1. No matter what you do (for at least Android 11), it's going to detect you're in recovery and generate a minimal recovery ld.config:
+[2023-07-06 01:43:18]   dir.recovery = /system/bin
+[2023-07-06 01:43:19]   [recovery]
+[2023-07-06 01:43:19]   namespace.default.isolated = false
+[2023-07-06 01:43:19]   namespace.default.search.paths = /system/${LIB}
+[2023-07-06 01:43:19] ⚠ Generated MINIMAL recovery config
+2. This is what we have available to use /system/bin/linkerconfig
+Usage: linkerconfig [--target <target_directory>] [--strict] [--help]
+3. Can write a service script to run through init like service test_
+name /system/bin/sh /system/bin/test_script_file
+4. Can obtain what's currently running in normal android boot with adb shell getprop
+5. /sysstem has exec command, but if you try to overlay or bindmount improperly it will crash on you
+------ init.rc is your friend, change your /system/bin/recovery to /system/bin/realrecovery (thanks BlackSeraph and turtle) to test how your services are being used by init.rc
+-------- Mount the linux partition with init.rc and make their paths accessible by creating the partitions folders (Compare my new recovery.common.rc/init.rc to my stock recovery.common.rc/init.rc)
+--------- If using overlayfs and bindmount method, create the folders at the root of your ramdisk to match the paths not present in your ramdisk but in the partition and in your system.img if using android files (see 77_50.sh, alp_mnt)
+----------- You may need to put certain files within your ramdisk instead of relying on the bindmount (I put /lib/ld-musl-aarch64.so.1 in my ramdisk, dunno if that helped but I was having issues discovering that alpine uses host's path and not chroot path before doing overlayfs and bindmounts)
+------------ Create new scripts to run as services to load everything you need with on property (see my alp_* and and_* along with my recovery.common and init.rc)
+------------- "Always be testing" - The Full Nerd Podcast. Use your /system/bin/recovery as a script to test, apply a fallback to exec /system/bin/realrecovery
+1. Change /system/bin/recovery to /system/bin/realrecovery (thanks BlackSeraph and turtle) to test how your services are being used by init.rc
+2. dunno if you got a get out of jail free card to flash a clean os via your usb to pc by pressing hardware keys to flash partitions/rom files
+-------------- When completed, distribute!
+
+ld.config.txt is going to suck. Android automatically builds one for 11 in recovery. Unable to override.
