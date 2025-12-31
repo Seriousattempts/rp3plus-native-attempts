@@ -11,6 +11,9 @@ If you want one yourself, you can purchase from the following trusted retailers:
 - [DHGate](https://tidd.ly/4qiXgxe)
 - [eBay](https://ebay.us/T0J08q)
 
+
+###### *Affiliate disclosure*, though when was the last time you could afford to buy something online? Well if you do through any links that sends you to a retailer from this repository, I get a _percentage_ of a **_percentage_** that I probably won't get because I don't meet the threshold from directing you there.
+
 If you ever need to reformat your device (Requires a Windows computer): https://www.youtube.com/watch?v=MsysP8avelk
 
 
