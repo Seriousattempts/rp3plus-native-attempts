@@ -1,0 +1,40 @@
+{
+  "info" : {
+    "output" : "boot.img",
+    "json" : "boot.json",
+    "headerVersion" : 2,
+    "headerSize" : 1660,
+    "loadBase" : 0,
+    "tagsOffset" : 256,
+    "board" : "",
+    "pageSize" : 2048,
+    "cmdline" : "console=ttyS1,115200n8 buildvariant=user",
+    "osVersion" : "11.0.0",
+    "osPatchLevel" : "2022-07-00",
+    "hash" : "Baf44Bt3OSJJVjpvPgDKDYSWq18AAAAAAAAAAAAAAAA=",
+    "verify" : "VB2.0 PASS",
+    "imageSize" : 67108864
+  },
+  "kernel" : {
+    "file" : "/home/ralt/ums512_kernel/stock_boot/Android_boot_image_editor/build/unzip_boot/kernel",
+    "position" : 2048,
+    "size" : 19509264,
+    "loadOffset" : 32768
+  },
+  "ramdisk" : {
+    "file" : "/home/ralt/ums512_kernel/stock_boot/Android_boot_image_editor/build/unzip_boot/ramdisk.img.gz",
+    "position" : 19513344,
+    "size" : 9159715,
+    "loadOffset" : 88080384,
+    "xzFlags" : null
+  },
+  "secondBootloader" : null,
+  "recoveryDtbo" : null,
+  "dtb" : {
+    "file" : "/home/ralt/ums512_kernel/stock_boot/Android_boot_image_editor/build/unzip_boot/dtb",
+    "position" : 28674048,
+    "size" : 154560,
+    "loadOffset" : 32505856,
+    "dtbList" : [ ]
+  }
+}

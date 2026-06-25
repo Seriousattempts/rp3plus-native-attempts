@@ -1,0 +1,225 @@
+ralt@PCHP:~/ums512_kernel$ cd super
+ralt@PCHP:~/ums512_kernel/super$ ls -a
+.  ..  system_a.img  system_ext_a.img  vendor_a.img
+ralt@PCHP:~/ums512_kernel/super$ file vendor_a.img
+vendor_a.img: Linux rev 1.0 ext2 filesystem data, UUID=e4e51b89-7f01-501b-9b19-71d1d4470cf5, volume name "vendor" (extents) (large files) (huge files)
+ralt@PCHP:~/ums512_kernel/super$ sudo mkdir -p /mnt/vendor_arm
+[sudo] password for ralt:
+ralt@PCHP:~/ums512_kernel/super$ sudo mount -o loop,ro vendor_a.img /mnt/vendor_arm
+ralt@PCHP:~/ums512_kernel/super$ cd /mnt/vendor_arm/lib64/hw
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ ls -lh
+total 4.6M
+-rw-r--r--. 1 root root 287K Dec 31  2008 android.hardware.audio.effect@6.0-impl.so
+-rw-r--r--. 1 root root 207K Dec 31  2008 android.hardware.audio@6.0-impl.so
+-rw-r--r--. 1 root root  84K Dec 31  2008 android.hardware.bluetooth.audio@2.0-impl-unisoc.so
+-rw-r--r--. 1 root root  39K Dec 31  2008 android.hardware.broadcastradio@1.0-impl.so
+-rw-r--r--. 1 root root  21K Dec 31  2008 android.hardware.camera.provider@2.4-impl-sprd.so
+-rw-r--r--. 1 root root  77K Dec 31  2008 android.hardware.graphics.allocator@4.0-impl-arm.so
+-rw-r--r--. 1 root root 146K Dec 31  2008 android.hardware.graphics.mapper@4.0-impl-arm.so
+-rw-r--r--. 1 root root  77K Dec 31  2008 android.hardware.health@2.0-impl-2.1.so
+-rw-r--r--. 1 root root  17K Dec 31  2008 android.hardware.memtrack@1.0-impl.so
+-rw-r--r--. 1 root root  64K Dec 31  2008 android.hardware.renderscript@1.0-impl.so
+-rw-r--r--. 1 root root  64K Dec 31  2008 android.hardware.sensors@1.0-impl.so
+-rw-r--r--. 1 root root 101K Dec 31  2008 audio.bluetooth.default.so
+-rw-r--r--. 1 root root  25K Dec 31  2008 audio.bluetooth.ums512.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 audio.primary.default.so
+-rw-r--r--. 1 root root  29K Dec 31  2008 audio.r_submix.default.so
+-rw-r--r--. 1 root root  25K Dec 31  2008 audio.usb.default.so
+-rw-r--r--. 1 root root 103K Dec 31  2008 bootctrl.default.so
+-rw-r--r--. 1 root root 1.7M Dec 31  2008 camera.ums512.so
+-rw-r--r--. 1 root root  29K Dec 31  2008 dpu.ums512.so
+-rw-r--r--. 1 root root  92K Dec 31  2008 enhance.ums512.so
+-rw-r--r--. 1 root root  71K Dec 31  2008 face.default.so
+-rw-r--r--. 1 root root  33K Dec 31  2008 gps.default.so
+-rw-r--r--. 1 root root  21K Dec 31  2008 gralloc.default.so
+-rw-r--r--. 1 root root 217K Dec 31  2008 gsp.ums512.so
+-rw-r--r--. 1 root root 345K Dec 31  2008 hwcomposer.ums512.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 local_time.default.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 memtrack.ums512.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 power.default.so
+-rw-r--r--. 1 root root  45K Dec 31  2008 sensors.ums512.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 thermal.default.so
+-rw-r--r--. 1 root root 103K Dec 31  2008 unisoc.bootctrl.so
+-rw-r--r--. 1 root root 117K Dec 31  2008 vendor.sprd.hardware.boot@1.1-impl.so
+-rw-r--r--. 1 root root  21K Dec 31  2008 vendor.sprd.hardware.connmgr@1.0-impl.so
+-rw-r--r--. 1 root root  17K Dec 31  2008 vendor.sprd.hardware.enhance@1.0-impl.so
+-rw-r--r--. 1 root root 246K Dec 31  2008 vendor.sprd.hardware.gnss@2.1-impl.so
+-rw-r--r--. 1 root root  26K Dec 31  2008 vendor.sprd.hardware.network@1.0-impl.so
+-rw-r--r--. 1 root root  60K Dec 31  2008 vendor.sprd.hardware.thermal@2.0-impl.so
+-rw-r--r--. 1 root root  17K Dec 31  2008 vendor.sprd.hardware.wcn@1.0-impl.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 vibrator.default.so
+-rw-r--r--. 1 root root  12K Dec 31  2008 vibrator.ums512.so
+lrw-r--r--. 1 root root   22 Dec 31  2008 vulkan.ums512.so -> ../egl/libGLES_mali.so
+ralt@PCHP:~/ums512_kernel/super$ sudo mount -o loop,ro vendor_a.img /mnt/vendor_arm
+ralt@PCHP:~/ums512_kernel/super$ readelf -d /mnt/vendor_arm/lib64/egl/libGLES_mali.so | grep -i gralloc
+ 0x0000000000000001 (NEEDED)             Shared library: [libgralloctypes.so]
+ralt@PCHP:~/ums512_kernel/super$ strings /mnt/vendor_arm/lib64/egl/libGLES_mali.so | grep -i "gralloc\|mapper\|allocator" | head -20
+mali_gralloc_format_capabilities
+_ZN7android8gralloc410decodeCropERKNS_8hardware8hidl_vecIhEEPNSt3__16vectorIN4aidl7android8hardware8graphics6common4RectENS6_9allocatorISD_EEEE
+_ZN7android8gralloc411decodeUsageERKNS_8hardware8hidl_vecIhEEPm
+_ZN7android8gralloc411decodeWidthERKNS_8hardware8hidl_vecIhEEPm
+_ZN7android8gralloc412decodeHeightERKNS_8hardware8hidl_vecIhEEPm
+_ZN7android8gralloc415decodeDataspaceERKNS_8hardware8hidl_vecIhEEPN4aidl7android8hardware8graphics6common9DataspaceE
+_ZN7android8gralloc416decodeLayerCountERKNS_8hardware8hidl_vecIhEEPm
+_ZN7android8gralloc418decodePlaneLayoutsERKNS_8hardware8hidl_vecIhEEPNSt3__16vectorIN4aidl7android8hardware8graphics6common11PlaneLayoutENS6_9allocatorISD_EEEE
+_ZN7android8gralloc423decodePixelFormatFourCCERKNS_8hardware8hidl_vecIhEEPj
+_ZN7android8gralloc425decodePixelFormatModifierERKNS_8hardware8hidl_vecIhEEPm
+_ZN7android8hardware8graphics6mapper4V4_07IMapper10getServiceERKNSt3__112basic_stringIcNS5_11char_traitsIcEENS5_9allocatorIcEEEEb
+vkGetSwapchainGrallocUsage2ANDROID
+vkGetSwapchainGrallocUsageANDROID
+_ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE6appendEPKc
+_ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE6assignEPKc
+_ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEC1ERKS5_
+_ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEaSERKS5_
+_ZTCNSt3__118basic_stringstreamIcNS_11char_traitsIcEENS_9allocatorIcEEEE0_NS_13basic_istreamIcS2_EE
+_ZTCNSt3__118basic_stringstreamIcNS_11char_traitsIcEENS_9allocatorIcEEEE0_NS_14basic_iostreamIcS2_EE
+_ZTCNSt3__118basic_stringstreamIcNS_11char_traitsIcEENS_9allocatorIcEEEE16_NS_13basic_ostreamIcS2_EE
+ralt@PCHP:~/ums512_kernel/super$
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ readelf -d hwcomposer.ums512.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libEGL.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libmemion.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libGLESv1_CM.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libhardware.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libui.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libsync.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libnativewindow.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libhidlbase.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libpowerhal_cli.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libbase.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdrm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ readelf -d vulkan.ums512.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libz.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libnativewindow.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common@1.0.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdrm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common-V1-ndk_platform.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common@1.2.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [arm.graphics-V1-ndk_platform.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.mapper@4.0.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgralloctypes.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libhidlbase.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ for file in \
+rdware.g> android.hardware.graphics.allocator@4.0-impl-arm.so \
+roid.hardware.gr> android.hardware.graphics.mapper@4.0-impl-arm.so \
+> hwcomposer.ums512.so \
+> vulkan.ums512.so \
+> gralloc.default.so; do
+ [ -f ">     if [ -f "$file" ]; then
+ echo ">         echo "✅ [FOUND] $file"
+>         file "$file" # Confirms it's ARM64
+>     else
+>         echo "❌ [MISSING] $file"
+   fi
+do>     fi
+> done
+✅ [FOUND] android.hardware.graphics.allocator@4.0-impl-arm.so
+android.hardware.graphics.allocator@4.0-impl-arm.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[md5/uuid]=1dd838eb6657f12efd6d562f5f2dc086, stripped
+✅ [FOUND] android.hardware.graphics.mapper@4.0-impl-arm.so
+android.hardware.graphics.mapper@4.0-impl-arm.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[md5/uuid]=a5fc4c7547222f3ddaae6d87709d85f2, stripped
+✅ [FOUND] hwcomposer.ums512.so
+hwcomposer.ums512.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[md5/uuid]=786fe9537a8ca2b8e37bd5f546680218, stripped
+✅ [FOUND] vulkan.ums512.so
+vulkan.ums512.so: symbolic link to ../egl/libGLES_mali.so
+✅ [FOUND] gralloc.default.so
+gralloc.default.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, BuildID[md5/uuid]=580cfa3005e9ec2438ed921102fe8460, stripped
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ # Check the dependencies of the memory ion library
+delf -d /mnt/venralt@PCHP:/mnt/vendor_arm/lib64/hw$ readelf -d /mnt/vendor_arm/lib64/libmemion.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)             Shared library: [libutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ralt@PCHP:/mnt/vendor_arm/lib64/hw$ readelf -d /mnt/vendor_arm/lib64/egl/libGLES_mali.so | grep NEEDED
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libz.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libnativewindow.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common@1.0.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdrm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common-V1-ndk_platform.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.common@1.2.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [arm.graphics-V1-ndk_platform.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [android.hardware.graphics.mapper@4.0.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgralloctypes.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libhidlbase.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libutils.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ralt@PCHP:~/ums512_kernel/super$ sudo find /mnt/system_arm/system/apex -name "com.android.runtime*"
+/mnt/system_arm/system/apex/com.android.runtime.apex
+ralt@PCHP:~/ums512_kernel/super$ cp /mnt/system_arm/system/apex/com.android.runtime.apex /tmp/
+ralt@PCHP:~/ums512_kernel/super$ cd /tmp
+ralt@PCHP:/tmp$ unzip com.android.runtime.apex apex_payload.img
+Archive:  com.android.runtime.apex
+ extracting: apex_payload.img
+ralt@PCHP:/tmp$ sudo mkdir -p /mnt/apex_runtime
+ralt@PCHP:/tmp$ sudo mount -o loop,ro apex_payload.img /mnt/apex_runtime
+ralt@PCHP:/tmp$ ls -lh /mnt/apex_runtime/bin/linker64
+-rwxr-xr-x. 1 root 2000 1.4M Dec 31  1969 /mnt/apex_runtime/bin/linker64
+ralt@PCHP:/tmp$ ls -lh /mnt/apex_runtime/lib64/bionic/
+total 1.2M
+-rw-r--r--. 1 ralt ralt 956K Dec 31  1969 libc.so
+-rw-r--r--. 1 ralt ralt  14K Dec 31  1969 libdl.so
+-rw-r--r--. 1 ralt ralt  11K Dec 31  1969 libdl_android.so
+-rw-r--r--. 1 ralt ralt 218K Dec 31  1969 libm.so
+
+
+1. The Hardware & Kernel DNA
+The Brain: The Unisoc ums512 SoC. This is an ARM64 octa-core chipset.
+
+The Muscle:
+ARM Mali-G52 r1p0 GPU
+Bifrost v7 architecture.
+OpenGL ES 1.x, 2.0, and 3.0
+OpenCL 2.1 support with full profile
+EGL 1.4 with 25 rendering configurations including HDR support (10-bit color depth)
+
+The FoundationL
+4.14.193 kernel.
+Android 10/11 devices.
+
+The Driver Style:
+Vendor BSP (Board Support Package) setup.
+Instead, it relies on Spreadtrum’s proprietary kernel modules and Arm's closed-source blobs.
+
+2. The Graphics Stack (The "Android Way")
+Mali blobs depend on libnativewindow.so and libhidlbase.so
+Render-to-Buffer: Render into a memory buffer provided by Gralloc (via libui.so).
+
+The HIDL Bridge: libhidlbase.so means the graphics drivers communicate with the system using Hardware Abstraction Layer (HAL) calls.
+Android IPC (Inter-Process Communication) mechanism.
+
+The Display Postman:
+hwcomposer.ums512.so
+It takes the buffers rendered by the Mali GPU and "flips" them to the display hardware.
+
+3. The Memory Management (ION)
+libmemion.so confirms that memory isn't just "allocated"; it’s managed by the ION Memory Manager.
+
+
+
+Summary of the ums512 Setup
+Kernel (4.14): Provides /dev/ion (memory), /dev/mali0 (GPU), and /dev/dri/card0 (Display).
+
+Bionic Environment: /system/apex/com.android.release.apex/bin/linker64 loads the blobs into a protected memory space.
+
+Graphics API: Mali provides OpenGL ES / Vulkan, but requires libnativewindow to function.

@@ -1,0 +1,331 @@
+ralt@PCHP:~/ums512_kernel/alp$ nm -D RsMapping_unpacked/lib/arm64-v8a/librsinput.so | grep -E "T rsinput|T pinput|T device_open|T rs"
+0000000000013b3c T device_open
+0000000000015800 T pinput_config_init
+0000000000015824 T pinput_get_joystick_mode
+000000000001587c T pinput_set_joystick_mode
+000000000002a8f4 T rsdev_adjustment
+000000000002a180 T rsdev_get_debounce
+0000000000021cb8 T rsdev_get_debounce_q4
+000000000002a2b0 T rsdev_get_debounce_travel
+0000000000021dc8 T rsdev_get_debounce_travel_q4
+0000000000025414 T rsdev_get_debounce_u3
+000000000002a474 T rsdev_get_joystick_adc
+0000000000021f40 T rsdev_get_joystick_adc_q4
+0000000000025d38 T rsdev_get_joystick_adc_u3
+000000000002a3d0 T rsdev_get_sensitivity
+0000000000021ec4 T rsdev_get_sensitivity_q4
+0000000000025384 T rsdev_get_sensitivity_u3
+000000000002a608 T rsdev_get_vertex
+0000000000022214 T rsdev_get_vertex_q4
+0000000000025ab0 T rsdev_get_vertex_u3
+000000000002a730 T rsdev_init
+000000000001fa60 T rsdev_init_console
+0000000000022974 T rsdev_init_q4
+0000000000025ea4 T rsdev_init_u3
+0000000000029f40 T rsdev_pid_detect
+000000000002a6ac T rsdev_power_manage
+00000000000223e4 T rsdev_power_manage_q4
+000000000001f434 T rsdev_read_factory_settings
+0000000000026ee0 T rsdev_screen_status
+000000000002a0f4 T rsdev_set_debounce
+0000000000021c30 T rsdev_set_debounce_q4
+000000000002a224 T rsdev_set_debounce_travel
+0000000000021d40 T rsdev_set_debounce_travel_q4
+00000000000254b0 T rsdev_set_debounce_u3
+0000000000025a68 T rsdev_set_max_radius_proportion_u3
+000000000002a354 T rsdev_set_sensitivity
+0000000000021e50 T rsdev_set_sensitivity_q4
+000000000002520c T rsdev_set_sensitivity_u3
+000000000002a57c T rsdev_set_vertex
+0000000000022328 T rsdev_set_vertex_l2r2_q4
+0000000000025918 T rsdev_set_vertex_l2r2_u3
+0000000000021fe0 T rsdev_set_vertex_q4
+00000000000255a0 T rsdev_set_vertex_u3
+000000000002a4f8 T rsdev_update_calibration_setting
+00000000000228f0 T rsdev_update_calibration_setting_q4
+00000000000270b0 T rsdev_update_calibration_setting_u3
+000000000002fb44 T rsinput_assert
+000000000002faf4 T rsinput_deinit
+000000000002fbf8 T rsinput_dispatch
+000000000002fa3c T rsinput_init
+ralt@PCHP:~/ums512_kernel/alp$ strings RsMapping_unpacked/lib/arm64-v8a/librsinput.so | grep -E "keylayout|usr/key|/system|/vendor|/data"
+keylayout_load
+keylayout_get
+find /data/devices/rsinput/ -name "log.txt*" > /data/devices/rsinput/initlog
+rm /data/devices/rsinput/initlog
+/data/devices/rsinput/rsinput.log%d
+keylayout_load
+/data/devices/keylayout/
+/vendor/usr/keylayout/
+/system/usr/keylayout/
+/data/system/devices/keylayout/
+/mnt/vendor/persist/odin/joys
+/mnt/vendor/retrostation/joys
+/vendor/firmware/versioninfo.txt
+/vendor/firmware/mcuapp_firmware.bin
+ralt@PCHP:~/ums512_kernel/alp$ aarch64-linux-gnu-objdump -d RsMapping_unpacked/lib/arm64-v8a/librsinput.so | awk '/^.*rsinput_init.*:/,/^[0-9a-f]+ </' | head -30
+000000000000e7b0 <rsinput_init@plt>:
+000000000002fa3c <rsinput_init@@Base>:
+
+
+
+Android:
+ums512_1h10:/ # /apex/com.android.runtime/bin/linker --list /system/bin/pservice 2>&1
+        liblog.so => /system/lib/liblog.so (0xef9ae000)
+        libstdc++.so => /system/lib/libstdc++.so (0xf0251000)
+        libbinder.so => /system/lib/libbinder.so (0xf0c46000)
+        libandroid.so => /system/lib/libandroid.so (0xf0da0000)
+        libandroid_runtime.so => /system/lib/libandroid_runtime.so (0xefa4f000)
+        libcutils.so => /system/lib/libcutils.so (0xeee61000)
+        libutils.so => /system/lib/libutils.so (0xf028f000)
+        libc++.so => /system/lib/libc++.so (0xf1901000)
+        libc.so => /apex/com.android.runtime/lib/bionic/libc.so (0xee78b000)
+        libm.so => /apex/com.android.runtime/lib/bionic/libm.so (0xeda82000)
+        libdl.so => /apex/com.android.runtime/lib/bionic/libdl.so (0xf0e85000)
+        libhidlbase.so => /system/lib/libhidlbase.so (0xf0007000)
+        libandroidfw.so => /system/lib/libandroidfw.so (0xf0858000)
+        libinput.so => /system/lib/libinput.so (0xefb81000)
+        libui.so => /system/lib/libui.so (0xedbc5000)
+        libgui.so => /system/lib/libgui.so (0xee846000)
+        libharfbuzz_ng.so => /system/lib/libharfbuzz_ng.so (0xf114d000)
+        libsensor.so => /system/lib/libsensor.so (0xef24f000)
+        libminikin.so => /system/lib/libminikin.so (0xf0417000)
+        libnetd_client.so => /system/lib/libnetd_client.so (0xef623000)
+        libhwui.so => /system/lib/libhwui.so (0xedd47000)
+        libxml2.so => /system/lib/libxml2.so (0xefc41000)
+        libEGL.so => /system/lib/libEGL.so (0xf1652000)
+        libGLESv2.so => /system/lib/libGLESv2.so (0xeed42000)
+        libpowermanager.so => /system/lib/libpowermanager.so (0xeec48000)
+        android.hardware.configstore@1.0.so => /system/lib/android.hardware.configstore@1.0.so (0xef446000)
+        android.hardware.configstore-utils.so => /system/lib/android.hardware.configstore-utils.so (0xef7f7000)
+        libnativedisplay.so => /system/lib/libnativedisplay.so (0xef181000)
+        libbase.so => /system/lib/libbase.so (0xef641000)
+        libz.so => /system/lib/libz.so (0xf1251000)
+        libziparchive.so => /system/lib/libziparchive.so (0xf169e000)
+        libbpf_android.so => /system/lib/libbpf_android.so (0xeff66000)
+        libnetdbpf.so => /system/lib/libnetdbpf.so (0xf014a000)
+        libnetdutils.so => /system/lib/libnetdutils.so (0xf16e6000)
+        libmemtrack.so => /system/lib/libmemtrack.so (0xf103a000)
+        libappfuse.so => /system/lib/libappfuse.so (0xef763000)
+        libcrypto.so => /system/lib/libcrypto.so (0xed92a000)
+        libdebuggerd_client.so => /system/lib/libdebuggerd_client.so (0xf0a61000)
+        libgraphicsenv.so => /system/lib/libgraphicsenv.so (0xf094e000)
+        libmediandk.so => /system/lib/libmediandk.so (0xef68c000)
+        libcamera_client.so => /system/lib/libcamera_client.so (0xef1e2000)
+        libcamera_metadata.so => /system/lib/libcamera_metadata.so (0xef8ee000)
+        libsqlite.so => /system/lib/libsqlite.so (0xf0321000)
+        libGLESv1_CM.so => /system/lib/libGLESv1_CM.so (0xedc70000)
+        libGLESv3.so => /system/lib/libGLESv3.so (0xf0501000)
+        libincfs.so => /system/lib/libincfs.so (0xeeb10000)
+        libdataloader.so => /system/lib/libdataloader.so (0xeda05000)
+        libvulkan.so => /system/lib/libvulkan.so (0xeff9f000)
+        libETC1.so => /system/lib/libETC1.so (0xefc0a000)
+        libhardware.so => /system/lib/libhardware.so (0xf0de0000)
+        libhardware_legacy.so => /system/lib/libhardware_legacy.so (0xf01ee000)
+        libselinux.so => /system/lib/libselinux.so (0xf1125000)
+        libmedia.so => /system/lib/libmedia.so (0xf0467000)
+        libmedia_helper.so => /system/lib/libmedia_helper.so (0xef914000)
+        libmediametrics.so => /system/lib/libmediametrics.so (0xeece6000)
+        libmeminfo.so => /system/lib/libmeminfo.so (0xf00d7000)
+        libaudioclient.so => /system/lib/libaudioclient.so (0xef54c000)
+        libaudiofoundation.so => /system/lib/libaudiofoundation.so (0xf1995000)
+        libaudiopolicy.so => /system/lib/libaudiopolicy.so (0xf0743000)
+        libusbhost.so => /system/lib/libusbhost.so (0xeee19000)
+        libpdfium.so => /system/lib/libpdfium.so (0xee30c000)
+        libimg_utils.so => /system/lib/libimg_utils.so (0xf10b0000)
+        libprocessgroup.so => /system/lib/libprocessgroup.so (0xeec85000)
+        libnativebridge_lazy.so => /system/lib/libnativebridge_lazy.so (0xf160f000)
+        libnativeloader_lazy.so => /system/lib/libnativeloader_lazy.so (0xefd47000)
+        libmemunreachable.so => /system/lib/libmemunreachable.so (0xf0e51000)
+        libvintf.so => /system/lib/libvintf.so (0xef35a000)
+        libnativewindow.so => /system/lib/libnativewindow.so (0xf1a66000)
+        libdl_android.so => /apex/com.android.runtime/lib/bionic/libdl_android.so (0xef3f8000)
+        libstatslog.so => /system/lib/libstatslog.so (0xefe04000)
+        libtimeinstate.so => /system/lib/libtimeinstate.so (0xf05a6000)
+        server_configurable_flags.so => /system/lib/server_configurable_flags.so (0xf1a91000)
+        libvndksupport.so => /system/lib/libvndksupport.so (0xf072f000)
+        android.hardware.graphics.allocator@2.0.so => /system/lib/android.hardware.graphics.allocator@2.0.so (0xeeae9000)
+        android.hardware.graphics.allocator@3.0.so => /system/lib/android.hardware.graphics.allocator@3.0.so (0xf09ce000)
+        android.hardware.graphics.allocator@4.0.so => /system/lib/android.hardware.graphics.allocator@4.0.so (0xef724000)
+        android.hardware.graphics.common-V1-ndk_platform.so => /system/lib/android.hardware.graphics.common-V1-ndk_platform.so (0xef0e5000)
+        android.hardware.graphics.common@1.2.so => /system/lib/android.hardware.graphics.common@1.2.so (0xef5c8000)
+        android.hardware.graphics.mapper@2.0.so => /system/lib/android.hardware.graphics.mapper@2.0.so (0xf0214000)
+        android.hardware.graphics.mapper@2.1.so => /system/lib/android.hardware.graphics.mapper@2.1.so (0xeff08000)
+        android.hardware.graphics.mapper@3.0.so => /system/lib/android.hardware.graphics.mapper@3.0.so (0xf0ec2000)
+        android.hardware.graphics.mapper@4.0.so => /system/lib/android.hardware.graphics.mapper@4.0.so (0xef84d000)
+        libgralloctypes.so => /system/lib/libgralloctypes.so (0xee907000)
+        libsync.so => /system/lib/libsync.so (0xed8a6000)
+        android.hardware.graphics.bufferqueue@1.0.so => /system/lib/android.hardware.graphics.bufferqueue@1.0.so (0xefe58000)
+        android.hardware.graphics.bufferqueue@2.0.so => /system/lib/android.hardware.graphics.bufferqueue@2.0.so (0xefdc1000)
+        android.hardware.graphics.common@1.1.so => /system/lib/android.hardware.graphics.common@1.1.so (0xedacd000)
+        android.hidl.token@1.0-utils.so => /system/lib/android.hidl.token@1.0-utils.so (0xefa1f000)
+        android.frameworks.bufferhub@1.0.so => /system/lib/android.frameworks.bufferhub@1.0.so (0xedc95000)
+        libbufferhub.so => /system/lib/libbufferhub.so (0xf0aeb000)
+        libbufferhubqueue.so => /system/lib/libbufferhubqueue.so (0xf1482000)
+        libpdx_default_transport.so => /system/lib/libpdx_default_transport.so (0xf07d0000)
+        libdng_sdk.so => /system/lib/libdng_sdk.so (0xeeef1000)
+        libexpat.so => /system/lib/libexpat.so (0xf1306000)
+        libjpeg.so => /system/lib/libjpeg.so (0xedb52000)
+        libpiex.so => /system/lib/libpiex.so (0xf12c9000)
+        libpng.so => /system/lib/libpng.so (0xef317000)
+        libbinder_ndk.so => /system/lib/libbinder_ndk.so (0xefe86000)
+        libheif.so => /system/lib/libheif.so (0xf1ae8000)
+        libprotobuf-cpp-lite.so => /system/lib/libprotobuf-cpp-lite.so (0xeea4a000)
+        libft2.so => /system/lib/libft2.so (0xef48e000)
+        libbacktrace.so => /system/lib/libbacktrace.so (0xf0b53000)
+        libSurfaceFlingerProp.so => /system/lib/libSurfaceFlingerProp.so (0xeedd3000)
+        android.hardware.configstore@1.1.so => /system/lib/android.hardware.configstore@1.1.so (0xf02c4000)
+        libbpf.so => /system/lib/libbpf.so (0xf1a22000)
+        android.hardware.memtrack@1.0.so => /system/lib/android.hardware.memtrack@1.0.so (0xeea1b000)
+        libprocinfo.so => /system/lib/libprocinfo.so (0xeef80000)
+        libandroid_runtime_lazy.so => /system/lib/libandroid_runtime_lazy.so (0xf0087000)
+        libdatasource.so => /system/lib/libdatasource.so (0xf0f6c000)
+        libmediadrm.so => /system/lib/libmediadrm.so (0xef949000)
+        libmedia_omx.so => /system/lib/libmedia_omx.so (0xf0551000)
+        libmedia_jni_utils.so => /system/lib/libmedia_jni_utils.so (0xeeb46000)
+        libstagefright.so => /system/lib/libstagefright.so (0xf0600000)
+        libstagefright_foundation.so => /system/lib/libstagefright_foundation.so (0xef9d6000)
+        libmediandk_utils.so => /system/lib/libmediandk_utils.so (0xedb0d000)
+        android.hardware.graphics.common@1.0.so => /system/lib/android.hardware.graphics.common@1.0.so (0xef157000)
+        android.system.suspend@1.0.so => /system/lib/android.system.suspend@1.0.so (0xf128a000)
+        libpcre2.so => /system/lib/libpcre2.so (0xf0b95000)
+        libpackagelistparser.so => /system/lib/libpackagelistparser.so (0xed8e2000)
+        libmedia_codeclist.so => /system/lib/libmedia_codeclist.so (0xf04da000)
+        libmedia_hdcp.so => /system/lib/libmedia_hdcp.so (0xf0aa8000)
+        capture_state_listener-aidl-V1-cpp.so => /system/lib/capture_state_listener-aidl-V1-cpp.so (0xf0f13000)
+        libaudioutils.so => /system/lib/libaudioutils.so (0xf1b4a000)
+        libaudiomanager.so => /system/lib/libaudiomanager.so (0xf10f8000)
+        libmediautils.so => /system/lib/libmediautils.so (0xefd8b000)
+        libnblog.so => /system/lib/libnblog.so (0xef887000)
+        libvibrator.so => /system/lib/libvibrator.so (0xee956000)
+        libcgrouprc.so => /system/lib/libcgrouprc.so (0xf150f000)
+        libhidl-gen-utils.so => /system/lib/libhidl-gen-utils.so (0xf14ed000)
+        libtinyxml2.so => /system/lib/libtinyxml2.so (0xedce4000)
+        android.hardware.common-V1-ndk_platform.so => /system/lib/android.hardware.common-V1-ndk_platform.so (0xedc32000)
+        android.hardware.media@1.0.so => /system/lib/android.hardware.media@1.0.so (0xf1591000)
+        android.hidl.token@1.0.so => /system/lib/android.hidl.token@1.0.so (0xf012f000)
+        libunwindstack.so => /system/lib/libunwindstack.so (0xef29d000)
+        libmediadrmmetrics_lite.so => /system/lib/libmediadrmmetrics_lite.so (0xefbe6000)
+        android.hardware.drm@1.0.so => /system/lib/android.hardware.drm@1.0.so (0xf0180000)
+        android.hardware.drm@1.1.so => /system/lib/android.hardware.drm@1.1.so (0xf0cca000)
+        android.hardware.drm@1.2.so => /system/lib/android.hardware.drm@1.2.so (0xf0f84000)
+        android.hardware.drm@1.3.so => /system/lib/android.hardware.drm@1.3.so (0xedd0a000)
+        libhidlallocatorutils.so => /system/lib/libhidlallocatorutils.so (0xef6e7000)
+        android.hardware.media.omx@1.0.so => /system/lib/android.hardware.media.omx@1.0.so (0xed83b000)
+        libstagefright_framecapture_utils.so => /system/lib/libstagefright_framecapture_utils.so (0xf0809000)
+        libcodec2.so => /system/lib/libcodec2.so (0xeed0d000)
+        libcodec2_vndk.so => /system/lib/libcodec2_vndk.so (0xf0d00000)
+        libmedia_omx_client.so => /system/lib/libmedia_omx_client.so (0xf1549000)
+        libsfplugin_ccodec.so => /system/lib/libsfplugin_ccodec.so (0xeeb83000)
+        libsprdssense.so => /system/lib/libsprdssense.so (0xef43b000)
+        libsfplugin_ccodec_utils.so => /system/lib/libsfplugin_ccodec_utils.so (0xf1b8b000)
+        libstagefright_codecbase.so => /system/lib/libstagefright_codecbase.so (0xf0c31000)
+        libstagefright_omx_utils.so => /system/lib/libstagefright_omx_utils.so (0xeee83000)
+        libRScpp.so => /system/lib/libRScpp.so (0xf0988000)
+        libhidlmemory.so => /system/lib/libhidlmemory.so (0xef7ae000)
+        android.hidl.allocator@1.0.so => /system/lib/android.hidl.allocator@1.0.so (0xf0b2a000)
+        android.hardware.cas.native@1.0.so => /system/lib/android.hardware.cas.native@1.0.so (0xeffd6000)
+        libspeexresampler.so => /system/lib/libspeexresampler.so (0xf05cc000)
+        liblzma.so => /system/lib/liblzma.so (0xefece000)
+        libdexfile_support.so => /system/lib/libdexfile_support.so (0xeec20000)
+        android.hidl.memory@1.0.so => /system/lib/android.hidl.memory@1.0.so (0xef81d000)
+        android.hardware.media.bufferpool@2.0.so => /system/lib/android.hardware.media.bufferpool@2.0.so (0xeda4f000)
+        libion.so => /system/lib/libion.so (0xf1b02000)
+        libfmq.so => /system/lib/libfmq.so (0xf171e000)
+        libstagefright_bufferpool@2.0.1.so => /system/lib/libstagefright_bufferpool@2.0.1.so (0xf0e1c000)
+        android.hardware.media.c2@1.0.so => /system/lib/android.hardware.media.c2@1.0.so (0xee98e000)
+        libcodec2_client.so => /system/lib/libcodec2_client.so (0xef124000)
+        libstagefright_bufferqueue_helper.so => /system/lib/libstagefright_bufferqueue_helper.so (0xf0799000)
+        libstagefright_omx.so => /system/lib/libstagefright_omx.so (0xef04a000)
+        libstagefright_xmlparser.so => /system/lib/libstagefright_xmlparser.so (0xf1228000)
+        android.hidl.memory.token@1.0.so => /system/lib/android.hidl.memory.token@1.0.so (0xef02d000)
+        android.hardware.cas@1.0.so => /system/lib/android.hardware.cas@1.0.so (0xf19c4000)
+        android.hidl.safe_union@1.0.so => /system/lib/android.hidl.safe_union@1.0.so (0xef0b3000)
+        android.hardware.media.c2@1.1.so => /system/lib/android.hardware.media.c2@1.1.so (0xeefde000)
+        libcodec2_hidl_client@1.0.so => /system/lib/libcodec2_hidl_client@1.0.so (0xf0a16000)
+        libcodec2_hidl_client@1.1.so => /system/lib/libcodec2_hidl_client@1.1.so (0xf08cd000)
+        libnativehelper.so => /apex/com.android.art/lib/libnativehelper.so (0xf15d5000)
+        libandroidicu.so => /apex/com.android.art/lib/libandroidicu.so (0xf0914000)
+        libicuuc.so => /apex/com.android.art/lib/libicuuc.so (0xf1343000)
+        libicui18n.so => /apex/com.android.art/lib/libicui18n.so (0xf1742000)
+        libstatssocket.so => /apex/com.android.os.statsd/lib/libstatssocket.so (0xf1056000)
+        libstatspull.so => /apex/com.android.os.statsd/lib/libstatspull.so (0xeed8b000)
+ums512_1h10:/ # ls -la /system/lib/liblog.so /system/lib64/liblog.so 2>&1
+-rw-r--r-- 1 root root 50628 2008-12-31 19:00 /system/lib/liblog.so
+-rw-r--r-- 1 root root 72008 2008-12-31 19:00 /system/lib64/liblog.so
+ums512_1h10:/ # ls -la /vendor/lib/liblog.so /vendor/lib64/liblog.so 2>&1
+ls: /vendor/lib/liblog.so: No such file or directory
+ls: /vendor/lib64/liblog.so: No such file or directory
+
+Need magisk installed and run su in adb shell while android is running:
+
+
+1|ums512_1h10:/ # grep 12743 /proc/*/net/unix 2>/dev/null | head -5
+/proc/1/net/unix:0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+/proc/10/net/unix:0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+/proc/105/net/unix:0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+/proc/106/net/unix:0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+/proc/11/net/unix:0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+ums512_1h10:/ # ls -la /proc/1341/fd | grep socket
+lrwx------ 1 system system 64 2026-06-15 21:16 3 -> socket:[13018]
+lrwx------ 1 system system 64 2026-06-15 21:16 50 -> socket:[986]
+lrwx------ 1 system system 64 2026-06-15 21:16 51 -> socket:[987]
+lrwx------ 1 system system 64 2026-06-15 21:16 52 -> socket:[67368]
+lrwx------ 1 system system 64 2026-06-15 21:12 58 -> socket:[14018]
+lrwx------ 1 system system 64 2026-06-15 21:16 71 -> socket:[12185]
+ums512_1h10:/ # cat /proc/1341/net/unix | grep 12743
+0000000000000000: 00000003 00000000 00000000 0001 03 12743 /dev/rsinput
+1341 -e trace=write,sendto,sendmsg -xx -s 128 2>&1 | head -40                     <
+/system/bin/sh: strace: inaccessible or not found
+ums512_1h10:/ # getprop ro.vendor.retro.name
+3.5
+ndor/persist/odin/joys 2>/dev/null || echo "NOT MOUNTED"                          <
+NOT MOUNTED
+ndor/retrostation/joys 2>/dev/null || echo "NOT MOUNTED"                          <
+/mnt/vendor/retrostation/joys
+ums512_1h10:/ # mount | grep -E "persist|odin|retrostation"
+/dev/block/dm-4 on /system/bin/recovery-persist type ext4 (ro,seclabel,relatime)
+1|ums512_1h10:/ # ls -la /mnt/vendor/retrostation/joys/
+ls: /mnt/vendor/retrostation/joys/: Not a directory
+/vendor/retrostation/joys/* 2>/dev/null | xxd | head -30                          <
+a $pid 2>/dev/null | grep -q "socket:\[12743\]" && echo $pid; done                <
+/proc/549/fd
+1|ums512_1h10:/ # cat /vendor/firmware/versioninfo.txt
+apptime=20230628_105826
+appmd5sum=5316239b9a9c612abe81060c35cd3899
+ums512_1h10:/ #
+
+126|ums512_1h10:/ # cat /proc/549/cmdline | tr '\0' ' '
+/system/bin/pserviceums512_1h10:/ #
+ums512_1h10:/ # ls -la /proc/549/exe
+lrwxrwxrwx 1 root root 0 2026-06-15 21:12 /proc/549/exe -> /system/bin/pservice
+ums512_1h10:/ # cat /proc/549/maps | grep -v "\.so" | head -5
+083ef000-083f2000 r--p 00000000 fd:04 432                                /system/bin/pservice
+083f2000-083f4000 r-xp 00002000 fd:04 432                                /system/bin/pservice
+083f4000-083f5000 r--p 00003000 fd:04 432                                /system/bin/pservice
+083f5000-083f6000 rw-p 00003000 fd:04 432                                /system/bin/pservice
+e9bbd000-e9bbe000 ---p 00000000 00:00 0
+ums512_1h10:/ #
+
+ums512_1h10:/ #
+system/bin/pservice | grep -E "/dev/|rsinput|socket|retro|cmd|init"                <
+__libc_init
+socket
+no cmd
+/dev/uinput
+cpu_init boot_completed cpugpumode=%d
+/dev/ttyS0
+/dev/rscom
+cpu_init start
+rsinput manager start failed(bind error)
+/dev/input
+cpu_init index=%d
+rsinput disconnect client, do restore
+cpu_init timeout=%d
+rsinput manager exit
+cpu_init performance cpu_type=%d
+/dev/rsinput
+.preinit_array
+.init_array
+ums512_1h10:/ #
+

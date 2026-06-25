@@ -1,0 +1,133 @@
+[2023-07-05 02:49:05] =========================================
+[2023-07-05 02:49:05] === DRM DEVICE PROBE (host udevadm) ===
+[2023-07-05 02:49:05] =========================================
+[2023-07-05 02:49:05] --- udevadm info /dev/dri/card0 ---
+[2023-07-05 02:49:06] P: /devices/platform/display-subsystem/drm/card0
+[2023-07-05 02:49:06] N: dri/card0
+[2023-07-05 02:49:06] S: dri/by-path/platform-display-subsystem-card
+[2023-07-05 02:49:06] E: DEVLINKS=/dev/dri/by-path/platform-display-subsystem-card
+[2023-07-05 02:49:06] E: DEVNAME=/dev/dri/card0
+[2023-07-05 02:49:06] E: DEVPATH=/devices/platform/display-subsystem/drm/card0
+[2023-07-05 02:49:06] E: DEVTYPE=drm_minor
+[2023-07-05 02:49:06] E: ID_FOR_SEAT=drm-platform-display-subsystem
+[2023-07-05 02:49:06] E: ID_PATH=platform-display-subsystem
+[2023-07-05 02:49:06] E: ID_PATH_TAG=platform-display-subsystem
+[2023-07-05 02:49:06] E: MAJOR=226
+[2023-07-05 02:49:07] E: MINOR=0
+[2023-07-05 02:49:07] E: SUBSYSTEM=drm
+[2023-07-05 02:49:07] E: TAGS=:master-of-seat:seat:uaccess:
+[2023-07-05 02:49:07] E: USEC_INITIALIZED=212700608
+[2023-07-05 02:49:07]
+[2023-07-05 02:49:07]
+[2023-07-05 02:49:07] --- Parsed DRM attributes ---
+[2023-07-05 02:49:07] i DEVNODE : /dev/dri/card0
+[2023-07-05 02:49:08] i SUBSYSTEM : drm
+[2023-07-05 02:49:08] i DEVTYPE : drm_minor
+[2023-07-05 02:49:08] i ID_PATH : platform-display-subsystem
+
+modetest output:
+#0 752x1336 60.00 752 770 774 782 1336 1352 1356 1364 64000 flags: ; type: preferred, driver
+modetest proves DRM works showing TEST 1 (Basic Mode Setting) and TEST 2 (Plane Rendering with Pattern) on Debian
+modetest -M sprd -s 84:752x1336
+modetest -M sprd -s 84:752x1336 -P 27@79:752x1336@XR24
+
+========== modetest output ==========
+`Spreadtrum SoCs' DRM Driver` on driver `sprd` (version 1.0.0 at 20180501)
+Encoders:
+id	crtc	type	possible crtcs	possible clones	
+83	0	DSI	0x00000001	0x00000000
+
+Connectors:
+id	encoder	status		name		size (mm)	modes	encoders
+84	0	connected	DSI-1          	62x107		1	83
+  modes:
+	index name refresh (Hz) hdisp hss hse htot vdisp vss vse vtot
+  #0 752x1336 60.00 752 770 774 782 1336 1352 1356 1364 64000 flags: ; type: preferred, driver
+  props:
+	1 EDID:
+		flags: immutable blob
+		blobs:
+
+		value:
+	2 DPMS:
+		flags: enum
+		enums: On=0 Standby=1 Suspend=2 Off=3
+		value: 0
+	5 link-status:
+		flags: enum
+		enums: Good=0 Bad=1
+		value: 0
+
+CRTCs:
+id	fb	pos	size
+79	0	(0,0)	(0x0)
+  #0  nan 0 0 0 0 0 0 0 0 0 flags: ; type: 
+  props:
+	81 dpu version:
+		flags: immutable blob
+		blobs:
+
+		value:
+			6470752d7234703000
+	82 corner size:
+		flags: immutable range
+		values:
+		value: 0
+
+Planes:
+id	crtc	fb	CRTC x,y	x,y	gamma size	possible crtcs
+27	0	0	0,0		0,0	0       	0x00000001
+  formats: XR24 XB24 AR24 AB24 RA24 BA24 RX24 BX24 RG16 BG16 NV12 NV21 NV16 NV61 YU12
+  props:
+	6 type:
+		flags: immutable enum
+		enums: Overlay=0 Primary=1 Cursor=2
+		value: 1
+	26 IN_FORMATS:
+		flags: immutable blob
+		blobs:
+
+		value:
+			01000000000000000f00000018000000
+			00000000580000005852323458423234
+			41523234414232345241323442413234
+			52583234425832345247313642473136
+			4e5631324e5632314e5631364e563631
+			5955313200000000
+		in_formats blob decoded:
+
+	29 rotation:
+		flags: bitmask
+		values: rotate-0=0x1 rotate-90=0x2 rotate-180=0x4 rotate-270=0x8 reflect-x=0x10 reflect-y=0x20
+		value: 0
+	30 zpos:
+		flags: immutable range
+		values: 0 0
+		value: 0
+	31 alpha:
+		flags: range
+		values: 0 255
+		value: 255
+	32 pixel blend mode:
+		flags: enum
+		enums: None=0 Pre-multiplied=2 Coverage=1
+		value: 0
+	33 FBC header size RGB:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	34 FBC header size Y:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	35 FBC header size UV:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	36 YUV2RGB coef:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	37 pallete enable:
+		flags: range
+		values: 0 4294967295

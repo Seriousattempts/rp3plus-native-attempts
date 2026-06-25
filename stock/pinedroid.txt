@@ -1,0 +1,121 @@
+
+
+# 1. Install QEMU and static execution dependencies
+sudo apt update && sudo apt install -y qemu-user-static binfmt-support rsync wget tar
+
+# 2. Create the workspace and download the Alpine ARM64 base
+mkdir -p ~/ums512_kernel/super/rootfs_build
+cd ~/ums512_kernel/super/rootfs_build
+wget https://dl-cdn.alpinelinux.org/alpine/v3.18/releases/aarch64/alpine-minirootfs-3.18.4-aarch64.tar.gz
+
+# 3. Extract the Linux base
+sudo tar -xzf alpine-minirootfs-3.18.4-aarch64.tar.gz
+rm alpine-minirootfs-3.18.4-aarch64.tar.gz
+
+# 4. Inject QEMU into the ARM64 rootfs so you can chroot into it from WSL
+sudo cp /usr/bin/qemu-aarch64-static usr/bin/
+
+# Generate all requested root directories
+sudo mkdir -p apex app bin cache dev etc home fonts framework lib lib64 media \
+mnt preinstall proc priv-app product root run sbin srv sys system system_ext \
+usr userdata var vendor
+
+# Create the internal /system skeleton for the bind mounts
+sudo mkdir -p system/apex system/app system/bin system/etc system/fonts \
+system/framework system/lib system/lib64 system/priv-app system/product \
+system/system_ext system/vendor
+
+cd ~/ums512_kernel/super
+
+# 1. Mount the core partitions
+sudo mkdir -p /mnt/system_arm /mnt/vendor_arm /mnt/system_ext
+sudo mount -o loop,ro system_a.img /mnt/system_arm
+sudo mount -o loop,ro vendor_a.img /mnt/vendor_arm
+sudo mount -o loop,ro system_ext_a.img /mnt/system_ext
+
+# 2. Extract and mount the APEX runtime (for the true linker64 and Bionic libc)
+mkdir -p /tmp/apex_extract
+cp /mnt/system_arm/system/apex/com.android.runtime.apex /tmp/apex_extract/
+cd /tmp/apex_extract
+unzip com.android.runtime.apex apex_payload.img
+sudo mkdir -p /mnt/apex_runtime
+sudo mount -o loop,ro apex_payload.img /mnt/apex_runtime
+
+cd ~/ums512_kernel/super
+
+# 3. Merge Android /system into the rootfs root (skipping Linux base conflicts)
+# We ignore existing files so Android's /bin/sh doesn't overwrite Alpine's busybox /bin/sh
+sudo rsync -a --ignore-existing /mnt/system_arm/system/ rootfs_build/
+
+# 4. Merge Vendor, System_Ext, and APEX payloads into their root counterparts
+sudo rsync -a /mnt/vendor_arm/ rootfs_build/vendor/
+sudo rsync -a /mnt/system_ext/ rootfs_build/system_ext/
+sudo rsync -a /mnt/apex_runtime/ rootfs_build/apex/com.android.runtime/
+
+# 5. The Linker Injection
+# 1. Remove the dangling symlinks copied from the Android system image
+sudo rm -f rootfs_build/bin/linker64
+sudo rm -f rootfs_build/lib64/libc.so
+sudo rm -f rootfs_build/lib64/libdl.so
+sudo rm -f rootfs_build/lib64/libdl_android.so
+sudo rm -f rootfs_build/lib64/libm.so
+
+# 2. Inject the real binaries from the APEX payload
+sudo cp -a /mnt/apex_runtime/bin/linker64 rootfs_build/bin/
+sudo cp -a /mnt/apex_runtime/lib64/bionic/* rootfs_build/lib64/
+
+# 3. Verify they are now real files, not symlinks
+file rootfs_build/bin/linker64
+
+cd ~/ums512_kernel/super
+
+sudo bash -c 'cat << EOF >> rootfs_build/etc/fstab
+# Android compatibility bind mounts
+/apex        /system/apex        none    bind    0 0
+/app         /system/app         none    bind    0 0
+/bin         /system/bin         none    bind    0 0
+/etc         /system/etc         none    bind    0 0
+/fonts       /system/fonts       none    bind    0 0
+/framework   /system/framework   none    bind    0 0
+/lib         /system/lib         none    bind    0 0
+/lib64       /system/lib64       none    bind    0 0
+/priv-app    /system/priv-app    none    bind    0 0
+/product     /system/product     none    bind    0 0
+/system_ext  /system/system_ext  none    bind    0 0
+/vendor      /system/vendor      none    bind    0 0
+EOF'
+
+# 1. Mount essential API filesystems from your WSL host to the ARM64 rootfs
+sudo mount -t proc /proc rootfs_build/proc
+sudo mount -t sysfs /sys rootfs_build/sys
+sudo mount -o bind /dev rootfs_build/dev
+sudo mount -o bind /dev/pts rootfs_build/dev/pts
+
+# 2. Trigger the fstab bind mounts from outside the chroot
+# (This uses the ARM64 busybox via QEMU emulation to mount everything we just listed in fstab)
+sudo chroot rootfs_build /bin/busybox mount -a
+
+# 3. Enter the unified ARM64 environment!
+sudo chroot rootfs_build /bin/ash
+
+# 1. Verify you are running under ARM64 emulation
+uname -m
+
+# 2. Verify the bind mounts worked (This should list the Bionic libc.so, proving /system/lib64 mirrors /lib64)
+ls -la /system/lib64/libc.so
+
+# 3. Test if the Android linker can execute (It should output a help menu/usage guide from the Bionic linker)
+/system/bin/linker64
+
+# 1. Inject a working DNS resolver into the chroot
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+# 2. Try the update again (It should now fetch successfully)
+apk update
+
+# 3. Install the core build tools
+
+
+
+

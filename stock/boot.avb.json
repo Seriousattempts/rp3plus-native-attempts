@@ -1,0 +1,75 @@
+{
+  "header" : {
+    "required_libavb_version_major" : 1,
+    "required_libavb_version_minor" : 0,
+    "authentication_data_block_size" : 576,
+    "auxiliary_data_block_size" : 1472,
+    "algorithm_type" : 2,
+    "hash_offset" : 0,
+    "hash_size" : 32,
+    "signature_offset" : 32,
+    "signature_size" : 512,
+    "public_key_offset" : 424,
+    "public_key_size" : 1032,
+    "public_key_metadata_offset" : 1456,
+    "public_key_metadata_size" : 0,
+    "descriptors_offset" : 0,
+    "descriptors_size" : 424,
+    "rollback_index" : 0,
+    "flags" : 0,
+    "release_string" : "avbtool 1.1.0"
+  },
+  "authBlob" : {
+    "offset" : 28832000,
+    "size" : 576,
+    "hash" : "85894e5b3eb6055ee3a0af7ec34e93f29c4f2e499858ff2befa860da844cbdf6",
+    "signature" : "9ce0f710d6d06c6b770acbb4f08e82672607b0d5a12356eb7d80bb5950a5754e9e9518757f5e5e6351d59cf2238dd66f346e4b08448a7ac6caf25d4538be05fcaaa3975fefae990c7dfdae193d15b7209dbdba16b1ab1217fa32450a7ce80de073e4489f3b0aae5ff530d09e0f1a196551b431d93f5114f558530ee6e717ce2b11f67ee19bdd30e1b332914dcd67a4926716f7c58b1e4c8848e30dd11199bbc8fcc248865e525fa2e1f3b9f1b9f0b9b21f9a92da7aefc4ae064975f4d7b3f1900a296e648fc9de6681ddf1c9952d86ecaec73d1e076fa7cd12dd66efeb1ad42aa9423b20d2c7f7e0edd330c6efdeb033d0d033e0499a0ce42781d31df5523fdc5b390b0054a07b7d30b6a01f45b89d4bbc4ce38e0d06f1f5dac1134563acac0d397f292ca531327b6c5ab2952d46a5405a054cbf9d4fa9bb84cb4ddad91374573d32b480e208984962b1284e189a3715a561e5bdc3cf42a3913bf4278b1dcf8fd50f41d145301c10a192bd4b4a147b881cf260a5121f914db7970767134be3c4f521d720d0d91f978b1ad94037e9ded4cf94a08bbc3f51b9ce43f30c64b153867ff144d345600f926dddc4c52be680863ccd21f1b14cddab80c4da77e836287df79a89e87273be4d765af1720888889a03faac0b6c7a35f33bc660007ee194c527077bb84c67b088c5911a768c6b5f9b36425efbf9070f5f3b30b98c4445e5ed"
+  },
+  "auxBlob" : {
+    "pubkey" : {
+      "offset" : 424,
+      "size" : 1032,
+      "pubkey" : "AAAQAA7heNu1K5Fo0LxJ9/TyuzOnBBz0vhZOLyyOLDw7Rm1LoiI5vcLWa8a/r1kh6QdzMBDQlHGqOXTNXH59H7qu7XCAM9F060i7ii6YvGQYd7Fvloc/JK71Epl1JbeJFWWMGvWxA7VuU/0pJR7T2oZnFqgJ5RAkZM4WzmTGpTF5G+1eHvkwoy98RA4fq9TVjSnoix1PW3Ji3+BOqrb9TzCSR6r77t+jkmj/zjWcmT0bkG0T1GK4XCSi+mWT6Q/OXHgLGUp35p5xR/8FKsDteyKDQ4xKaxmRf30O+TgqvGZBMkonYGRWwOAxOtXZ48xfAkakCl6DWYe7rIvqx11yaWUromKsGzcfUXhDrAvGnEQZSsHfGdTbhUlwc344u7Akhr2tLi/6gGektYZmTRmreAxy7Uuk/pUwlkawpKcXIsJnrsVs8/nKHI1XO+EcZHouePn9NR8ZIN/XsE1xLNTMmeOrqmzBU2b7tSxEKspPHL+m6Fa9Hd3kqV2h/C+7DQW+sOLmDP29d7n2KWED1fHHN9xmBY0xQ1nQfL8FWkERkd537RCDZ8aluAqg2F9APuZpOFjGLkMJmeExAJud2BhKyQ3+DzDodlCX5+cICqoIJW8/3zwWZHzOSxgIl9qycWnJKkc7UjrQ6YrZWfpuuGGapGun34iNwdNGcQN42CjRfUJol3Lnnko8rWeUs2BCOQMPP186xzo4csQrtRAhSOcD+zxeUZ28Wd8vCTQqccsTntVO8CKKAWox6kGHtEN+ZV2Y0BlRQ4cD7Uvp3zsGGrRytE7EARjsn5GQp/vDSTJqTFBwytmQZAEEDqzPGEKbHUAFxPWAOPHaB9+IielmoRllWU6EAPAZVBLdTlFIcU0NNZDUli6a8kcZU9qf0xMsn4Z0P9+lAgHcCRZaODaz6sKKgYyoentEywCbahogN3Nqvsrw/Ul3qN9PpkX/TyYphr0kqzxxBgp45t2lcgCO2T4KNdd+G9jrmOjHoy0u23WLGppH0tkiWG/BVwlcqhfKWvYYfwpgh4YNAAHk6+Djw6d/h4gVJtMH4c4oceaK1wXzFksCX+NYLhaC5o0Eyjx7JEJryCVKSHNkXu8qyoInycqRUOiouhKr+0L/C4GczF+1BLmQjKnkUQR3+2lBDg2ACnlF5kRK0bBV4CMvzjCaoTuBnw+ZrPALKgboTKAK98eU/g9mzJ+wi4TEcf9e2TKVQVAH5DxUPKfiuNkRIFYxKTylpcjZVmppKSEexTqlra2lN1EdPLolzeKUoaZzz9+SSYVPUe/pw79KLf1yqevik29kyIqB8ZyZiGuaegR+EatHZ2i/g8l9qqrz4J8SEdRc1wedaYwIkdD3D391kcrLPAzBOER2QyL+pbDA"
+    },
+    "pubkeyMeta" : null,
+    "propertyDescriptors" : [ {
+      "tag" : 0,
+      "num_bytes_following" : 136,
+      "sequence" : 2,
+      "key" : "com.android.build.boot.fingerprint",
+      "value" : "UNISOC/ums512_1h10_Natv/ums512_1h10:11/RP1A.201005.001/27217:user/release-keys"
+    }, {
+      "tag" : 0,
+      "num_bytes_following" : 56,
+      "sequence" : 3,
+      "key" : "com.android.build.boot.os_version",
+      "value" : "11"
+    } ],
+    "hashTreeDescriptors" : [ ],
+    "hashDescriptors" : [ {
+      "tag" : 2,
+      "num_bytes_following" : 184,
+      "sequence" : 1,
+      "flags" : 0,
+      "partition_name" : "boot",
+      "hash_algorithm" : "sha256",
+      "image_size" : 28829696,
+      "salt" : "VCgRvEwSEorY+jIJYQDLyo/IY4A4O99ya3lCcGKa5TE=",
+      "digest" : "7VOxLVWJ1wHgbj1wwpUi+BUi/oqOSZb96NA7+wf6bVI=",
+      "partition_name_len" : 4,
+      "salt_len" : 32,
+      "digest_len" : 32,
+      "flagsInterpretation" : "0:A/B system"
+    } ],
+    "kernelCmdlineDescriptors" : [ ],
+    "chainPartitionDescriptors" : [ ],
+    "unknownDescriptors" : [ ]
+  },
+  "footer" : {
+    "versionMajor" : 1,
+    "versionMinor" : 0,
+    "originalImageSize" : 28829696,
+    "vbMetaOffset" : 28831744,
+    "vbMetaSize" : 2304
+  }
+}

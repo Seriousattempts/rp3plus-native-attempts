@@ -1,0 +1,34 @@
+
+
+
+cat /sys/devices/virtual/input/input7/name
+Retroid Pocket Controller
+(Bus=0003 Vendor=2022 Product=3001)
+(Bus=0003 Vendor=2020 Product=0111)
+
+Ccontroller is entirely virtual.
+The Bus=0003 designation specifies a virtual USB bus mapping layer.
+The mapper layers are loaded from .kl files from /system/usr/keylayout, like:
+Vendor_2020_Product_0111.kl
+Vendor_2022_Product_3001.kl
+Android daemon (com.retroidpocket.rsmapping) acts as the driver.
+It reads raw hardware events through a serial terminal, translates those events into a standardized controller schema, and pushes them into the kernel's virtual device path via /dev/uinput.
+
+
+ls -l /dev/rscom $\
+crw-rw---- 1 system system 236, 0
+Custom character device node (major 236, minor 0).
+Communication gateway to the physical FPGA/MCU chip on the board.
+The custom binary librsinput.so from RsMapping.apk (com.retroidpocket.rsmapping) opens this file directly to read the serial packet streams generated whenever you tilt an analog stick, press a button, or adjust the fan profile.
+=========================================
+=== Extracting RsMapping.apk -> RsMapping_unpacked ===
+=========================================
+-----------------------------------------
+ Library: RsMapping_unpacked/lib/arm64-v8a/librsinput.so
+ Dependencies (via readelf):
+   - liblog.so
+   - libm.so
+   - libdl.so
+   - libc.so
+
+

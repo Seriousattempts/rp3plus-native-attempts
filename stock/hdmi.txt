@@ -1,0 +1,29 @@
+
+
+
+cat /sys/hdmi/driver_ctl 
+T618
+staging driver targets the Unisoc Tiger T618 (UMS512).
+
+
+cat /sys/hdmi/lcdbl
+Change from 1 to 0 while HDMI is plugged in by default unless changed in settings.
+lcdbl stands for LCD Backlight.
+it simply kills the power to the physical LCD panel's backlight driver circuit by writing a 0 to this node.
+natively issue echo 0 > /sys/hdmi/lcdbl to save battery power and avoid distracting light leakage.
+
+grep "" /sys/class/extcon/extcon*/state
+No HDMI flags detected
+No native native kernel-level HDMI sub-device registered here, the custom FPGA board handling video relies entirely on user-space monitoring apps manually checking state flags and modifying the custom /sys/hdmi/ path directly.
+
+=========================================
+=== Extracting RP3Settings.apk -> RP3Settings_unpacked ===
+=========================================
+-----------------------------------------
+ Library: RP3Settings_unpacked/lib/arm64-v8a/libnative.so
+ Dependencies (via readelf):
+   - liblog.so
+   - libm.so
+   - libdl.so
+   - libc.so
+
