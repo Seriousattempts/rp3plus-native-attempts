@@ -1,0 +1,89 @@
+#!/bin/sh
+# Usage: /sdcard/west2 <app> [args...]
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <app> [args...]"
+    exit 1
+fi
+
+SCRIPT_NAME="${0##*/}"
+LOGFILE="/sdcard/${SCRIPT_NAME}.log"
+
+ts_echo() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+}
+
+ts_echo "=======================================================" >> "$LOGFILE"
+ts_echo "STARTING SESSION: $@" >> "$LOGFILE"
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+# Robust Wayland Socket Detection
+if [ -S "/tmp/runtime-root/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/tmp/runtime-root"
+elif [ -S "/run/user/0/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/run/user/0"
+else
+    ts_echo "[FATAL] Cannot find wayland-0 socket in /tmp or /run. Is Mir running?" >> "$LOGFILE"
+    exit 1
+fi
+
+# --- 1. START NESTED WESTON (Accelerated via VirGL) ---
+export WAYLAND_DISPLAY=wayland-0
+
+# Force Weston ITSELF to use the Android GPU via virpipe
+unset LIBGL_ALWAYS_SOFTWARE
+export GALLIUM_DRIVER=virpipe
+export MESA_LOADER_DRIVER_OVERRIDE=virpipe
+export VIRGL_TEST_SOCKET=$XDG_RUNTIME_DIR/.virgl_test
+export MESA_GL_VERSION_OVERRIDE=4.0
+
+NESTED_SOCKET="wayland-nested-$$"
+
+ts_echo "[Nested Weston] Starting backend compositor on socket: $NESTED_SOCKET" >> "$LOGFILE"
+
+# Launch Weston, bypassing any broken .ini files, using the kiosk shell for fullscreen apps
+weston --backend=wayland-backend.so \
+       --socket=$NESTED_SOCKET \
+       --shell=kiosk-shell.so \
+       --width=752 --height=1336 \
+       --no-config \
+       2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [WESTON]"), $0; fflush(); }' >> "$LOGFILE" &
+WESTON_PID=$!
+
+# Wait up to 10 seconds for Weston to create the socket
+WAITED=0
+while [ $WAITED -lt 10 ]; do
+    [ -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ] && break
+    sleep 1
+    WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ]; then
+    ts_echo "[Nested Weston] FATAL: Failed to initialize nested socket. Check log for crashes." >> "$LOGFILE"
+    kill $WESTON_PID 2>/dev/null
+    exit 1
+fi
+
+ts_echo "[Nested Weston] Socket ready. Launching application..." >> "$LOGFILE"
+
+# --- 2. SETUP ENVIRONMENT FOR APP ---
+export WAYLAND_DISPLAY=$NESTED_SOCKET
+
+# Force UI frameworks to speak native Wayland
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
+export GDK_BACKEND=wayland
+
+# --- 3. RUN APPLICATION ---
+ts_echo "--- LAUNCHING APPLICATION ---" >> "$LOGFILE"
+"$@" 2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [APP]"), $0; fflush(); }' >> "$LOGFILE"
+APP_EXIT_CODE=$?
+
+# --- 4. TEARDOWN ---
+ts_echo "[Nested Weston] Application closed. Tearing down compositor..." >> "$LOGFILE"
+kill $WESTON_PID 2>/dev/null
+wait $WESTON_PID 2>/dev/null || true
+
+exit $APP_EXIT_CODE

@@ -1,0 +1,152 @@
+ATTENTION: default value of option vblank_mode overridden by environment.
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      Mesa
+    GL_RENDERER:    virgl (Mali-G52)
+    GL_VERSION:     4.0 (Compatibility Profile) Mesa 26.2.0-devel (git-304324eb28)
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[build] use-vbo=false: FPS: 24 FrameTime: 41.808 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[build] use-vbo=true: FPS: 25 FrameTime: 41.515 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[texture] texture-filter=nearest: FPS: 26 FrameTime: 39.901 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[texture] texture-filter=linear: FPS: 25 FrameTime: 41.419 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[texture] texture-filter=mipmap: FPS: 24 FrameTime: 42.090 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[shading] shading=gouraud: FPS: 24 FrameTime: 41.875 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[shading] shading=blinn-phong-inf: FPS: 24 FrameTime: 43.210 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[shading] shading=phong: FPS: 21 FrameTime: 48.312 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[shading] shading=cel: FPS: 21 FrameTime: 48.487 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[bump] bump-render=high-poly: FPS: 20 FrameTime: 50.010 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[bump] bump-render=normals: FPS: 22 FrameTime: 46.610 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[bump] bump-render=height: FPS: 22 FrameTime: 46.749 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[effect2d] kernel=0,1,0;1,-4,1;0,1,0;: FPS: 21 FrameTime: 47.877 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[effect2d] kernel=1,1,1,1,1;1,1,1,1,1;1,1,1,1,1;: FPS: 20 FrameTime: 51.799 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[pulsar] light=false:quads=5:texture=false: FPS: 22 FrameTime: 46.712 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[desktop] blur-radius=5:effect=blur:passes=1:separable=true:windows=4: FPS: 19 FrameTime: 52.695 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[desktop] effect=shadow:windows=4: FPS: 21 FrameTime: 49.404 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 16 FrameTime: 64.832 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=subdata: FPS: 17 FrameTime: 59.269 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[buffer] columns=200:interleave=true:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 18 FrameTime: 58.228 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[ideas] speed=duration: FPS: 19 FrameTime: 55.546 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[jellyfish] <default>: FPS: 21 FrameTime: 48.933 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[terrain] <default>: FPS: 11 FrameTime: 91.195 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[shadow] <default>: FPS: 21 FrameTime: 49.184 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[refract] <default>: FPS: 16 FrameTime: 64.854 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[conditionals] fragment-steps=0:vertex-steps=0: FPS: 23 FrameTime: 45.452 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[conditionals] fragment-steps=5:vertex-steps=0: FPS: 22 FrameTime: 45.902 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[conditionals] fragment-steps=0:vertex-steps=5: FPS: 23 FrameTime: 45.431 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[function] fragment-complexity=low:fragment-steps=5: FPS: 23 FrameTime: 45.047 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[function] fragment-complexity=medium:fragment-steps=5: FPS: 22 FrameTime: 46.305 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[loop] fragment-loop=false:fragment-steps=5:vertex-steps=5: FPS: 22 FrameTime: 45.513 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[loop] fragment-steps=5:fragment-uniform=false:vertex-steps=5: FPS: 22 FrameTime: 46.073 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+** GLX does not support GLX_EXT_swap_control or GLX_MESA_swap_control!
+** Failed to set swap interval. Results may be bounded above by refresh rate.
+[loop] fragment-steps=5:fragment-uniform=true:vertex-steps=5: FPS: 22 FrameTime: 46.791 ms
+=======================================================
+                                  glmark2 Score: 20 
+=======================================================
+==========================================================
+[vir-gl] SUCCESS (exit 0)
+==========================================================

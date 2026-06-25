@@ -1,0 +1,110 @@
+
+
+
+
+
+# 0. Basic build tools on the WSL Ubuntu side
+
+sudo apt update
+
+sudo apt install -y meson ninja-build pkg-config cmake git wget unzip
+
+
+
+
+# 1. Clean old Android build trees
+
+cd ~
+
+rm -rf drm libepoxy virglrenderer virgl_android_build
+
+
+
+
+# 2. Create Android/aarch64 Meson cross file
+
+cat > ~/android-aarch64.ini << 'EOF'
+[binaries]
+c = 'aarch64-linux-android30-clang'
+cpp = 'aarch64-linux-android30-clang++'
+ar = 'llvm-ar'
+strip = 'llvm-strip'
+pkg-config = 'pkg-config'
+
+[properties]
+pkg_config_libdir = [
+  '/home/ralt/virgl_android_build/lib/pkgconfig',
+  '/home/ralt/virgl_android_build/share/pkgconfig'
+]
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+EOF
+
+
+
+# 3. Point to Android NDK and set install prefix/pkg-config paths
+
+export NDK_HOME=$HOME/android-ndk-r25c
+
+export PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+
+export PREFIX=$HOME/virgl_android_build
+
+export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig
+
+
+
+
+# 4. Build and install libdrm for Android/aarch64
+
+git clone https://gitlab.freedesktop.org/mesa/drm.git drm
+
+cd drm
+
+meson setup build \
+  --cross-file ~/android-aarch64.ini \
+  --prefix=$PREFIX \
+  -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled \
+  -Dnouveau=disabled -Dvmwgfx=disabled -Dfreedreno=disabled \
+  -Dvc4=disabled -Detnaviv=disabled
+ninja -C build install
+
+cd ..
+
+
+
+# 5. Build and install libepoxy for Android/aarch64
+
+git clone https://github.com/anholt/libepoxy.git
+
+cd libepoxy
+
+meson setup build \
+  --cross-file ~/android-aarch64.ini \
+  --prefix=$PREFIX \
+  -Degl=yes -Dglx=no -Dx11=false
+ninja -C build install
+
+cd ..
+
+
+
+# 6. Build and install virglrenderer (with EGL & venus) for Android/aarch64
+
+git clone https://github.com/Container-On-Android/virglrenderer.git
+
+cd virglrenderer
+
+meson setup build \
+  --cross-file ~/android-aarch64.ini \
+  --prefix=$PREFIX \
+  -Dplatforms=egl \
+  -Dvenus=true \
+  -Dminigbm_allocation=false
+
+ninja -C build install
+

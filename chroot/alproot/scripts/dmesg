@@ -1,0 +1,256 @@
+#!/bin/sh
+# mir_diag — run from xterm inside miral-shell
+# Saves all diagnostic logs to /sdcard/mir_diag/
+# Usage: sh /sdcard/mir_diag.sh [poll_seconds]
+#   poll_seconds = how long to live-poll dmesg (default 30s)
+#   e.g.:  sh /sdcard/mir_diag.sh 60
+
+LOGDIR="/sdcard/mir_diag"
+POLL="${1:-30}"
+
+mkdir -p "$LOGDIR" 2>/dev/null || true
+
+ts()  { date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "1970-01-01 00:00:00"; }
+log() { echo "[$(ts)] $*" | tee -a "$LOGDIR/mir_diag.log"; }
+sep() { log "========================================"; log "=== $* ==="; log "========================================"; }
+
+: > "$LOGDIR/mir_diag.log"
+sep "mir_diag started"
+log "Log dir : $LOGDIR"
+log "dmesg poll: ${POLL}s"
+log ""
+
+###############################################################################
+# 1. dmesg — full + display-filtered baseline
+###############################################################################
+sep "DMESG SNAPSHOT"
+
+dmesg > "$LOGDIR/dmesg_full.log" 2>/dev/null \
+    && log "dmesg_full.log      : $(wc -l < "$LOGDIR/dmesg_full.log") lines" \
+    || log "WARN: dmesg failed"
+
+grep -iE \
+  'sprd|dpu|dispc|drm|dsi|panel|vblank|flip|lcd|backlight|display|mipi|format|plane|pixel|bpp|bytes.per|error|warn|fail|invalid|kms|gbm|drm_atomic|crtc|connector|mode_set' \
+    "$LOGDIR/dmesg_full.log" > "$LOGDIR/dmesg_display.log" 2>/dev/null
+log "dmesg_display.log   : $(wc -l < "$LOGDIR/dmesg_display.log") lines"
+
+while IFS= read -r l; do log "  [dmesg] $l"; done < "$LOGDIR/dmesg_display.log"
+log ""
+
+###############################################################################
+# 2. last_kmsg
+###############################################################################
+sep "LAST_KMSG"
+FOUND=0
+for p in /proc/last_kmsg /sys/fs/pstore/console-ramoops-0 /dev/pstore/console-ramoops-0; do
+    [ -r "$p" ] || continue
+    cp "$p" "$LOGDIR/last_kmsg.log" 2>/dev/null && {
+        log "Source: $p  -> last_kmsg.log ($(wc -l < "$LOGDIR/last_kmsg.log") lines)"
+        FOUND=1
+        grep -iE 'dpu|drm|dsi|panel|display|kms|gbm|pixel|bpp|bytes.per|error|panic|oops|warn|fail' \
+            "$LOGDIR/last_kmsg.log" | tail -80 \
+            | while IFS= read -r l; do log "  [last_kmsg] $l"; done
+        break
+    }
+done
+[ "$FOUND" -eq 0 ] && log "INFO: last_kmsg not available"
+log ""
+
+###############################################################################
+# 3. pstore / console-ramoops
+###############################################################################
+sep "PSTORE / RAMOOPS"
+FOUND=0
+for p in \
+    /sys/fs/pstore/console-ramoops-0 \
+    /sys/fs/pstore/console-ramoops \
+    /dev/pstore/console-ramoops-0 \
+    /sys/fs/pstore/dmesg-ramoops-0; do
+    [ -r "$p" ] || continue
+    DEST="$LOGDIR/ramoops_$(basename "$p").log"
+    cp "$p" "$DEST" 2>/dev/null && {
+        log "Saved $p -> $(basename "$DEST") ($(wc -l < "$DEST") lines)"
+        FOUND=1
+        grep -iE 'dpu|drm|dsi|display|panic|oops|bug|error|warn|fail' \
+            "$DEST" | tail -60 \
+            | while IFS= read -r l; do log "  [ramoops] $l"; done
+    }
+done
+[ "$FOUND" -eq 0 ] && log "INFO: No pstore entries found (normal if no prior crash)"
+log ""
+
+###############################################################################
+# 4. logcat
+###############################################################################
+sep "LOGCAT"
+LOGCAT_BIN=""
+for p in /system/bin/logcat /bin/logcat /usr/bin/logcat; do
+    [ -x "$p" ] && { LOGCAT_BIN="$p"; break; }
+done
+
+if [ -n "$LOGCAT_BIN" ]; then
+    log "logcat: $LOGCAT_BIN"
+
+    "$LOGCAT_BIN" -d -t 2000 > "$LOGDIR/logcat_full.log" 2>/dev/null \
+        && log "logcat_full.log     : $(wc -l < "$LOGDIR/logcat_full.log") lines" \
+        || log "WARN: logcat -d -t 2000 failed"
+
+    # Tag-filtered: display stack
+    "$LOGCAT_BIN" -d -t 2000 \
+        -s "gralloc:*" "hwcomposer:*" "SurfaceFlinger:*" "DRM:*" \
+        -s "dpu:*" "dispc:*" "sprd_drm:*" "mali:*" \
+        -s "EGL:*" "OpenGLRenderer:*" "GraphicBufferMapper:*" "libEGL:*" \
+        > "$LOGDIR/logcat_display.log" 2>/dev/null
+    log "logcat_display.log  : $(wc -l < "$LOGDIR/logcat_display.log") lines"
+    while IFS= read -r l; do log "  [logcat] $l"; done < "$LOGDIR/logcat_display.log"
+
+    # Keyword grep on full as backup
+    grep -iE \
+      'gralloc|hwcomposer|surfaceflinger|dpu|dispc|mali|egl|opengl|gbm|kms|pixel|format|bpp|bytes.per|composer|display' \
+        "$LOGDIR/logcat_full.log" > "$LOGDIR/logcat_gpu_grep.log" 2>/dev/null
+    log "logcat_gpu_grep.log : $(wc -l < "$LOGDIR/logcat_gpu_grep.log") lines"
+else
+    log "INFO: logcat binary not found"
+    # Raw /dev/log fallback
+    for buf in main system crash kernel; do
+        [ -r "/dev/log/$buf" ] || continue
+        dd if="/dev/log/$buf" of="$LOGDIR/devlog_${buf}.raw" \
+            bs=4096 count=64 2>/dev/null \
+            && log "Saved /dev/log/$buf -> devlog_${buf}.raw" || true
+    done
+fi
+log ""
+
+###############################################################################
+# 5. init process / boot state
+###############################################################################
+sep "INIT / BOOT STATE"
+
+# kernel cmdline
+[ -r /proc/cmdline ] && {
+    cp /proc/cmdline "$LOGDIR/cmdline.log" 2>/dev/null
+    log "cmdline: $(cat /proc/cmdline)"
+}
+
+# PID-1 info
+[ -r /proc/1/status ] && {
+    cp /proc/1/status "$LOGDIR/init_status.log" 2>/dev/null
+    NAME=$(grep '^Name:' /proc/1/status 2>/dev/null | awk '{print $2}')
+    STATE=$(grep '^State:' /proc/1/status 2>/dev/null | cut -d: -f2 | xargs)
+    log "init PID 1: name=$NAME  state=$STATE"
+}
+[ -r /proc/1/cmdline ] && {
+    INITCMD=$(tr '\0' ' ' < /proc/1/cmdline 2>/dev/null | cut -c1-200)
+    log "init cmdline: $INITCMD"
+    echo "$INITCMD" > "$LOGDIR/init_cmdline.log"
+}
+
+# Android display/GPU properties
+log ""
+log "Android display/GPU properties:"
+for prop in \
+    ro.hardware ro.hardware.gralloc ro.hardware.hwcomposer \
+    ro.sf.lcd_density ro.product.model ro.product.board \
+    ro.build.version.release \
+    debug.sf.hw debug.egl.hw \
+    persist.sys.sf.native_mode \
+    ro.vendor.display.resolution; do
+    VAL=$(getprop "$prop" 2>/dev/null)
+    [ -n "$VAL" ] && log "  $prop = $VAL"
+done
+getprop > "$LOGDIR/getprop_full.log" 2>/dev/null \
+    && log "getprop_full.log    : $(wc -l < "$LOGDIR/getprop_full.log") lines" \
+    || log "INFO: getprop not available"
+log ""
+
+###############################################################################
+# 6. DRM / DRI / framebuffer state
+###############################################################################
+sep "DRM / DRI / FRAMEBUFFER STATE"
+for f in \
+    /sys/class/drm/card0/status \
+    /sys/class/drm/card0-DSI-1/status \
+    /sys/class/drm/card0-DSI-1/modes \
+    /sys/class/graphics/fb0/modes \
+    /sys/class/graphics/fb0/bits_per_pixel \
+    /sys/class/graphics/fb0/virtual_size \
+    /sys/class/graphics/fb0/stride \
+    /sys/kernel/debug/dri/0/state; do
+    [ -r "$f" ] || continue
+    VAL=$(head -4 "$f" 2>/dev/null | tr '\n' ' ' | cut -c1-120)
+    log "  $f = $VAL"
+    FNAME=$(echo "$f" | tr '/' '_' | sed 's/^_//')
+    cat "$f" > "$LOGDIR/drm_${FNAME}.log" 2>/dev/null || true
+done
+log ""
+log "/dev/dri entries:"
+ls -la /dev/dri/ 2>/dev/null | while IFS= read -r l; do log "  $l"; done
+log ""
+
+###############################################################################
+# 7. LIVE dmesg POLL
+###############################################################################
+sep "LIVE DMESG POLL (${POLL}s)"
+log "Poll started. Run or trigger whatever you want diagnosed in the next ${POLL}s."
+log ""
+
+PRE=$(dmesg 2>/dev/null | wc -l)
+log "dmesg cursor: $PRE lines"
+: > "$LOGDIR/dmesg_live.log"
+
+ELAPSED=0
+while [ "$ELAPSED" -lt "$POLL" ]; do
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
+    CURR=$(dmesg 2>/dev/null | wc -l)
+    if [ "$CURR" -gt "$PRE" ]; then
+        NEW=$(dmesg 2>/dev/null | tail -n "+$((PRE + 1))")
+        echo "$NEW" >> "$LOGDIR/dmesg_live.log"
+        echo "$NEW" | grep -iE \
+          'dpu|dispc|drm|dsi|panel|pixel|bpp|bytes.per|format|plane|vblank|flip|error|warn|fail|invalid|kms|gbm|crtc|atomic' \
+          | while IFS= read -r l; do log "  [LIVE +${ELAPSED}s] $l"; done
+        PRE=$CURR
+    fi
+    [ $((ELAPSED % 5)) -eq 0 ] && \
+        log "  [poll] ${ELAPSED}/${POLL}s — $(wc -l < "$LOGDIR/dmesg_live.log") new lines"
+done
+
+log ""
+LIVE_COUNT=$(wc -l < "$LOGDIR/dmesg_live.log")
+log "Poll complete. $LIVE_COUNT new dmesg lines -> dmesg_live.log"
+
+# BPP verdict
+BPP=$(grep -ic \
+  'bytes per pixel is invalid\|bytes.per.pixel\|pixel.*invalid\|invalid.*pixel' \
+  "$LOGDIR/dmesg_live.log" 2>/dev/null || echo 0)
+if [ "$BPP" -eq 0 ]; then
+    log "VERDICT: 'bytes per pixel is invalid' NOT seen during poll window"
+else
+    log "VERDICT: 'bytes per pixel is invalid' fired $BPP time(s) — DPU rejected pixel format"
+fi
+log ""
+
+###############################################################################
+# 8. Post-poll dmesg snapshot
+###############################################################################
+sep "DMESG POST-POLL SNAPSHOT"
+dmesg > "$LOGDIR/dmesg_after.log" 2>/dev/null
+log "dmesg_after.log     : $(wc -l < "$LOGDIR/dmesg_after.log") lines"
+log ""
+
+###############################################################################
+# DONE
+###############################################################################
+sep "COMPLETE"
+log "All logs in: $LOGDIR"
+log ""
+ls -lh "$LOGDIR" 2>/dev/null | while IFS= read -r l; do log "  $l"; done
+log ""
+log "Key files:"
+log "  mir_diag.log        — this combined timeline log"
+log "  dmesg_display.log   — display/DRM kernel msgs at script start"
+log "  dmesg_live.log      — new kernel msgs during the poll window"
+log "  logcat_display.log  — Android gralloc/hwcomposer/EGL msgs"
+log "  logcat_gpu_grep.log — broader GPU keyword grep of logcat"
+log "  last_kmsg.log       — previous boot kernel log (if available)"
+log "  getprop_full.log    — full Android property dump"

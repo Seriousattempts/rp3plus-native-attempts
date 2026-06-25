@@ -1,0 +1,79 @@
+#!/bin/sh
+# vir-gl — Optimized virpipe OpenGL runner
+# Usage: vir-gl glmark2-es2-wayland
+
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir-gl_${APP_NAME}_${TIMESTAMP}.log"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    exit 1
+fi
+
+echo "=========================================================="
+echo "[vir-gl] Launching '$*' via virpipe (PERFORMANCE MODE)"
+echo "=========================================================="
+
+(
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/lib
+    export LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    export WAYLAND_DISPLAY=wayland-0
+    export DISPLAY=:0
+
+    # Virgl Pipe Config
+    export GALLIUM_DRIVER=virpipe
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+    unset LIBGL_ALWAYS_SOFTWARE
+
+    # Version Overrides
+    export MESA_GL_VERSION_OVERRIDE=4.0
+    export MESA_GLSL_VERSION_OVERRIDE=400
+    export MESA_GLES_VERSION_OVERRIDE=3.1
+    export MESA_NO_ERROR=1
+
+    # Disable Vulkan Loader (Since this is purely for GL translation)
+    export VK_LOADER_DISABLE_INST_EXT_FILTER=1
+    export VK_ICD_FILENAMES=""
+    export VK_LAYER_PATH=""
+    export DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1=1
+    export DISABLE_LAYER_NV_OPTIMUS_1=1
+
+    # --- PERFORMANCE TWEAKS ---
+    
+    # 1. Disable V-Sync to measure true uncapped performance
+    export vblank_mode=0
+    
+    # 2. Enable Gallium Multithreading (Offloads socket submission to another core)
+    export mesa_glthread=true
+    
+    # 3. Suppress all debug logging to prevent I/O blocking
+    unset LIBGL_DEBUG
+    unset EGL_LOG_LEVEL
+    unset MESA_DEBUG
+
+    # Force common toolkits to bypass X11 and use Wayland natively
+    export GDK_BACKEND=wayland
+    export SDL_VIDEODRIVER=wayland
+    export QT_QPA_PLATFORM=wayland
+
+    if [ ! -S "$VIRGL_SERVER_PATH" ]; then
+        echo "[vir-gl] ERROR: virgl socket not found at $VIRGL_SERVER_PATH"
+        exit 1
+    fi
+
+    "$@"
+    APP_EXIT_CODE=$?
+
+    echo "=========================================================="
+    [ "$APP_EXIT_CODE" -eq 0 ] \
+        && echo "[vir-gl] SUCCESS (exit 0)" \
+        || echo "[vir-gl] FAILED (exit $APP_EXIT_CODE)"
+    echo "=========================================================="
+    exit $APP_EXIT_CODE
+
+) 2>&1 | tee "$STDOUT_LOG"

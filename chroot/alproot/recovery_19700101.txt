@@ -1,0 +1,2635 @@
+#!/system/bin/sh
+
+# ============================================================
+# CONFIGURATION (ALP_STATUS)
+# ============================================================
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alp_status.log"
+DMESGLOG="/sdcard/dmesg.log"
+
+# Target Mounts & Sources
+ALPINE="/mnt/alpine"
+SYSTEM_A_TMP="${ALPINE}/system_a"
+SYSTEM_SOURCE="${SYSTEM_A_TMP}/system"
+
+# Staging area for mergerfs intermediate mounts (On Native RW Path)
+STAGE_BASE="${ALPINE}/tmp/staging"
+
+# Alpine mergerfs runtime
+MERGERFS_BIN="${ALPINE}/usr/bin/mergerfs"
+LINKER="${ALPINE}/lib/ld-musl-aarch64.so.1"
+LIB_PATH="${ALPINE}/usr/lib/aarch64-alpine-linux-musl:${ALPINE}/lib:${ALPINE}/usr/lib"
+
+> "$LOGFILE"
+> "$DMESGLOG"
+
+log()            { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE"; sync; }
+log_section()    { log "========================================="; log "=== $* ==="; log "========================================="; }
+log_subsection() { log "  --- $* ---"; }
+log_info()       { log " $*"; }
+log_success()    { log " $*"; }
+log_warning()    { log " $*"; }
+log_error()      { log " ERROR: $*"; }
+
+# ============================================================
+# CONTINUOUS BACKGROUND DMESG LOGGER
+# Uses dmesg --follow if available, otherwise polls every 2s.
+# Launched before anything else so it captures the full run.
+# Writes raw kernel lines prefixed with a wall-clock marker
+# every 10 seconds so you can correlate to alp_status.log.
+# Runs in a subshell and is immune to later binary breakage
+# because the shell itself is already loaded into memory.
+# ============================================================
+(
+    LAST_LINE=""
+    TICK=0
+    while true; do
+        # Emit a heartbeat marker every 10 iterations (20s)
+        TICK=$((TICK + 1))
+        if [ $((TICK % 10)) -eq 0 ]; then
+            echo "--- HEARTBEAT $(cat /proc/uptime 2>/dev/null | cut -d' ' -f1) ---" >> "$DMESGLOG"
+            sync
+        fi
+        # Dump full dmesg; skip lines we've already written by tracking last seen line
+        CUR=$(dmesg 2>/dev/null | tail -n 1)
+        dmesg 2>/dev/null >> "$DMESGLOG"
+        echo "--- POLL ---" >> "$DMESGLOG"
+        sync
+        sleep 2
+    done
+) &
+DMESG_BG_PID=$!
+echo $DMESG_BG_PID > /tmp/dmesg_bg.pid
+log_info "Background dmesg logger started (PID $DMESG_BG_PID)"
+
+# ============================================================
+# FUNCTIONS
+# ============================================================
+cleanup_old_mounts() {
+    log_info "Cleaning up previous mounts and existing root overlays..."
+
+    # 1. Unmount staged bind mounts on the live root
+    for dir in /system /bin /etc /lib /sbin /usr /media; do
+        if mountpoint -q "$dir" 2>/dev/null; then
+            log_info "Removing bind mount at $dir"
+            umount -l "$dir" 2>/dev/null
+        fi
+    done
+
+    # 2. Unmount staging FUSE mounts
+    for dir in system bin etc lib sbin usr media; do
+        STAGE_MNT="${STAGE_BASE}/$dir"
+        if mountpoint -q "$STAGE_MNT" 2>/dev/null; then
+            umount -l "$STAGE_MNT" 2>/dev/null
+        fi
+    done
+
+    # 3. Catch any remaining mergerfs mounts
+    mount | grep "fuse.mergerfs" | awk '{print $3}' | sort -r | while read -r mnt; do
+        umount -l "$mnt" 2>/dev/null
+    done
+
+    pkill -f "mergerfs" 2>/dev/null
+}
+
+show_hardware_status() {
+    log_section "HARDWARE & SYSTEM STATUS"
+
+    log_info "RAM Status (free -m):"
+    free -m 2>/dev/null | while read -r line; do log "    $line"; done
+
+    log_info "Swap Status (/proc/swaps):"
+    cat /proc/swaps 2>/dev/null | while read -r line; do log "    $line"; done
+
+    log_info "ZRAM Kernel Logs:"
+    dmesg 2>/dev/null | grep -i zram | tail -n 5 | while read -r line; do log "    $line"; done
+
+    log_info "Uptime: $(cat /proc/uptime 2>/dev/null | awk '{print int($1)}')s"
+
+    BATT_CAP="$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)"
+    [ -n "$BATT_CAP" ] && log_info "Battery Capacity: ${BATT_CAP}%" || log_info "Battery Capacity: N/A"
+
+    SOC_TEMP="$(cat /sys/class/thermal/thermal_zone1/temp 2>/dev/null)"
+    [ -n "$SOC_TEMP" ] && log_info "Main SoC Temp: $((SOC_TEMP / 1000))C (${SOC_TEMP} raw)" || log_info "Main SoC Temp: N/A"
+
+    BRIGHTNESS="$(cat /sys/class/backlight/*/brightness 2>/dev/null | head -n 1)"
+    [ -n "$BRIGHTNESS" ] && log_info "Brightness Level: $BRIGHTNESS" || log_info "Brightness Level: N/A"
+}
+
+safe_mount() {
+    local target=$1
+    shift
+    local mount_args="$@"
+
+    if mountpoint -q "$target" 2>/dev/null || mount | grep -q " $target "; then
+        return 0
+    fi
+
+    mkdir -p "$target" 2>/dev/null
+    mount $mount_args "$target" 2>/dev/null
+    return $?
+}
+
+run_mergerfs() {
+    local branches="$1"
+    local target="$2"
+    local fsname="$3"
+    local opts="defaults,nonempty,allow_other,use_ino,cache.files=off,dropcacheonclose=true,category.create=mfs,fsname=${fsname}"
+
+    mkdir -p "$target" 2>/dev/null
+
+    if mountpoint -q "$target" 2>/dev/null; then
+        log_info "Already mounted: $target"
+        return 0
+    fi
+
+    MERGERFS_ERR=$(
+        "$LINKER" --library-path "$LIB_PATH" "$MERGERFS_BIN" \
+            -o "$opts" "$branches" "$target" 2>&1
+    )
+    sleep 2
+
+    if mountpoint -q "$target" 2>/dev/null; then
+        log_success "mergerfs mounted: $branches -> $target"
+        for pid_dir in /proc/[0-9]*; do
+            if grep -q "mergerfs" "$pid_dir/cmdline" 2>/dev/null && \
+               grep -q "$target" "$pid_dir/cmdline" 2>/dev/null; then
+                mfs_pid=$(basename "$pid_dir")
+                echo -1000 > "/proc/$mfs_pid/oom_score_adj" 2>/dev/null
+            fi
+        done
+        return 0
+    else
+        log_error "mergerfs failed: $branches -> $target"
+        if [ -n "$MERGERFS_ERR" ]; then
+            log_error "  stderr: $MERGERFS_ERR"
+        else
+            log_error "  stderr: (empty - binary may not exist or linker failed)"
+        fi
+        return 1
+    fi
+}
+
+# ============================================================
+# STAGE 0: WAIT FOR MOUNT POINTS
+# ============================================================
+log_section "STAGE 0: INITIALIZATION & LOOPS WAIT"
+
+log_info "Waiting for /mnt/alpine/system_a to become available..."
+
+WAIT_INIT_TIMER=0
+while [ ! -d "/mnt/alpine/system_a" ] && [ "$WAIT_INIT_TIMER" -lt 60 ]; do
+    sleep 1
+    WAIT_INIT_TIMER=$((WAIT_INIT_TIMER + 1))
+done
+
+if [ "$WAIT_INIT_TIMER" -ge 60 ]; then
+    log_warning "Timeout waiting for /mnt/alpine/system_a. Proceeding anyway..."
+else
+    log_success "/mnt/alpine/system_a is available."
+fi
+
+log_success "Cgroups stabilizing. Give me a couple of seconds..."
+sleep 2
+
+# Ensure /sbin exists to prevent staging and watchdog failures
+if [ ! -d "/sbin" ]; then
+    rm -f "/sbin" 2>/dev/null
+    mkdir -p "/sbin" 2>/dev/null
+    log_info "Created missing /sbin directory on live root"
+fi
+
+# ============================================================
+# STAGE 1: ANDROID IPC HALIUM 11 INFRASTRUCTURE
+# ============================================================
+log_section "STAGE 1: ANDROID IPC HALIUM 11 INFRASTRUCTURE"
+
+log_subsection "Setting up Android property service"
+mkdir -p /dev/__properties__ 2>/dev/null
+if [ -d /dev/__properties__ ]; then
+    log_success " /dev/__properties__ directory created"
+else
+    log_error " Failed to create /dev/__properties__"
+fi
+
+log_subsection "Setting up socket directory"
+mkdir -p /dev/socket 2>/dev/null
+if [ ! -d "$ALPINE/socket" ]; then
+    mkdir -p "$ALPINE/socket" 2>/dev/null
+fi
+
+if mountpoint -q "$ALPINE/socket" 2>/dev/null; then
+    log_info "  Socket directory already mounted"
+else
+    if mount -n -o bind,rw /dev/socket "$ALPINE/socket" 2>&1 | tee -a "$LOGFILE"; then
+        log_success " Mounted /dev/socket to $ALPINE/socket"
+    else
+        log_warning " Failed to mount socket directory"
+    fi
+fi
+
+log_subsection "Setting up binderfs"
+if [ ! -e /dev/binder ]; then
+    log_info "  Setting up binderfs (binder devices not present)..."
+    mkdir -p /dev/binderfs 2>/dev/null
+
+    if mount -t binder binder /dev/binderfs -o stats=global 2>&1 | tee -a "$LOGFILE"; then
+        log_success " Mounted binderfs to /dev/binderfs"
+        chmod 666 /dev/binderfs/*binder 2>/dev/null
+
+        BINDER_COUNT=0
+        for binder_dev in /dev/binderfs/*binder; do
+            if [ -e "$binder_dev" ]; then
+                binder_name=$(basename "$binder_dev")
+                if [ ! -e "/dev/$binder_name" ]; then
+                    ln -s "$binder_dev" "/dev/$binder_name" 2>/dev/null
+                    log_success "   Linked $binder_name to /dev"
+                    BINDER_COUNT=$((BINDER_COUNT + 1))
+                fi
+            fi
+        done
+        log_success " binderfs setup complete ($BINDER_COUNT devices)"
+    else
+        log_warning " Failed to mount binderfs (kernel support may be missing)"
+    fi
+else
+    log_success " Binder devices already present, skipping binderfs"
+fi
+
+# ============================================================
+# STAGE 2: SOCKET READY
+# ============================================================
+log_section "STAGE 2: SOCKET READY"
+
+mkdir -p /dev/socket 2>/dev/null
+chmod 0771 /dev/socket 2>/dev/null
+chown root:system /dev/socket 2>/dev/null
+log_success "/dev/socket ready for IPC"
+
+# ============================================================
+# STAGE 3: TUN AND LIMITS
+# ============================================================
+log_section "STAGE 3: TUN AND LIMITS"
+
+if mkdir -p /dev/net 2>/dev/null; then
+    chmod 0755 /dev/net 2>/dev/null
+    chown root:root /dev/net 2>/dev/null
+    if ln -sf ../tun /dev/net/tun 2>/dev/null; then
+        log_success "/dev/net/tun symlink created"
+    else
+        log_warning "/dev/net/tun symlink failed (may already exist)"
+    fi
+else
+    log_error "Failed to create /dev/net"
+fi
+
+if ulimit -e 40 2>/dev/null; then
+    log_success "ulimit -e 40 (max scheduling priority)"
+else
+    log_warning "ulimit -e 40 failed"
+fi
+
+if ulimit -n 32768 2>/dev/null; then
+    log_success "ulimit -n 32768 (open file descriptors)"
+else
+    log_warning "ulimit -n 32768 failed"
+fi
+
+if mkdir -p /dev/boringssl/selftest 2>/dev/null; then
+    chmod 0755 /dev/boringssl /dev/boringssl/selftest 2>/dev/null
+    chown root:root /dev/boringssl /dev/boringssl/selftest 2>/dev/null
+    log_success "/dev/boringssl/selftest directory ready"
+else
+    log_warning "Failed to create /dev/boringssl/selftest"
+fi
+
+# ============================================================
+# STAGE 4: MASTER ASSEMBLY
+# ============================================================
+log_section "STAGE 4: STAGED MERGERFS ASSEMBLY"
+
+cleanup_old_mounts
+
+mount -o remount,rw,exec "$ALPINE" 2>/dev/null
+mount -o remount,rw / 2>/dev/null
+
+log_subsection "Verifying mergerfs runtime"
+if [ ! -f "$MERGERFS_BIN" ]; then
+    log_error "mergerfs binary not found at $MERGERFS_BIN"
+elif [ ! -x "$MERGERFS_BIN" ]; then
+    chmod +x "$MERGERFS_BIN" 2>/dev/null
+    log_warning "mergerfs binary was not executable - chmod applied"
+else
+    log_success "mergerfs binary present: $MERGERFS_BIN"
+fi
+
+if [ ! -f "$LINKER" ]; then
+    log_error "musl linker not found at $LINKER"
+else
+    log_success "musl linker present: $LINKER"
+fi
+
+# Prepare staging base directory on RW tmp partition
+if [ -d "${STAGE_BASE}" ]; then
+    rm -rf "${STAGE_BASE}/"* 2>/dev/null
+fi
+mkdir -p "$STAGE_BASE" 2>/dev/null
+chmod 0751 "$STAGE_BASE" 2>/dev/null
+log_success "Staging base ready: $STAGE_BASE (drwxr-x--x)"
+
+# ============================================================
+# PHASE 4.1: STAGED FUSE MOUNTS (MERGERFS)
+# Staging all FUSE operations into /mnt/alpine/tmp to prevent recursion
+# ============================================================
+log_section "PHASE 4.1: STAGED FUSE MOUNTS"
+
+for dir in system bin etc lib usr sbin media; do
+    ALPINE_RW="${ALPINE}/$dir"
+    LIVE_PATH="/$dir"
+    STAGE_MNT="${STAGE_BASE}/$dir"
+
+    if mountpoint -q "$LIVE_PATH" 2>/dev/null; then
+        log_info "$LIVE_PATH already bind mounted - skipping fuse staging"
+        continue
+    fi
+
+    [ -L "$ALPINE_RW" ] && rm -f "$ALPINE_RW" 2>/dev/null
+    mkdir -p "$ALPINE_RW" 2>/dev/null
+
+    case "$dir" in
+        system)
+            BRANCHES="${ALPINE_RW}=RW:/apex=RO:${SYSTEM_SOURCE}=RO"
+            ;;
+        bin|etc|lib|usr|sbin)
+            SYS_SRC="${SYSTEM_SOURCE}/$dir"
+            if [ -d "$SYS_SRC" ]; then
+                BRANCHES="${ALPINE_RW}=RW:${SYS_SRC}=RO"
+            else
+                BRANCHES="${ALPINE_RW}=RW"
+            fi
+            ;;
+        *)
+            BRANCHES="${ALPINE_RW}=RW"
+            ;;
+    esac
+
+    log_info "Staging FUSE mount for $dir -> $STAGE_MNT ..."
+    run_mergerfs "$BRANCHES" "$STAGE_MNT" "ALP-stage-${dir}"
+done
+
+# ============================================================
+# PHASE 4.2: BIND MOUNTS TO LIVE ROOT
+# ============================================================
+log_section "PHASE 4.2: BIND MOUNTS TO LIVE ROOT"
+
+for dir in system bin etc lib usr sbin media; do
+    LIVE_PATH="/$dir"
+    STAGE_MNT="${STAGE_BASE}/$dir"
+
+    if ! mountpoint -q "$STAGE_MNT" 2>/dev/null; then
+        log_error "Staging mount missing for $dir - skipping root bind"
+        continue
+    fi
+
+    if [ -L "$LIVE_PATH" ]; then
+        log_warning "$LIVE_PATH is a symlink - removing and converting to physical directory"
+        rm -f "$LIVE_PATH" 2>/dev/null
+        mkdir -p "$LIVE_PATH" 2>/dev/null
+    fi
+
+    if mount --bind "$STAGE_MNT" "$LIVE_PATH" 2>/dev/null; then
+        log_success "Bind mount: $STAGE_MNT -> $LIVE_PATH"
+    else
+        log_error "Bind mount failed: $STAGE_MNT -> $LIVE_PATH"
+    fi
+done
+
+# ============================================================
+# PHASE 4.3: FINAL SYSTEM ACCESSIBILITY CHECK & BUILD.PROP
+# ============================================================
+log_section "PHASE 4.3: FINAL SYSTEM ACCESSIBILITY CHECK"
+
+load_build_props() {
+    local propfile=$1 label=$2 count=0
+    [ -f "$propfile" ] || { log_warning "  build.prop not found: $propfile"; return; }
+    while IFS= read -r line; do
+        case "$line" in ''|'#'*) continue ;; esac
+        key="${line%%=*}"
+        val="${line#*=}"
+        [ -z "$key" ] && continue
+        setprop "$key" "$val" 2>/dev/null && count=$((count + 1))
+    done < "$propfile"
+    log_success "  $label: loaded $count props via init property service"
+}
+
+ACCESSIBLE=0
+for _item in /system/apex /system/framework /system/lib64 /system/build.prop \
+             /system_ext/build.prop /vendor/build.prop /product/build.prop; do
+    if [ -e "$_item" ]; then
+        ACCESSIBLE=$((ACCESSIBLE + 1))
+        log_success "$_item is accessible"
+        case "$_item" in
+            */build.prop) load_build_props "$_item" "$_item" ;;
+        esac
+    else
+        log_warning "$_item not found"
+    fi
+done
+
+[ $ACCESSIBLE -ge 4 ] \
+    && log_success "System accessible ($ACCESSIBLE/7)" \
+    || log_warning "Limited accessibility ($ACCESSIBLE/7)"
+
+log_success "Script complete. Background dmesg logger (PID $DMESG_BG_PID) continues running."
+log_success "Kill it with: kill $DMESG_BG_PID"
+
+# ============================================================
+# PHASE 5: ANDROID SYSTEM TUNING (KERNEL PARAMETERS)
+# ============================================================
+log_section "PHASE 5: ANDROID SYSTEM TUNING (KERNEL PARAMETERS)"
+
+log_subsection "Configuring scheduler tunables"
+if [ -f /proc/sys/kernel/sched_tunable_scaling ]; then echo 0 > /proc/sys/kernel/sched_tunable_scaling 2>/dev/null && log_success " Disabled auto-scaling of scheduler tunables"; else log_info " node missing: sched_tunable_scaling"; fi
+if [ -f /proc/sys/kernel/sched_latency_ns ]; then echo 10000000 > /proc/sys/kernel/sched_latency_ns 2>/dev/null && log_success " Set sched_latency_ns"; else log_info " node missing: sched_latency_ns"; fi
+if [ -f /proc/sys/kernel/sched_wakeup_granularity_ns ]; then echo 2000000 > /proc/sys/kernel/sched_wakeup_granularity_ns 2>/dev/null && log_success " Set sched_wakeup_granularity_ns"; else log_info " node missing: sched_wakeup_granularity_ns"; fi
+if [ -f /proc/sys/kernel/sched_child_runs_first ]; then echo 0 > /proc/sys/kernel/sched_child_runs_first 2>/dev/null && log_success " Set sched_child_runs_first"; else log_info " node missing: sched_child_runs_first"; fi
+
+log_subsection "Configuring security settings"
+if [ -f /proc/sys/kernel/randomize_va_space ]; then echo 2 > /proc/sys/kernel/randomize_va_space 2>/dev/null && log_success " ASLR enabled"; else log_info " node missing: randomize_va_space"; fi
+if [ -f /proc/sys/vm/mmap_min_addr ]; then echo 32768 > /proc/sys/vm/mmap_min_addr 2>/dev/null && log_success " mmap_min_addr set"; else log_info " node missing: mmap_min_addr"; fi
+if [ -f /proc/sys/net/ipv4/ping_group_range ]; then echo "0 2147483647" > /proc/sys/net/ipv4/ping_group_range 2>/dev/null && log_success " ping_group_range configured"; else log_info " node missing: ping_group_range"; fi
+if [ -f /proc/sys/net/unix/max_dgram_qlen ]; then echo 600 > /proc/sys/net/unix/max_dgram_qlen 2>/dev/null && log_success " unix socket queue length set"; else log_info " node missing: max_dgram_qlen"; fi
+
+log_subsection "Configuring realtime scheduler"
+if [ -f /proc/sys/kernel/sched_rt_runtime_us ]; then echo 950000 > /proc/sys/kernel/sched_rt_runtime_us 2>/dev/null && log_success " RT runtime set (global limit)"; else log_info " node missing: sched_rt_runtime_us"; fi
+if [ -f /proc/sys/kernel/sched_rt_period_us ]; then echo 1000000 > /proc/sys/kernel/sched_rt_period_us 2>/dev/null && log_success " RT period set (global limit)"; else log_info " node missing: sched_rt_period_us"; fi
+
+log_subsection "Configuring network buffers"
+if [ -f /proc/sys/net/core/rmem_max ]; then echo 262144 > /proc/sys/net/core/rmem_max 2>/dev/null && log_success " Receive buffer max set"; else log_info " node missing: rmem_max"; fi
+if [ -f /proc/sys/net/core/wmem_max ]; then echo 262144 > /proc/sys/net/core/wmem_max 2>/dev/null && log_success " Send buffer max set"; else log_info " node missing: wmem_max"; fi
+
+log_subsection "Configuring advanced network parameters"
+if [ -f /proc/sys/net/core/netdev_max_backlog ]; then echo 2500 > /proc/sys/net/core/netdev_max_backlog 2>/dev/null && log_success " Network backlog increased to 2500 packets"; else log_info " node missing: netdev_max_backlog"; fi
+if [ -f /proc/sys/net/core/somaxconn ]; then echo 1024 > /proc/sys/net/core/somaxconn 2>/dev/null && log_success " Socket listen backlog set to 1024"; else log_info " node missing: somaxconn"; fi
+
+log_subsection "Configuring networking"
+if [ -f /proc/sys/net/ipv4/fwmark_reflect ]; then echo 1 > /proc/sys/net/ipv4/fwmark_reflect 2>/dev/null && log_success " IPv4 fwmark reflect enabled"; else log_info " node missing: ipv4/fwmark_reflect"; fi
+if [ -f /proc/sys/net/ipv6/fwmark_reflect ]; then echo 1 > /proc/sys/net/ipv6/fwmark_reflect 2>/dev/null && log_success " IPv6 fwmark reflect enabled"; else log_info " node missing: ipv6/fwmark_reflect"; fi
+if [ -f /proc/sys/net/ipv4/tcp_fwmark_accept ]; then echo 1 > /proc/sys/net/ipv4/tcp_fwmark_accept 2>/dev/null && log_success " TCP fwmark accept enabled"; else log_info " node missing: tcp_fwmark_accept"; fi
+if [ -f /proc/sys/net/ipv4/conf/all/accept_redirects ]; then echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects 2>/dev/null && log_success " IPv4 redirects disabled"; else log_info " node missing: ipv4 accept_redirects"; fi
+if [ -f /proc/sys/net/ipv6/conf/all/accept_redirects ]; then echo 0 > /proc/sys/net/ipv6/conf/all/accept_redirects 2>/dev/null && log_success " IPv6 redirects disabled"; else log_info " node missing: ipv6 accept_redirects"; fi
+if [ -f /proc/net/fib_trie ]; then chmod 0400 /proc/net/fib_trie 2>/dev/null && log_success " FIB trie secured"; else log_info " node missing: fib_trie"; fi
+
+log_subsection "Creating fsck log directory"
+mkdir -p /dev/fscklogs 2>/dev/null
+chown root:1000 /dev/fscklogs 2>/dev/null
+chmod 0770 /dev/fscklogs 2>/dev/null
+log_success " fsck log directory created"
+
+log_subsection "Configuring pstore"
+if ! mountpoint -q /sys/fs/pstore 2>/dev/null; then
+    mkdir -p /sys/fs/pstore 2>/dev/null
+    if mount -t pstore pstore /sys/fs/pstore -o nodev,noexec,nosuid 2>/dev/null; then
+        chown system:1007 /sys/fs/pstore 2>/dev/null
+        chmod 0550 /sys/fs/pstore 2>/dev/null
+        chown system:1007 /sys/fs/pstore/console-ramoops 2>/dev/null
+        chmod 0440 /sys/fs/pstore/console-ramoops 2>/dev/null
+        chown system:1007 /sys/fs/pstore/console-ramoops-0 2>/dev/null
+        chmod 0440 /sys/fs/pstore/console-ramoops-0 2>/dev/null
+        chown system:1007 /sys/fs/pstore/pmsg-ramoops-0 2>/dev/null
+        chmod 0440 /sys/fs/pstore/pmsg-ramoops-0 2>/dev/null
+        log_success " pstore configured"
+    else
+        log_warning " pstore mount failed"
+    fi
+fi
+
+log_subsection "Enabling ARMv8 deprecated instruction hooks"
+if [ -f /proc/sys/abi/swp ]; then echo 1 > /proc/sys/abi/swp 2>/dev/null && log_success " SWP instruction hook enabled"; else log_info " node missing: abi/swp"; fi
+
+log_subsection "Optimizing CP15 barrier execution"
+if [ -f /proc/sys/abi/cp15_barrier ]; then
+    CURRENT_MODE=$(cat /proc/sys/abi/cp15_barrier 2>/dev/null)
+    log_info " Current CP15 barrier mode: $CURRENT_MODE (0=undef, 1=emulate, 2=hardware)"
+    if echo 2 > /proc/sys/abi/cp15_barrier 2>/dev/null; then
+        NEW_MODE=$(cat /proc/sys/abi/cp15_barrier 2>/dev/null)
+        if [ "$NEW_MODE" = "2" ]; then
+            log_success " CP15 barriers set to hardware mode (faster for old ARMv7 apps)"
+        else
+            log_info " CP15 hardware mode not supported, using emulation (mode $NEW_MODE)"
+        fi
+    fi
+else
+    log_info " CP15 barrier control not available in kernel"
+fi
+
+log_subsection "Creating /dev/fd symlink"
+if [ ! -e /dev/fd ]; then
+    ln -s /proc/self/fd /dev/fd 2>/dev/null && log_success " /dev/fd and /proc/self/fd"
+fi
+
+log_subsection "Creating CPU variant markers"
+echo "" > /dev/cpu_variant:arm64 2>/dev/null
+chmod 0444 /dev/cpu_variant:arm64 2>/dev/null
+echo "" > /dev/cpu_variant:arm 2>/dev/null
+chmod 0444 /dev/cpu_variant:arm 2>/dev/null
+log_success " CPU variant markers created"
+
+log_subsection "Configuring power state access"
+chown system:system /sys/power/state 2>/dev/null
+chown system:system /sys/power/wakeup_count 2>/dev/null
+chmod 0660 /sys/power/state 2>/dev/null
+chown 1001:2000 /sys/power/wake_lock 2>/dev/null
+chown 1001:2000 /sys/power/wake_unlock 2>/dev/null
+chmod 0660 /sys/power/wake_lock 2>/dev/null
+chmod 0660 /sys/power/wake_unlock 2>/dev/null
+log_success " Power state permissions set"
+
+log_subsection "Mounting debugfs"
+if ! mountpoint -q /sys/kernel/debug 2>/dev/null; then
+    mkdir -p /sys/kernel/debug 2>/dev/null
+    if mount -t debugfs none /sys/kernel/debug 2>/dev/null; then
+        log_success " debugfs mounted"
+    fi
+fi
+
+log_subsection "Setting USB configfs property"
+if command -v setprop >/dev/null 2>&1; then
+    setprop sys.usb.configfs 0 2>/dev/null && log_success " sys.usb.configfs=0"
+fi
+
+log_subsection "Creating SPRD storage directories"
+mkdir -p /mnt/vendor/productinfo 2>/dev/null
+chown 1000:1000 /mnt/vendor/productinfo 2>/dev/null
+chmod 0771 /mnt/vendor/productinfo 2>/dev/null
+
+mkdir -p /mnt/media_rw/usbdisk 2>/dev/null
+chown 1023:1023 /mnt/media_rw/usbdisk 2>/dev/null
+chmod 0700 /mnt/media_rw/usbdisk 2>/dev/null
+
+mkdir -p /storage/usbdisk 2>/dev/null
+chown system:system /storage/usbdisk 2>/dev/null
+chmod 0700 /storage/usbdisk 2>/dev/null
+
+if [ ! -e /mnt/usbdisk ]; then
+    ln -s /storage/usbdisk /mnt/usbdisk 2>/dev/null
+fi
+log_success " SPRD storage directories created"
+
+# ============================================================
+# STAGE 6: MOUNT CGROUP CONTROLLERS
+# ============================================================
+log_section "STAGE 6: MOUNTING CGROUP CONTROLLERS"
+log_info "Mounting cgroup v1 controllers according to Android specification..."
+
+CGROUP_MOUNT_SUCCESS=0
+CGROUP_MOUNT_TOTAL=0
+
+get_uid() { case "$1" in root) echo "0" ;; system) echo "1000" ;; *) echo "$1" ;; esac }
+get_gid() { case "$1" in root) echo "0" ;; system) echo "1000" ;; *) echo "$1" ;; esac }
+
+log_subsection "Mounting blkio controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*blkio"; then
+    mkdir -p /dev/blkio 2>/dev/null
+    if mount -t cgroup -o blkio blkio /dev/blkio 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid system):$(get_gid system) /dev/blkio 2>/dev/null
+        chmod 0755 /dev/blkio 2>/dev/null
+        log_success " blkio controller mounted at /dev/blkio"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_warning " Failed to mount blkio controller"
+    fi
+else
+    log_success " blkio controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting cpu controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*cpu[^a]"; then
+    mkdir -p /dev/cpuctl 2>/dev/null
+    if mount -t cgroup -o cpu cpu /dev/cpuctl 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid system):$(get_gid system) /dev/cpuctl 2>/dev/null
+        chmod 0755 /dev/cpuctl 2>/dev/null
+        log_success " cpu controller mounted at /dev/cpuctl"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+        if [ ! -f /dev/cpuctl/cpu.rt_period_us ]; then
+            log_warning "   RT group scheduling unavailable (kernel limitation)"
+        fi
+    else
+        log_warning " Failed to mount cpu controller"
+    fi
+else
+    log_success " cpu controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting cpuacct controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*cpuacct"; then
+    mkdir -p /acct 2>/dev/null
+    if mount -t cgroup -o cpuacct cpuacct /acct 2>&1 | tee -a "$LOGFILE"; then
+        chmod 0555 /acct 2>/dev/null
+        log_success " cpuacct controller mounted at /acct"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_warning " Failed to mount cpuacct controller"
+    fi
+else
+    log_success " cpuacct controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting cpuset controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*cpuset"; then
+    mkdir -p /dev/cpuset 2>/dev/null
+    if mount -t cgroup -o cpuset cpuset /dev/cpuset 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid system):$(get_gid system) /dev/cpuset 2>/dev/null
+        chmod 0755 /dev/cpuset 2>/dev/null
+        log_success " cpuset controller mounted at /dev/cpuset"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_error " Failed to mount cpuset controller (CRITICAL)"
+    fi
+else
+    log_success " cpuset controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting memory controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*memory"; then
+    mkdir -p /dev/memcg 2>/dev/null
+    if mount -t cgroup -o memory memory /dev/memcg 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid root):$(get_gid system) /dev/memcg 2>/dev/null
+        chmod 0700 /dev/memcg 2>/dev/null
+        log_success " memory controller mounted at /dev/memcg"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_warning " Failed to mount memory controller"
+    fi
+else
+    log_success " memory controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting schedtune controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*schedtune"; then
+    mkdir -p /dev/stune 2>/dev/null
+    if mount -t cgroup -o schedtune schedtune /dev/stune 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid system):$(get_gid system) /dev/stune 2>/dev/null
+        chmod 0755 /dev/stune 2>/dev/null
+        log_success " schedtune controller mounted at /dev/stune"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_warning " Failed to mount schedtune controller"
+    fi
+else
+    log_success " schedtune controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_subsection "Mounting freezer controller"
+CGROUP_MOUNT_TOTAL=$((CGROUP_MOUNT_TOTAL + 1))
+if ! mount | grep -q "cgroup.*freezer"; then
+    mkdir -p /dev/freezer 2>/dev/null
+    if mount -t cgroup -o freezer freezer /dev/freezer 2>&1 | tee -a "$LOGFILE"; then
+        chown $(get_uid system):$(get_gid system) /dev/freezer 2>/dev/null
+        chmod 0755 /dev/freezer 2>/dev/null
+        log_success " freezer controller mounted at /dev/freezer"
+        CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+    else
+        log_warning " Failed to mount freezer controller"
+    fi
+else
+    log_success " freezer controller already mounted"
+    CGROUP_MOUNT_SUCCESS=$((CGROUP_MOUNT_SUCCESS + 1))
+fi
+
+log_info "Cgroup v1 controllers: $CGROUP_MOUNT_SUCCESS/$CGROUP_MOUNT_TOTAL mounted successfully"
+
+# ============================================================
+# STAGE 7: CONFIGURE CGROUP SUBDIRECTORIES
+# ============================================================
+log_section "STAGE 7: CONFIGURING CGROUP SUBDIRECTORIES"
+
+if [ -d /dev/cpuctl ]; then
+    chown system:system /dev/cpuctl/tasks 2>/dev/null
+    chmod 0666 /dev/cpuctl/tasks 2>/dev/null
+    if [ -f /dev/cpuctl/cpu.rt_period_us ]; then
+        echo 1000000 > /dev/cpuctl/cpu.rt_period_us 2>/dev/null
+        echo 950000 > /dev/cpuctl/cpu.rt_runtime_us 2>/dev/null
+        log_success " CPU control with RT throttling configured"
+    else
+        log_success " CPU control configured (RT throttling unavailable)"
+    fi
+fi
+
+if [ -d /dev/cpuset ]; then
+    mkdir -p /dev/cpuset/{foreground,background,system-background,restricted,top-app} 2>/dev/null
+    for dir in foreground background system-background restricted top-app; do
+        if [ -d /dev/cpuset/$dir ]; then
+            if [ -f /dev/cpuset/cpus ]; then cat /dev/cpuset/cpus > /dev/cpuset/$dir/cpus 2>/dev/null; fi
+            if [ -f /dev/cpuset/mems ]; then cat /dev/cpuset/mems > /dev/cpuset/$dir/mems 2>/dev/null; fi
+        fi
+    done
+    chown system:system /dev/cpuset/{foreground,background,system-background,top-app,restricted,tasks} 2>/dev/null
+    chown system:system /dev/cpuset/{foreground,background,system-background,top-app,restricted}/tasks 2>/dev/null
+    chmod 0775 /dev/cpuset/system-background 2>/dev/null
+    chmod 0664 /dev/cpuset/{foreground,background,system-background,top-app,restricted}/tasks 2>/dev/null
+    chmod 0664 /dev/cpuset/tasks 2>/dev/null
+    log_success " CPUset subdirectories configured"
+else
+    log_error " /dev/cpuset not available"
+fi
+
+if [ -d /dev/freezer ]; then
+    mkdir -p /dev/freezer/frozen 2>/dev/null
+    echo FROZEN > /dev/freezer/frozen/freezer.state 2>/dev/null
+    chown system:system /dev/freezer/cgroup.procs 2>/dev/null
+    chown system:system /dev/freezer/frozen{,/freezer.state,/cgroup.procs} 2>/dev/null
+    chmod 0664 /dev/freezer/frozen/freezer.state 2>/dev/null
+    log_success " Freezer subdirectory configured (/dev/freezer/frozen)"
+else
+    log_warning " /dev/freezer not available"
+fi
+
+# ============================================================
+# STAGE 8: BPF FILESYSTEM AND BPFLOADER
+# ============================================================
+log_section "STAGE 8: BPF FILESYSTEM AND PROGRAM LOADER"
+
+if ! mount | grep -q "cgroup2.*cg2_bpf"; then
+    mkdir -p /dev/cg2_bpf 2>/dev/null
+    if mount -t cgroup2 none /dev/cg2_bpf 2>&1 | tee -a "$LOGFILE"; then
+        chown root:root /dev/cg2_bpf 2>/dev/null
+        chmod 0600 /dev/cg2_bpf 2>/dev/null
+        log_success " cgroup v2 mounted at /dev/cg2_bpf"
+    fi
+fi
+
+if ! mountpoint -q /sys/fs/bpf 2>/dev/null; then
+    mkdir -p /sys/fs/bpf 2>/dev/null
+    if mount -t bpf bpf /sys/fs/bpf -o nodev,noexec,nosuid 2>&1 | tee -a "$LOGFILE"; then
+        log_success " BPF filesystem mounted at /sys/fs/bpf"
+    else
+        log_error " BPF filesystem mount failed"
+    fi
+fi
+
+if [ -f /proc/sys/net/core/bpf_jit_enable ]; then echo 1 > /proc/sys/net/core/bpf_jit_enable 2>/dev/null && log_success " eBPF JIT enabled"; else log_info " node missing: bpf_jit_enable"; fi
+if [ -f /proc/sys/net/core/bpf_jit_kallsyms ]; then echo 1 > /proc/sys/net/core/bpf_jit_kallsyms 2>/dev/null && log_success " eBPF JIT kallsyms enabled"; else log_info " node missing: bpf_jit_kallsyms"; fi
+
+BPFLOADER_BIN="/system/bin/bpfloader"
+BPF_PROGRAMS_DIR="/system/etc/bpf"
+
+if [ ! -x "$BPFLOADER_BIN" ]; then
+    log_error " bpfloader binary not found at $BPFLOADER_BIN"
+elif [ ! -d "$BPF_PROGRAMS_DIR" ]; then
+    log_warning " BPF programs directory not found at $BPF_PROGRAMS_DIR"
+else
+    BPF_PROGRAM_COUNT=$(find "$BPF_PROGRAMS_DIR" -name "*.o" 2>/dev/null | wc -l)
+    if [ "$BPF_PROGRAM_COUNT" -gt 0 ]; then
+        if [ -f /sys/fs/bpf/.bpfloader_loaded ]; then
+            log_success " eBPF programs already loaded"
+        else
+            ulimit -l 1048576 2>/dev/null
+            if "$BPFLOADER_BIN" 2>&1 | tee -a "$LOGFILE"; then
+                touch /sys/fs/bpf/.bpfloader_loaded 2>/dev/null
+                BPF_MAPS_LOADED=$(find /sys/fs/bpf -type f 2>/dev/null | wc -l)
+                log_success " bpfloader completed successfully ($BPF_MAPS_LOADED objects)"
+                if command -v setprop >/dev/null 2>&1; then setprop bpf.progs_loaded 1 2>/dev/null; fi
+            else
+                log_error " bpfloader failed to load eBPF programs"
+            fi
+        fi
+    fi
+fi
+
+log_subsection "Optimizing ZRAM compression threads"
+LITTLE_CORES=""
+BIG_CORES=""
+CPU_NUM=0
+while IFS= read -r line; do
+    if echo "$line" | grep -q "^processor"; then
+        CPU_NUM=$(echo "$line" | awk '{print $3}')
+    elif echo "$line" | grep -q "CPU part.*0xd05"; then
+        [ -z "$LITTLE_CORES" ] && LITTLE_CORES="$CPU_NUM" || LITTLE_CORES="$LITTLE_CORES,$CPU_NUM"
+    elif echo "$line" | grep -q "CPU part.*0xd0a"; then
+        [ -z "$BIG_CORES" ] && BIG_CORES="$CPU_NUM" || BIG_CORES="$BIG_CORES,$CPU_NUM"
+    fi
+done < /proc/cpuinfo
+log_info "  big.LITTLE layout: LITTLE cores: $LITTLE_CORES, big cores: $BIG_CORES"
+
+log_subsection "Configuring SchedTune boost parameters"
+if [ ! -d /dev/stune ]; then
+    log_warning " /dev/stune not mounted"
+else
+    SCHEDTUNE_CONFIGURED=0
+    for subdir in top-app foreground background rt; do
+        [ ! -d /dev/stune/$subdir ] && mkdir -p /dev/stune/$subdir 2>/dev/null
+    done
+    
+    if [ -d /dev/stune/top-app ]; then
+        if [ -f /dev/stune/top-app/schedtune.boost ]; then echo 30 > /dev/stune/top-app/schedtune.boost 2>/dev/null; fi
+        if [ -f /dev/stune/top-app/schedtune.prefer_idle ]; then echo 1 > /dev/stune/top-app/schedtune.prefer_idle 2>/dev/null; fi
+    fi
+    
+    if [ -d /dev/stune/foreground ]; then
+        if [ -f /dev/stune/foreground/schedtune.boost ]; then echo 10 > /dev/stune/foreground/schedtune.boost 2>/dev/null; fi
+        if [ -f /dev/stune/foreground/schedtune.prefer_idle ]; then echo 0 > /dev/stune/foreground/schedtune.prefer_idle 2>/dev/null; fi
+    fi
+    
+    if [ -d /dev/stune/background ]; then
+        if [ -f /dev/stune/background/schedtune.boost ]; then echo 0 > /dev/stune/background/schedtune.boost 2>/dev/null; fi
+    fi
+    
+    if [ -d /dev/stune/rt ]; then
+        if [ -f /dev/stune/rt/schedtune.boost ]; then echo 50 > /dev/stune/rt/schedtune.boost 2>/dev/null; fi
+        if [ -f /dev/stune/rt/schedtune.prefer_idle ]; then echo 1 > /dev/stune/rt/schedtune.prefer_idle 2>/dev/null; fi
+    fi
+    log_success " SchedTune cgroups parameters applied"
+fi
+
+# ============================================================
+# STAGE 9: PERFORMANCE TUNING
+# ============================================================
+log_section "STAGE 9: PERFORMANCE TUNING"
+
+log_subsection "Configuring I/O scheduler for PERFORMANCE"
+IO_SCHED_OPTIMIZED=0
+
+if [ -f /sys/block/mmcblk0/queue/scheduler ]; then
+    CURRENT_SCHED=$(cat /sys/block/mmcblk0/queue/scheduler 2>/dev/null)
+    if echo kyber > /sys/block/mmcblk0/queue/scheduler 2>/dev/null; then
+        IO_SCHEDULER="kyber"
+        IO_SCHED_OPTIMIZED=1
+        if [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 2000 > /sys/block/mmcblk0/queue/iosched/read_lat_nsec 2>/dev/null
+            echo 10000 > /sys/block/mmcblk0/queue/iosched/write_lat_nsec 2>/dev/null
+        fi
+        log_success " Scheduler set to kyber"
+    elif echo deadline > /sys/block/mmcblk0/queue/scheduler 2>/dev/null; then
+        IO_SCHEDULER="deadline"
+        IO_SCHED_OPTIMIZED=1
+        if [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 250 > /sys/block/mmcblk0/queue/iosched/read_expire 2>/dev/null
+            echo 4 > /sys/block/mmcblk0/queue/iosched/writes_starved 2>/dev/null
+        fi
+        log_success " Scheduler set to deadline"
+    else
+        IO_SCHEDULER=$(echo "$CURRENT_SCHED" | grep -o '\[.*\]' | tr -d '[]')
+        if [ "$IO_SCHEDULER" = "cfq" ] && [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 0 > /sys/block/mmcblk0/queue/iosched/slice_idle 2>/dev/null
+            echo 0 > /sys/block/mmcblk0/queue/iosched/group_idle 2>/dev/null
+            echo 16 > /sys/block/mmcblk0/queue/iosched/quantum 2>/dev/null
+            echo 125 > /sys/block/mmcblk0/queue/iosched/fifo_expire_sync 2>/dev/null
+            echo 500 > /sys/block/mmcblk0/queue/iosched/fifo_expire_async 2>/dev/null
+            echo 1 > /sys/block/mmcblk0/queue/iosched/low_latency 2>/dev/null
+            IO_SCHED_OPTIMIZED=1
+        fi
+        log_success " Fallback scheduler $IO_SCHEDULER retained"
+    fi
+    
+    if [ -f /sys/block/mmcblk0/queue/nr_requests ]; then
+        echo 256 > /sys/block/mmcblk0/queue/nr_requests 2>/dev/null && log_success " queue/nr_requests set to 256"
+    fi
+    if [ -f /sys/block/mmcblk0/queue/iostats ]; then
+        echo 0 > /sys/block/mmcblk0/queue/iostats 2>/dev/null && log_success " queue/iostats set to 0"
+    fi
+else
+    IO_SCHEDULER="unknown"
+    log_info " I/O scheduler node not found (/sys/block/mmcblk0/queue/scheduler)"
+fi
+
+log_subsection "Configuring VM parameters"
+VM_TUNED=0
+if [ -f /proc/sys/vm/dirty_ratio ]; then echo 10 > /proc/sys/vm/dirty_ratio 2>/dev/null && VM_TUNED=1 && FINAL_DIRTY_RATIO=10 && log_success " dirty_ratio set to 10"; else log_info " node missing: vm/dirty_ratio"; fi
+if [ -f /proc/sys/vm/dirty_background_ratio ]; then echo 5 > /proc/sys/vm/dirty_background_ratio 2>/dev/null && VM_TUNED=1 && FINAL_BG_DIRTY_RATIO=5 && log_success " dirty_background_ratio set to 5"; else log_info " node missing: vm/dirty_background_ratio"; fi
+if [ -f /proc/sys/vm/vfs_cache_pressure ]; then echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null && VM_TUNED=1 && FINAL_VFS_CACHE=50 && log_success " vfs_cache_pressure set to 50"; else log_info " node missing: vm/vfs_cache_pressure"; fi
+if [ -f /proc/sys/vm/min_free_kbytes ]; then echo 4096 > /proc/sys/vm/min_free_kbytes 2>/dev/null && VM_TUNED=1 && FINAL_MIN_FREE=4096 && log_success " min_free_kbytes set to 4096"; else log_info " node missing: vm/min_free_kbytes"; fi
+
+log_subsection "Configuring network for low-latency"
+NETWORK_TUNED=0
+if [ -f /proc/sys/net/ipv4/tcp_low_latency ]; then echo 1 > /proc/sys/net/ipv4/tcp_low_latency 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_low_latency enabled"; else log_info " node missing: tcp_low_latency"; fi
+if [ -f /proc/sys/net/ipv4/tcp_rmem ]; then echo "4096 16384 262144" > /proc/sys/net/ipv4/tcp_rmem 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_rmem optimized"; else log_info " node missing: tcp_rmem"; fi
+if [ -f /proc/sys/net/ipv4/tcp_wmem ]; then echo "4096 16384 262144" > /proc/sys/net/ipv4/tcp_wmem 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_wmem optimized"; else log_info " node missing: tcp_wmem"; fi
+if [ -f /proc/sys/net/ipv4/tcp_fastopen ]; then echo 3 > /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null && NETWORK_TUNED=1 && TCP_FASTOPEN_STATUS=3 && log_success " tcp_fastopen enabled"; else log_info " node missing: tcp_fastopen"; fi
+if [ -f /proc/sys/net/ipv4/tcp_keepalive_time ]; then echo 600 > /proc/sys/net/ipv4/tcp_keepalive_time 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_keepalive_time optimized"; else log_info " node missing: tcp_keepalive_time"; fi
+if [ -f /proc/sys/net/ipv4/tcp_keepalive_intvl ]; then echo 30 > /proc/sys/net/ipv4/tcp_keepalive_intvl 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_keepalive_intvl optimized"; else log_info " node missing: tcp_keepalive_intvl"; fi
+if [ -f /proc/sys/net/ipv4/tcp_ecn ]; then echo 1 > /proc/sys/net/ipv4/tcp_ecn 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_ecn enabled"; else log_info " node missing: tcp_ecn"; fi
+
+log_subsection "Configuring RPS (network load balancing)"
+RPS_CONFIGURED=0
+RPS_CPUS_COUNT=0
+for netdev in /sys/class/net/*/queues/rx-*/rps_cpus; do
+    if [ -f "$netdev" ] && echo 3f > "$netdev" 2>/dev/null; then RPS_CONFIGURED=1; RPS_CPUS_COUNT=$((RPS_CPUS_COUNT + 1)); fi
+done
+if [ $RPS_CONFIGURED -eq 1 ]; then log_success " RPS set on $RPS_CPUS_COUNT queues"; else log_info " No network queues support RPS"; fi
+
+if [ -f /proc/sys/net/core/rps_sock_flow_entries ]; then echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 2>/dev/null && RPS_CONFIGURED=1 && log_success " rps_sock_flow_entries configured"; fi
+for netdev in /sys/class/net/*/queues/rx-*/rps_flow_cnt; do
+    if [ -f "$netdev" ] && echo 2048 > "$netdev" 2>/dev/null; then break; fi
+done
+
+log_subsection "Optimizing input device latency"
+INPUT_OPTIMIZED=0
+INPUT_DEVS=0
+for input_dev in /sys/class/input/event*/device/poll_delay /sys/class/input/input*/poll_interval; do
+    if [ -f "$input_dev" ] && echo 4 > "$input_dev" 2>/dev/null; then INPUT_OPTIMIZED=1 && INPUT_POLL_MS=4; INPUT_DEVS=$((INPUT_DEVS + 1)); fi
+done
+if [ $INPUT_OPTIMIZED -eq 1 ]; then log_success " Input latency optimized on $INPUT_DEVS devices"; else log_info " Hardware-controlled input latency (no exposed tuning nodes)"; fi
+
+if [ -f /proc/sys/kernel/timer_migration ]; then echo 0 > /proc/sys/kernel/timer_migration 2>/dev/null && log_success " timer_migration disabled"; fi
+if [ -f /proc/sys/fs/inotify/max_user_watches ]; then echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null && log_success " inotify max_user_watches expanded"; fi
+
+# ============================================================
+# STAGE 10: PERFORMANCE TUNING
+# ============================================================
+log_section "STAGE 10: PERFORMANCE TUNING"
+
+log_subsection "Configuring I/O scheduler for PERFORMANCE"
+IO_SCHED_OPTIMIZED=0
+
+if [ -f /sys/block/mmcblk0/queue/scheduler ]; then
+    CURRENT_SCHED=$(cat /sys/block/mmcblk0/queue/scheduler 2>/dev/null)
+    if echo kyber > /sys/block/mmcblk0/queue/scheduler 2>/dev/null; then
+        IO_SCHEDULER="kyber"
+        IO_SCHED_OPTIMIZED=1
+        if [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 2000 > /sys/block/mmcblk0/queue/iosched/read_lat_nsec 2>/dev/null
+            echo 10000 > /sys/block/mmcblk0/queue/iosched/write_lat_nsec 2>/dev/null
+        fi
+        log_success " Scheduler set to kyber"
+    elif echo deadline > /sys/block/mmcblk0/queue/scheduler 2>/dev/null; then
+        IO_SCHEDULER="deadline"
+        IO_SCHED_OPTIMIZED=1
+        if [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 250 > /sys/block/mmcblk0/queue/iosched/read_expire 2>/dev/null
+            echo 4 > /sys/block/mmcblk0/queue/iosched/writes_starved 2>/dev/null
+        fi
+        log_success " Scheduler set to deadline"
+    else
+        IO_SCHEDULER=$(echo "$CURRENT_SCHED" | grep -o '\[.*\]' | tr -d '[]')
+        if [ "$IO_SCHEDULER" = "cfq" ] && [ -d /sys/block/mmcblk0/queue/iosched ]; then
+            echo 0 > /sys/block/mmcblk0/queue/iosched/slice_idle 2>/dev/null
+            echo 0 > /sys/block/mmcblk0/queue/iosched/group_idle 2>/dev/null
+            echo 16 > /sys/block/mmcblk0/queue/iosched/quantum 2>/dev/null
+            echo 125 > /sys/block/mmcblk0/queue/iosched/fifo_expire_sync 2>/dev/null
+            echo 500 > /sys/block/mmcblk0/queue/iosched/fifo_expire_async 2>/dev/null
+            echo 1 > /sys/block/mmcblk0/queue/iosched/low_latency 2>/dev/null
+            IO_SCHED_OPTIMIZED=1
+        fi
+        log_success " Fallback scheduler $IO_SCHEDULER retained"
+    fi
+
+    if [ -f /sys/block/mmcblk0/queue/nr_requests ]; then
+        echo 256 > /sys/block/mmcblk0/queue/nr_requests 2>/dev/null && log_success " queue/nr_requests set to 256"
+    fi
+    if [ -f /sys/block/mmcblk0/queue/iostats ]; then
+        echo 0 > /sys/block/mmcblk0/queue/iostats 2>/dev/null && log_success " queue/iostats set to 0"
+    fi
+else
+    IO_SCHEDULER="unknown"
+    log_info " I/O scheduler node not found (/sys/block/mmcblk0/queue/scheduler)"
+fi
+
+log_subsection "Configuring VM parameters"
+VM_TUNED=0
+if [ -f /proc/sys/vm/dirty_ratio ]; then echo 10 > /proc/sys/vm/dirty_ratio 2>/dev/null && VM_TUNED=1 && FINAL_DIRTY_RATIO=10 && log_success " dirty_ratio set to 10"; else log_info " node missing: vm/dirty_ratio"; fi
+if [ -f /proc/sys/vm/dirty_background_ratio ]; then echo 5 > /proc/sys/vm/dirty_background_ratio 2>/dev/null && VM_TUNED=1 && FINAL_BG_DIRTY_RATIO=5 && log_success " dirty_background_ratio set to 5"; else log_info " node missing: vm/dirty_background_ratio"; fi
+if [ -f /proc/sys/vm/vfs_cache_pressure ]; then echo 50 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null && VM_TUNED=1 && FINAL_VFS_CACHE=50 && log_success " vfs_cache_pressure set to 50"; else log_info " node missing: vm/vfs_cache_pressure"; fi
+if [ -f /proc/sys/vm/min_free_kbytes ]; then echo 4096 > /proc/sys/vm/min_free_kbytes 2>/dev/null && VM_TUNED=1 && FINAL_MIN_FREE=4096 && log_success " min_free_kbytes set to 4096"; else log_info " node missing: vm/min_free_kbytes"; fi
+
+log_subsection "Configuring network for low-latency"
+NETWORK_TUNED=0
+if [ -f /proc/sys/net/ipv4/tcp_low_latency ]; then echo 1 > /proc/sys/net/ipv4/tcp_low_latency 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_low_latency enabled"; else log_info " node missing: tcp_low_latency"; fi
+if [ -f /proc/sys/net/ipv4/tcp_rmem ]; then echo "4096 16384 262144" > /proc/sys/net/ipv4/tcp_rmem 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_rmem optimized"; else log_info " node missing: tcp_rmem"; fi
+if [ -f /proc/sys/net/ipv4/tcp_wmem ]; then echo "4096 16384 262144" > /proc/sys/net/ipv4/tcp_wmem 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_wmem optimized"; else log_info " node missing: tcp_wmem"; fi
+if [ -f /proc/sys/net/ipv4/tcp_fastopen ]; then echo 3 > /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null && NETWORK_TUNED=1 && TCP_FASTOPEN_STATUS=3 && log_success " tcp_fastopen enabled"; else log_info " node missing: tcp_fastopen"; fi
+if [ -f /proc/sys/net/ipv4/tcp_keepalive_time ]; then echo 600 > /proc/sys/net/ipv4/tcp_keepalive_time 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_keepalive_time optimized"; else log_info " node missing: tcp_keepalive_time"; fi
+if [ -f /proc/sys/net/ipv4/tcp_keepalive_intvl ]; then echo 30 > /proc/sys/net/ipv4/tcp_keepalive_intvl 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_keepalive_intvl optimized"; else log_info " node missing: tcp_keepalive_intvl"; fi
+if [ -f /proc/sys/net/ipv4/tcp_ecn ]; then echo 1 > /proc/sys/net/ipv4/tcp_ecn 2>/dev/null && NETWORK_TUNED=1 && log_success " tcp_ecn enabled"; else log_info " node missing: tcp_ecn"; fi
+
+log_subsection "Configuring RPS (network load balancing)"
+RPS_CONFIGURED=0
+RPS_CPUS_COUNT=0
+for netdev in /sys/class/net/*/queues/rx-*/rps_cpus; do
+    if [ -f "$netdev" ] && echo 3f > "$netdev" 2>/dev/null; then RPS_CONFIGURED=1; RPS_CPUS_COUNT=$((RPS_CPUS_COUNT + 1)); fi
+done
+if [ $RPS_CONFIGURED -eq 1 ]; then log_success " RPS set on $RPS_CPUS_COUNT queues"; else log_info " No network queues support RPS"; fi
+
+if [ -f /proc/sys/net/core/rps_sock_flow_entries ]; then echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 2>/dev/null && RPS_CONFIGURED=1 && log_success " rps_sock_flow_entries configured"; fi
+for netdev in /sys/class/net/*/queues/rx-*/rps_flow_cnt; do
+    if [ -f "$netdev" ] && echo 2048 > "$netdev" 2>/dev/null; then break; fi
+done
+
+log_subsection "Optimizing input device latency"
+INPUT_OPTIMIZED=0
+INPUT_DEVS=0
+for input_dev in /sys/class/input/event*/device/poll_delay /sys/class/input/input*/poll_interval; do
+    if [ -f "$input_dev" ] && echo 4 > "$input_dev" 2>/dev/null; then INPUT_OPTIMIZED=1 && INPUT_POLL_MS=4; INPUT_DEVS=$((INPUT_DEVS + 1)); fi
+done
+if [ $INPUT_OPTIMIZED -eq 1 ]; then log_success " Input latency optimized on $INPUT_DEVS devices"; else log_info " Hardware-controlled input latency (no exposed tuning nodes)"; fi
+
+if [ -f /proc/sys/kernel/timer_migration ]; then echo 0 > /proc/sys/kernel/timer_migration 2>/dev/null && log_success " timer_migration disabled"; fi
+if [ -f /proc/sys/fs/inotify/max_user_watches ]; then echo 524288 > /proc/sys/fs/inotify/max_user_watches 2>/dev/null && log_success " inotify max_user_watches expanded"; fi
+
+log_subsection "Configuring ZRAM swap"
+ZRAM_BIN_PATH="${SYSTEM_SOURCE}/bin"
+MKSWAP_BIN=""
+SWAPON_BIN=""
+
+# Locate mkswap - prefer system_a copy, fall back to PATH
+for _t in "${ZRAM_BIN_PATH}/mkswap" "/system/bin/mkswap" "mkswap"; do
+    if [ -x "$_t" ] 2>/dev/null || command -v "$_t" >/dev/null 2>&1; then
+        MKSWAP_BIN="$_t"; break
+    fi
+done
+
+# Locate swapon - prefer system_a copy, fall back to PATH
+for _t in "${ZRAM_BIN_PATH}/swapon" "/system/bin/swapon" "swapon"; do
+    if [ -x "$_t" ] 2>/dev/null || command -v "$_t" >/dev/null 2>&1; then
+        SWAPON_BIN="$_t"; break
+    fi
+done
+
+[ -n "$MKSWAP_BIN" ] && log_info " mkswap: $MKSWAP_BIN" || log_warning " mkswap not found"
+[ -n "$SWAPON_BIN" ] && log_info " swapon: $SWAPON_BIN" || log_warning " swapon not found"
+
+if [ -b /dev/block/zram0 ] || [ -b /dev/zram0 ]; then
+    ZRAM_DEV=""
+    [ -b /dev/block/zram0 ] && ZRAM_DEV="/dev/block/zram0"
+    [ -b /dev/zram0 ]       && ZRAM_DEV="/dev/zram0"
+
+    # Check if zram0 is already active swap
+    if cat /proc/swaps 2>/dev/null | grep -q "$ZRAM_DEV"; then
+        log_success " zram0 already active as swap"
+    else
+        if [ -n "$MKSWAP_BIN" ] && [ -n "$SWAPON_BIN" ]; then
+            if "$MKSWAP_BIN" "$ZRAM_DEV" 2>/dev/null; then
+                log_success " mkswap on $ZRAM_DEV succeeded"
+                if "$SWAPON_BIN" "$ZRAM_DEV" 2>/dev/null; then
+                    log_success " swapon $ZRAM_DEV succeeded"
+                    ZRAM_SWAP_ACTIVE=1
+                else
+                    log_warning " swapon $ZRAM_DEV failed"
+                    ZRAM_SWAP_ACTIVE=0
+                fi
+            else
+                log_warning " mkswap on $ZRAM_DEV failed"
+                ZRAM_SWAP_ACTIVE=0
+            fi
+        else
+            log_warning " Skipping zram swap -- mkswap or swapon not available"
+            ZRAM_SWAP_ACTIVE=0
+        fi
+    fi
+else
+    log_info " /dev/block/zram0 and /dev/zram0 not found -- skipping swap setup"
+    ZRAM_SWAP_ACTIVE=0
+fi
+
+# ============================================================
+# STAGE 11: PSI MEMORY MONITOR DAEMON & MEMORY LIMITS
+# ============================================================
+log_section "STAGE 11: PSI MONITOR"
+log_subsection "Starting PSI memory pressure monitor"
+PSI_MONITOR_SCRIPT="/usr/local/bin/psi-monitor"
+
+if pgrep -f "psi-monitor" >/dev/null 2>&1; then
+    log_success " PSI monitor already running (PID: $(pgrep -f psi-monitor))"
+else
+    if [ ! -f /proc/pressure/memory ]; then
+        log_warning " PSI not available in kernel (/proc/pressure/memory missing)"
+    else
+        if [ ! -f "$PSI_MONITOR_SCRIPT" ]; then
+            log_info "  Creating PSI monitor daemon..."
+            mkdir -p /usr/local/bin 2>/dev/null
+            cat > "$PSI_MONITOR_SCRIPT" << 'PSI_EOF'
+#!/bin/sh
+LOG_FILE="/var/log/psi-monitor.log"
+mkdir -p /var/log 2>/dev/null
+log_msg() { echo "$(date '+%Y-%m-%d %H:%M:%S') [psi-monitor] $1" >> "$LOG_FILE"; }
+log_msg "Starting PSI memory pressure monitor"
+while true; do
+if [ -f /proc/pressure/memory ]; then
+    PSI_SOME=$(awk '/^some avg10=/ {print $2}' /proc/pressure/memory 2>/dev/null | cut -d= -f2)
+    if [ -n "$PSI_SOME" ]; then
+        TRIGGER=$(awk -v psi="$PSI_SOME" 'BEGIN {print (psi > 10.0) ? 1 : 0}')
+        if [ "$TRIGGER" = "1" ]; then
+            echo 1 > /proc/sys/vm/drop_caches 2>/dev/null
+            if [ -f /sys/block/zram0/writeback ]; then echo idle > /sys/block/zram0/writeback 2>/dev/null; fi
+            log_msg "High memory pressure (${PSI_SOME}%) - reclaim triggered"
+        fi
+    fi
+else
+    log_msg "ERROR: /proc/pressure/memory disappeared, exiting"
+    exit 1
+fi
+sleep 30
+done
+PSI_EOF
+            chmod +x "$PSI_MONITOR_SCRIPT" 2>/dev/null
+        fi
+
+        if [ -x "$PSI_MONITOR_SCRIPT" ]; then
+            "$PSI_MONITOR_SCRIPT" &
+            sleep 1
+            if pgrep -f "psi-monitor" >/dev/null 2>&1; then
+                PSI_PID=$(pgrep -f "psi-monitor")
+                log_success " PSI monitor started (PID: $PSI_PID)"
+            else
+                log_warning " PSI monitor failed to start"
+            fi
+        fi
+    fi
+fi
+
+log_subsection "Configuring per-cgroup memory limits"
+if [ -d /dev/memcg ]; then
+    mkdir -p /dev/memcg/background 2>/dev/null
+    if [ -f /dev/memcg/background/memory.limit_in_bytes ]; then echo 805306368 > /dev/memcg/background/memory.limit_in_bytes 2>/dev/null; fi
+    if [ -f /dev/memcg/background/memory.soft_limit_in_bytes ]; then echo 536870912 > /dev/memcg/background/memory.soft_limit_in_bytes 2>/dev/null; fi
+
+    mkdir -p /dev/memcg/cached 2>/dev/null
+    if [ -f /dev/memcg/cached/memory.limit_in_bytes ]; then echo 402653184 > /dev/memcg/cached/memory.limit_in_bytes 2>/dev/null; fi
+    log_success " memory limits applied"
+else
+    log_info " /dev/memcg not available for memory limits"
+fi
+
+log_subsection "Configuring PSI threshold alerts"
+if [ -f /proc/pressure/memory ]; then
+    PSI_CURRENT=$(cat /proc/pressure/memory 2>/dev/null | head -1)
+    log_info "  Current memory pressure: $PSI_CURRENT"
+fi
+
+# ============================================================
+# STAGE 12: PC GAMING
+# ============================================================
+log_section "STAGE 12: CANONICAL LOADING"
+log_subsection "Lomiri setups"
+
+ROOTFSENVFILE="${ROOTFSENVFILE:-/tmp/alp_gpu_env.sh}"
+ROOTFSDBUSENV="${ROOTFSDBUSENV:-/tmp/alp_gpu_dbus.env}"
+STRACELOGDIR="${STRACELOGDIR:-$SD_MOUNT/strace_logs}"
+
+EARLYDAEMONWAIT="${EARLYDAEMONWAIT:-2}"
+SMWAIT="${SMWAIT:-2}"
+HALSTARTUPWAIT="${HALSTARTUPWAIT:-1}"
+MAX_MALI_WAIT="${MAX_MALI_WAIT:-120}"
+MIR_SOCKET_WAIT="${MIR_SOCKET_WAIT:-15}"
+MIR_SHELL_HOLD="${MIR_SHELL_HOLD:-60}"
+
+TWRPIMG="${TWRPIMG:-$SD_MOUNT/twrp-customv2.img}"
+PART42="${PART42:-/dev/block/mmcblk0p42}"
+PART43="${PART43:-/dev/block/mmcblk0p43}"
+
+mkdir -p "$SD_MOUNT" "$STRACELOGDIR" 2>/dev/null || true
+touch "$LOGFILE" 2>/dev/null || true
+
+# LOGGING
+
+ts()         { date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "1970-01-01 00:00:00"; }
+log()        { echo "[$(ts)] $*" | tee -a "$LOGFILE"; }
+logsection() { log "========================================="; log "=== $* ==="; log "========================================="; }
+logsub()     { log "--- $* ---"; }
+logi()       { log "  i $*"; }
+logok()      { log "  + $*"; }
+logw()       { log "  ! $*"; }
+logerr()     { log "  X $*"; }
+readfile()   { [ -r "$1" ] && cat "$1" 2>/dev/null; }
+
+# HELPERS
+
+write_rootfs_env() {
+    cat > "$ROOTFSENVFILE" <<'EOF'
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/usr/lib:/lib
+export XDG_RUNTIME_DIR=/run/user/0
+export WAYLAND_DISPLAY=wayland-0
+export QT_QPA_PLATFORM=mirserver
+export QSG_RENDER_LOOP=basic
+export LOMIRI_SKIP_GREETER=1
+export LIBSEAT_BACKEND=builtin
+export MIR_SERVER_PLATFORM_PATH=/usr/lib/mir/server-platform
+export MIR_SERVER_CONSOLE_PROVIDER=none
+EOF
+}
+
+hardware_status() {
+    logsub "Hardware Status"
+
+    # ── Memory ────────────────────────────────────────────────────────────────
+    if [ -r /proc/meminfo ]; then
+        MEMTOTALKB="$(awk '/MemTotal:/    {print $2}' /proc/meminfo 2>/dev/null)"
+        MEMAVAILKB="$(awk '/MemAvailable:/{print $2}' /proc/meminfo 2>/dev/null)"
+        [ -z "$MEMAVAILKB" ] && \
+            MEMAVAILKB="$(awk '/MemFree:/{print $2}' /proc/meminfo 2>/dev/null)"
+        USEDKB=$((MEMTOTALKB - MEMAVAILKB))
+        TOTALGB="$(awk "BEGIN { printf \"%.2f\", $MEMTOTALKB/1048576 }")"
+        USEDGB="$(awk "BEGIN { printf \"%.2f\", $USEDKB/1048576 }")"
+        FREEGB="$(awk "BEGIN { printf \"%.2f\", $MEMAVAILKB/1048576 }")"
+        PCT="$(awk "BEGIN { if ($MEMTOTALKB > 0) printf \"%.1f\", 100*$USEDKB/$MEMTOTALKB; else print \"0.0\" }")"
+        logi "RAM: Total ${TOTALGB}GB  Used ${USEDGB}GB  Free ${FREEGB}GB  (${PCT}%)"
+    fi
+
+    # ── Uptime ────────────────────────────────────────────────────────────────
+    UPTIME_S="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
+    logi "Uptime: $((UPTIME_S/86400))d $(((UPTIME_S%86400)/3600))h $(((UPTIME_S%3600)/60))m"
+
+    # ── CPU load average ──────────────────────────────────────────────────────
+    # /proc/loadavg format:  <1m> <5m> <15m> <running>/<total> <last_pid>
+    # The three averages are exponentially weighted counts of runnable +
+    # uninterruptible threads over the past 1, 5, and 15 minutes.
+    # Dividing by the number of CPU cores gives the *saturation ratio*:
+    #   < 1.0  → cores have spare capacity
+    #   = 1.0  → exactly saturated
+    #   > 1.0  → more work queued than cores; threads are waiting for CPU time
+    if [ -r /proc/loadavg ]; then
+        LOAD1="$(  awk '{print $1}' /proc/loadavg 2>/dev/null)"
+        LOAD5="$(  awk '{print $2}' /proc/loadavg 2>/dev/null)"
+        LOAD15="$( awk '{print $3}' /proc/loadavg 2>/dev/null)"
+        TASKS="$(  awk '{print $4}' /proc/loadavg 2>/dev/null)"   # e.g. "5/312"
+        RUNNING_T="${TASKS%%/*}"   # tasks currently on a CPU
+        TOTAL_T="${TASKS##*/}"     # total tasks (threads) in the scheduler
+
+        # CPU core count — try nproc first, fall back to counting cpuinfo blocks
+        NCPU="$(nproc 2>/dev/null)"
+        if [ -z "$NCPU" ] || [ "$NCPU" -eq 0 ] 2>/dev/null; then
+            NCPU="$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
+        fi
+        [ "$NCPU" -lt 1 ] 2>/dev/null && NCPU=1
+
+        # Saturation verdict based on 1-min average per core
+        SAT="$(awk "BEGIN { printf \"%.2f\", $LOAD1/$NCPU }")"
+        if awk "BEGIN { exit ($LOAD1/$NCPU < 0.70) ? 0 : 1 }"; then
+            VERDICT="idle"
+        elif awk "BEGIN { exit ($LOAD1/$NCPU < 1.00) ? 0 : 1 }"; then
+            VERDICT="busy"
+        elif awk "BEGIN { exit ($LOAD1/$NCPU < 1.50) ? 0 : 1 }"; then
+            VERDICT="saturated"
+        else
+            VERDICT="OVERLOADED"
+        fi
+
+        logi "CPU cores: $NCPU"
+        logi "Load avg : 1m=${LOAD1}  5m=${LOAD5}  15m=${LOAD15}  (per-core 1m: ${SAT} — ${VERDICT})"
+        logi "Tasks    : ${RUNNING_T} running / ${TOTAL_T} total threads"
+    fi
+
+    # ── Battery ───────────────────────────────────────────────────────────────
+    BATTCAP="$(readfile /sys/class/power_supply/battery/capacity)"
+    BATTSTAT="$(readfile /sys/class/power_supply/battery/status)"
+    [ -n "$BATTCAP" ]  || BATTCAP="NA"
+    [ -n "$BATTSTAT" ] || BATTSTAT="unknown"
+    logi "Battery: ${BATTCAP}% (${BATTSTAT})"
+
+    # ── GPU / DRM nodes ───────────────────────────────────────────────────────
+    [ -e /dev/mali0     ] && logok "/dev/mali0 present"     || logw "/dev/mali0 missing"
+    [ -e /dev/dri/card0 ] && logok "/dev/dri/card0 present" || logw "/dev/dri/card0 missing"
+}
+
+cleanup_old_mounts() {
+    for d in \
+        "$ALPINE/tmp/strace_logs" \
+        "$ALPINE/mnt/sdcard" \
+        "$ALPINE/linkerconfig" \
+        "$ALPINE/run" \
+        "$ALPINE/dev/pts" \
+        "$ALPINE/dev/shm" \
+        "$ALPINE/dev" \
+        "$ALPINE/proc" \
+        "$ALPINE/system" \
+        "$ALPINE/vendor" \
+        "$ALPINE/system_ext" \
+        "$ALPINE/product" \
+        "$ALPINE/sys"; do
+        umount -l "$d" 2>/dev/null || true
+    done
+}
+
+# CHROOT / VFS / DEV + UEVENTD / UDEV
+
+ueventd_precheck_and_populate_dev() {
+    logsection "ANDROID UEVENTD PRECHECK"
+
+    logsub "ueventd rc discovery"
+    [ -f /system/etc/ueventd.rc ] && logok "found /system/etc/ueventd.rc" || logw "missing /system/etc/ueventd.rc"
+    [ -f /vendor/ueventd.rc      ] && logok "found /vendor/ueventd.rc"    || logw "missing /vendor/ueventd.rc"
+
+    logsub "host uevent coldboot replay"
+    for f in /sys/class/*/*/uevent /sys/devices/*/uevent /sys/devices/**/*/uevent; do
+        [ -e "$f" ] || continue
+        echo add >"$f" 2>/dev/null || true
+    done
+    logok "best-effort sysfs uevent replay done"
+
+    UEVENTD_BIN=""
+    for p in /system/bin/ueventd /sbin/ueventd; do
+        [ -x "$p" ] && { UEVENTD_BIN="$p"; break; }
+    done
+
+    if [ -n "$UEVENTD_BIN" ]; then
+        logi "Starting Android ueventd: $UEVENTD_BIN -d"
+        "$UEVENTD_BIN" -d >/tmp/alp_ueventd.log 2>&1 &
+        sleep 3
+    else
+        logw "No executable ueventd found on host"
+    fi
+    log ""
+}
+
+bind_mounts_with_forced_dev_rebind() {
+    logsection "ALPINE BIND MOUNTS"
+    logi "Binding pseudo-filesystems into $ALPINE"
+
+    mkdir -p \
+        "$ALPINE/proc" \
+        "$ALPINE/sys" \
+        "$ALPINE/run" \
+        "$ALPINE/dev" \
+        "$ALPINE/dev/pts" \
+        "$ALPINE/dev/shm" \
+        "$ALPINE/tmp" \
+        "$ALPINE/tmp/.X11-unix" \
+        "$ALPINE/sdcard" \
+        "$ALPINE/vendor" \
+        "$ALPINE/system_ext" \
+        "$ALPINE/product" \
+        "$ALPINE/system" \
+        "$ALPINE/apex" \
+        2>/dev/null || true
+    chmod 1777 "$ALPINE/tmp"            2>/dev/null || true
+    chmod 1777 "$ALPINE/tmp/.X11-unix"  2>/dev/null || true
+
+    for d in proc sys run vendor system_ext product apex; do
+        if grep -q " $ALPINE/$d " /proc/mounts 2>/dev/null; then
+            logi "already bound: $d"
+        else
+            mount --bind "/$d" "$ALPINE/$d" 2>/dev/null \
+                && logok "bound: /$d -> /$d" \
+                || logw "failed bind: /$d"
+        fi
+    done
+
+    if grep -q " $ALPINE/tmp " /proc/mounts 2>/dev/null; then
+        logi "already bound: /tmp"
+    else
+        mount --bind /tmp "$ALPINE/tmp" 2>/dev/null \
+            && logok "bound: /tmp -> $ALPINE/tmp" \
+            || logw  "failed bind: /tmp"
+    fi
+
+    if ! grep -q " $ALPINE/sdcard " /proc/mounts 2>/dev/null; then
+        mount --bind /sdcard "$ALPINE/sdcard" 2>/dev/null \
+            && logok "bound: /sdcard -> /sdcard" \
+            || logw "failed bind: /sdcard"
+    fi
+
+    logi "Setting up persistent application configs on /sdcard"
+    SD_PEGASUS="/sdcard/rp3plus/pegasus"
+    SD_ES="/sdcard/rp3plus/emulationstation"
+    mkdir -p "$SD_PEGASUS" "$SD_ES" 2>/dev/null || true
+    mkdir -p "$ALPINE/root/.config" 2>/dev/null || true
+
+    if [ ! -L "$ALPINE/root/.config/pegasus-frontend" ]; then
+        rm -rf "$ALPINE/root/.config/pegasus-frontend" 2>/dev/null || true
+        ln -sf "/sdcard/rp3plus/pegasus" "$ALPINE/root/.config/pegasus-frontend"
+        logok "Symlinked ~/.config/pegasus-frontend -> /sdcard/rp3plus/pegasus"
+    else
+        logi "already symlinked: ~/.config/pegasus-frontend"
+    fi
+
+    if [ ! -L "$ALPINE/root/.emulationstation" ]; then
+        rm -rf "$ALPINE/root/.emulationstation" 2>/dev/null || true
+        ln -sf "/sdcard/rp3plus/emulationstation" "$ALPINE/root/.emulationstation"
+        logok "Symlinked ~/.emulationstation -> /sdcard/rp3plus/emulationstation"
+    else
+        logi "already symlinked: ~/.emulationstation"
+    fi
+
+    if ! grep -q " $ALPINE/system " /proc/mounts 2>/dev/null; then
+        mount --bind "$ALPINE/system_a/system" "$ALPINE/system" 2>/dev/null \
+            && logok "bound: system_a/system -> /system" \
+            || logw "failed bind: system_a/system -> /system"
+    fi
+
+    # ── Fresh /dev rbind ──────────────────────────────────────────────────────
+    if grep -q " $ALPINE/dev " /proc/mounts 2>/dev/null; then
+        logi "unmounting stale $ALPINE/dev for fresh rbind"
+        umount -l "$ALPINE/dev/pts" 2>/dev/null || true
+        umount -l "$ALPINE/dev/shm" 2>/dev/null || true
+        umount -l "$ALPINE/dev"     2>/dev/null || true
+    fi
+
+    mount --rbind /dev "$ALPINE/dev" 2>/dev/null \
+        && logok "rbind /dev -> $ALPINE/dev" \
+        || logerr "failed rbind /dev"
+    mount --make-rslave "$ALPINE/dev" 2>/dev/null || true
+
+    # ── devpts ────────────────────────────────────────────────────────────────
+    if grep -q " $ALPINE/dev/pts " /proc/mounts 2>/dev/null; then
+        logi "devpts already mounted in chroot"
+    else
+        mount -t devpts devpts "$ALPINE/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null \
+            && logok "devpts mounted at $ALPINE/dev/pts" \
+            || logw  "devpts mount failed (PTY allocation may not work)"
+    fi
+
+    # ── /dev/shm — only mount a fresh tmpfs if rbind did NOT already cover it ─
+    # After --rbind /dev, the kernel propagates /dev/shm (which on Android is
+    # a tmpfs) into $ALPINE/dev/shm.  Mounting a second tmpfs on top works but
+    # then the ashmem bind-mounts below land on that second layer and disappear
+    # on umount.  Check by looking for the mount point in /proc/mounts.
+    if grep -q " $ALPINE/dev/shm " /proc/mounts 2>/dev/null; then
+        logi "devshm already covered by rbind — skipping extra tmpfs mount"
+    else
+        # rbind did not propagate it (older kernel or MS_SLAVE subtree).
+        # Mount a plain tmpfs so the directory is usable.
+        mount -t tmpfs tmpfs "$ALPINE/dev/shm" -o nosuid,nodev,mode=1777 2>/dev/null \
+            && logok "devshm (tmpfs) mounted at $ALPINE/dev/shm" \
+            || logw  "devshm mount failed (non-fatal)"
+    fi
+
+    # ── /dev/ashmem → $ALPINE/dev/shm ────────────────────────────────────────
+    # Do NOT bind-mount on top of the rbind-covered tree — that creates a new
+    # mount namespace layer that umount -l may not clean properly.
+    # Instead, read the host char device's major:minor and recreate the node
+    # directly inside the chroot's /dev/shm with mknod.
+    ASHMEM_HOST_PRESENT=0
+    for ash in /dev/ashmem*; do
+        [ -e "$ash" ] || continue
+        ASHMEM_HOST_PRESENT=1
+        base="$(basename "$ash")"
+        target="$ALPINE/dev/shm/$base"
+
+        # Read major and minor from /sys or stat
+        MAJ=""
+        MIN=""
+        sysnode="/sys/class/misc/ashmem/dev"
+        if [ -r "$sysnode" ]; then
+            devnum="$(cat "$sysnode" 2>/dev/null)"
+            MAJ="${devnum%%:*}"
+            MIN="${devnum##*:}"
+        fi
+        # Fallback: use stat if available
+        if [ -z "$MAJ" ] && stat "$ash" >/dev/null 2>&1; then
+            MAJ="$(stat -c '%t' "$ash" 2>/dev/null | awk '{printf "%d", strtonum("0x"$1)}')"
+            MIN="$(stat -c '%T' "$ash" 2>/dev/null | awk '{printf "%d", strtonum("0x"$1)}')"
+        fi
+        # Last resort: well-known Android ashmem misc device (major 10, minor 56)
+        if [ -z "$MAJ" ] || [ "$MAJ" -eq 0 ] 2>/dev/null; then
+            MAJ=10
+            MIN=56
+            logw "Could not read major:minor for $ash — using default 10:56"
+        fi
+
+        if [ -e "$target" ]; then
+            logi "ashmem node already present: $target"
+        else
+            mkdir -p "$(dirname "$target")" 2>/dev/null || true
+            mknod "$target" c "$MAJ" "$MIN" 2>/dev/null \
+                && chmod 666 "$target" \
+                && logok "mknod $target c $MAJ $MIN" \
+                || logw  "mknod failed: $target c $MAJ $MIN"
+        fi
+    done
+
+    if [ "$ASHMEM_HOST_PRESENT" -eq 0 ]; then
+        logw "/dev/ashmem not present on host — attempting mknod (10:56)"
+        mknod /dev/ashmem c 10 56 2>/dev/null \
+            && chmod 666 /dev/ashmem \
+            && logok "Created /dev/ashmem on host (10:56)" \
+            || logw  "mknod /dev/ashmem failed — ashmem module may not be loaded"
+        # Retry the inner loop now that the host node exists
+        target="$ALPINE/dev/shm/ashmem"
+        if [ ! -e "$target" ]; then
+            mknod "$target" c 10 56 2>/dev/null \
+                && chmod 666 "$target" \
+                && logok "mknod $target c 10 56" \
+                || logw  "mknod $target failed"
+        fi
+    fi
+
+    # ── /dev/snd/seq stub ─────────────────────────────────────────────────────
+    if [ ! -e /dev/snd/seq ]; then
+        logi "/dev/snd/seq missing — creating stub char node (116:1)"
+        mkdir -p /dev/snd 2>/dev/null || true
+        mknod /dev/snd/seq c 116 1 2>/dev/null \
+            && chmod 666 /dev/snd/seq \
+            && logok "Created /dev/snd/seq stub (116:1)" \
+            || logw  "mknod /dev/snd/seq failed (non-fatal)"
+    else
+        logok "/dev/snd/seq present"
+    fi
+
+    # ── /dev/ptmx ─────────────────────────────────────────────────────────────
+    if [ ! -e "$ALPINE/dev/ptmx" ]; then
+        mknod "$ALPINE/dev/ptmx" c 5 2 2>/dev/null \
+            && chmod 666 "$ALPINE/dev/ptmx" \
+            && logok "created /dev/ptmx in chroot" \
+            || logw  "could not create /dev/ptmx (PTY allocation may fail)"
+    else
+        chmod 666 "$ALPINE/dev/ptmx" 2>/dev/null || true
+        logok "/dev/ptmx present in chroot"
+    fi
+
+    log ""
+}
+
+devnode_recheck_and_maybe_rebind_again() {
+    logsection "CHROOT DEV NODE RECHECK"
+
+    NODECOUNT="$(chroot "$ALPINE" /bin/sh -c \
+        '/usr/bin/find /dev -mindepth 1 2>/dev/null | /usr/bin/wc -l' 2>/dev/null || echo 0)"
+    logi "after-rbind dev count: ${NODECOUNT:-0}"
+
+    if [ "${NODECOUNT:-0}" -lt 200 ]; then
+        logw "dev node count < 200 inside chroot; re-running ueventd and re-rbinding /dev"
+
+        UEVENTD_BIN=""
+        for p in /system/bin/ueventd /sbin/ueventd; do
+            [ -x "$p" ] && { UEVENTD_BIN="$p"; break; }
+        done
+        if [ -n "$UEVENTD_BIN" ]; then
+            logi "Starting Android ueventd again: $UEVENTD_BIN -d"
+            "$UEVENTD_BIN" -d >/tmp/alp_ueventd_2.log 2>&1 &
+            sleep 3
+        else
+            logw "Still no executable ueventd found"
+        fi
+
+        logi "Rebinding /dev into chroot unconditionally with --make-rslave"
+        umount -l "$ALPINE/dev/pts" 2>/dev/null || true
+        umount -l "$ALPINE/dev/shm" 2>/dev/null || true
+        umount -l "$ALPINE/dev"     2>/dev/null || true
+        mount --rbind /dev "$ALPINE/dev" 2>/dev/null \
+            && logok "second rbind /dev -> $ALPINE/dev" \
+            || logerr "second rbind /dev failed"
+        mount --make-rslave "$ALPINE/dev" 2>/dev/null || true
+
+        mount -t devpts devpts "$ALPINE/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null \
+            && logok "devpts re-mounted after second rbind" \
+            || logw  "devpts re-mount failed"
+        mount -t tmpfs tmpfs "$ALPINE/dev/shm" -o nosuid,nodev,mode=1777 2>/dev/null \
+            && logok "devshm re-mounted after second rbind" \
+            || logw  "devshm re-mount failed (non-fatal)"
+
+        NODECOUNT2="$(chroot "$ALPINE" /bin/sh -c \
+            '/usr/bin/find /dev -mindepth 1 2>/dev/null | /usr/bin/wc -l' 2>/dev/null || echo 0)"
+        logi "after second rbind dev count: ${NODECOUNT2:-0}"
+    fi
+
+    log ""
+}
+
+probe_ld_config() {
+    logsection "LD.CONFIG.TXT VERIFICATION"
+
+    LDCONFIGSRC=""
+    for src in \
+        "$ALPINE/home/ld.config.txt" \
+        "$ALPINE/root/ld.config.txt" \
+        "$ALPINE/etc/ld.config.txt"; do
+        [ -f "$src" ] && { LDCONFIGSRC="$src"; break; }
+    done
+
+    mkdir -p /linkerconfig "$ALPINE/linkerconfig" 2>/dev/null || true
+
+    if [ -n "$LDCONFIGSRC" ]; then
+        cp -f "$LDCONFIGSRC" /linkerconfig/ld.config.txt 2>/dev/null \
+            && logok "Copied $LDCONFIGSRC -> /linkerconfig/ld.config.txt" \
+            || logerr "Copy failed"
+    else
+        logerr "ld.config.txt not found in chroot"
+    fi
+
+    if [ ! -f "$ALPINE/linkerconfig/ld.config.txt" ]; then
+        mount --bind /linkerconfig "$ALPINE/linkerconfig" 2>/dev/null \
+            && logok "bind-mounted /linkerconfig into chroot" \
+            || logw "failed bind of /linkerconfig"
+    fi
+
+    chroot "$ALPINE" /bin/sh -c '
+        /sbin/ldconfig >/tmp/alp_ldconfig.log 2>&1 && echo "ldconfig OK" || {
+            echo "ldconfig FAILED"
+            /usr/bin/tail -20 /tmp/alp_ldconfig.log 2>/dev/null || true
+        }
+    ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    log ""
+}
+
+# DBUS
+
+start_daemons() {
+    logsection "EARLY HOST DBUS + GAMEPAD STARTUP"
+
+    mkdir -p /run /run/dbus /run/user/0 /tmp 2>/dev/null || true
+    chmod 755 /run /run/dbus 2>/dev/null || true
+    chmod 700 /run/user/0   2>/dev/null || true
+
+    # ── Host system bus ───────────────────────────────────────────────────────
+    if [ -S /run/dbus/system_bus_socket ]; then
+        logok "host dbus system socket already present"
+    else
+        DBUSBIN=""
+        for p in /usr/bin/dbus-daemon /bin/dbus-daemon; do
+            [ -x "$p" ] && { DBUSBIN="$p"; break; }
+        done
+        if [ -n "$DBUSBIN" ]; then
+            logi "Starting host dbus: $DBUSBIN --system --fork --nopidfile"
+            "$DBUSBIN" --system --fork --nopidfile >/tmp/alp_gpu_host_dbus.raw.log 2>&1
+            sleep "$EARLYDAEMONWAIT"
+        else
+            logw "host dbus-daemon not available"
+        fi
+    fi
+
+    [ -S /run/dbus/system_bus_socket ] \
+        && logok "host system dbus socket ready" \
+        || logw  "host system dbus socket NOT present"
+
+    export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+    logi "DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SYSTEM_BUS_ADDRESS"
+
+    # ── /dev/rscom MCU probe ──────────────────────────────────────────────────
+    logsub "/dev/rscom MCU probe"
+    if [ -e /dev/rscom ]; then
+        logok "/dev/rscom present"
+        chmod 666 /dev/rscom 2>/dev/null || true
+
+        logi "Reading 64 bytes from /dev/rscom (3s timeout) via xxd..."
+        RSCOM_HEX=""
+        if command -v xxd >/dev/null 2>&1; then
+            RSCOM_HEX="$(timeout 3 dd if=/dev/rscom bs=64 count=1 2>/dev/null \
+                | xxd | head -4 | tr '\n' '|')"
+        elif command -v od >/dev/null 2>&1; then
+            RSCOM_HEX="$(timeout 3 dd if=/dev/rscom bs=64 count=1 2>/dev/null \
+                | od -A x -t x1z | head -4 | tr '\n' '|')"
+        else
+            logw "neither xxd nor od found — skipping hex probe"
+        fi
+
+        if [ -n "$RSCOM_HEX" ]; then
+            NONZERO="$(echo "$RSCOM_HEX" | tr -d '0 |:abcdefABCDEF\n\t' | wc -c)"
+            logi "rscom hex sample: $RSCOM_HEX"
+            if [ "${NONZERO:-0}" -gt 2 ]; then
+                logok "MCU is transmitting data on /dev/rscom — baud/framing likely correct"
+            else
+                logw "rscom read returned all-zero or empty — MCU may be silent"
+                logw "If gamepad inputs are dead, the baud rate or handshake is wrong"
+                logw "Try: stty -F /dev/rscom raw speed 115200 && cat /dev/rscom | xxd | head"
+            fi
+        else
+            logw "No data read from /dev/rscom within 3s timeout"
+            logw "MCU may not be transmitting — check baud rate (currently B115200)"
+        fi
+    else
+        logw "/dev/rscom not present — gamepad MCU UART unavailable"
+    fi
+
+    # ── retroid_gamepad ───────────────────────────────────────────────────────
+    GAMEPAD_HOST_PATH=""
+    if [ -d "$ALPINE" ]; then
+        GAMEPAD_HOST_PATH="$(find "$ALPINE" -type f -name 'retroid_gamepad' 2>/dev/null | head -n 1)"
+    fi
+
+    if [ -n "$GAMEPAD_HOST_PATH" ]; then
+        logok "retroid_gamepad found at $GAMEPAD_HOST_PATH"
+
+        if [ ! -x "$GAMEPAD_HOST_PATH" ]; then
+            chmod +x "$GAMEPAD_HOST_PATH" 2>/dev/null \
+                && logok "chmod +x applied to $GAMEPAD_HOST_PATH" \
+                || logw  "chmod +x failed on $GAMEPAD_HOST_PATH — exec may still fail"
+        fi
+
+        if pgrep -f 'retroid_gamepad' >/dev/null 2>&1; then
+            logi "retroid_gamepad daemon already running"
+        else
+            GAMEPAD_CHROOT_PATH="${GAMEPAD_HOST_PATH#$ALPINE}"
+            logi "Starting retroid_gamepad at chroot path: $GAMEPAD_CHROOT_PATH"
+            chroot "$ALPINE" "$GAMEPAD_CHROOT_PATH" \
+                >/tmp/alp_retroid_gamepad.log 2>&1 &
+            GP_PID=$!
+            sleep 1
+            if kill -0 "$GP_PID" 2>/dev/null; then
+                logok "retroid_gamepad running PID $GP_PID"
+
+                chroot "$ALPINE" /bin/sh -c '
+                    chmod 666 /dev/input/js0     2>/dev/null && echo "chmod js0 OK"     || true
+                    chmod 666 /dev/input/event5  2>/dev/null && echo "chmod event5 OK"  || true
+                    chmod 666 /dev/input/event0  2>/dev/null || true
+                    chmod 666 /dev/input/event1  2>/dev/null || true
+                    chmod 666 /dev/input/event2  2>/dev/null || true
+                    chmod 666 /dev/input/event3  2>/dev/null || true
+                    chmod 666 /dev/input/event4  2>/dev/null || true
+                ' 2>&1 | while IFS= read -r l; do logi "  [input-chmod] $l"; done
+
+            else
+                logw "retroid_gamepad exited immediately — check /tmp/alp_retroid_gamepad.log"
+                cat /tmp/alp_retroid_gamepad.log 2>/dev/null \
+                    | while IFS= read -r l; do logi "  [gamepad] $l"; done
+            fi
+        fi
+    else
+        logw "retroid_gamepad not found under $ALPINE (recursive search)"
+    fi
+
+    log ""
+}
+
+start_rootfs_dbus() {
+    logsection "ALPINE DBUS STARTUP"
+    write_rootfs_env
+
+    chroot "$ALPINE" /usr/bin/env -i \
+        HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=xterm-256color \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        /bin/sh -lc '
+            mkdir -p /run /run/dbus /run/user/0 /tmp /var/run /var/lib/dbus /etc 2>/dev/null || true
+            chmod 755 /run /run/dbus /tmp /var/run 2>/dev/null || true
+            chmod 700 /run/user/0 2>/dev/null || true
+
+            command -v dbus-uuidgen >/dev/null 2>&1 && {
+                dbus-uuidgen --ensure=/etc/machine-id          >/dev/null 2>&1 || true
+                dbus-uuidgen --ensure=/var/lib/dbus/machine-id >/dev/null 2>&1 || true
+            }
+
+            if [ ! -S /run/dbus/system_bus_socket ] && command -v dbus-daemon >/dev/null 2>&1; then
+                dbus-daemon --system --fork --nopidfile >/tmp/alp_dbus_system.log 2>&1 || true
+                sleep 2
+            fi
+
+            if [ -S /run/dbus/system_bus_socket ]; then
+                echo "INFO: Alpine system dbus socket ready"
+            else
+                echo "WARN: Alpine system dbus is NOT up"
+                [ -f /tmp/alp_dbus_system.log ] && /usr/bin/tail -20 /tmp/alp_dbus_system.log
+            fi
+
+            rm -f /run/user/0/bus 2>/dev/null || true
+            if command -v dbus-daemon >/dev/null 2>&1; then
+                dbus-daemon \
+                    --session \
+                    --address=unix:path=/run/user/0/bus \
+                    --fork --nopidfile \
+                    >/tmp/alp_dbus_session.log 2>&1 || true
+                sleep 2
+            fi
+
+            if [ -S /run/user/0/bus ]; then
+                echo "INFO: Alpine session dbus ready at unix:path=/run/user/0/bus"
+            else
+                echo "WARN: Alpine session dbus is NOT up"
+                [ -f /tmp/alp_dbus_session.log ] && /usr/bin/tail -20 /tmp/alp_dbus_session.log
+            fi
+        ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    # Write env file with plain VAR=value lines (no 'export', no quotes)
+    # so downstream grep/sed reads back a clean value including the unix:path= prefix
+    cat > "$ROOTFSDBUSENV" <<'EOF'
+DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+EOF
+
+    logok "Wrote explicit chroot DBus environment to $ROOTFSDBUSENV"
+    log ""
+}
+
+# DBUS AUDIO
+
+start_alpine_audio_stack() {
+    logsection "ALPINE DBUS + PIPEWIRE STARTUP"
+
+    # ── Ensure plus user exists inside chroot ──────────────────────────────────
+    if ! chroot "$ALPINE" /bin/sh -c 'id plus >/dev/null 2>&1'; then
+        logw "User plus not found inside chroot — creating"
+        chroot "$ALPINE" /bin/sh -c '
+            adduser -D -u 1000 -s /bin/sh -h /home/plus plus 2>/dev/null || true
+            printf "three\nthree\n" | passwd plus 2>/dev/null || true
+            addgroup plus audio 2>/dev/null || true
+        ' && logok "Created user plus (uid 1000, password: three)" \
+          || logw  "adduser failed — audio stack may not start correctly"
+    else
+        logi "User plus already exists"
+        chroot "$ALPINE" /bin/sh -c 'addgroup plus audio 2>/dev/null || true'
+    fi
+
+    # ── /run/user/1000 ownership — done ONLY inside the chroot ────────────────
+    # Never chown this from the host: host uid 1000 = Android AID_SYSTEM, not
+    # Alpine's plus user.  The chroot call below uses Alpine's uid/gid database.
+    chroot "$ALPINE" /bin/sh -c '
+        mkdir -p /run/user/1000 /run/user/1000/pulse 2>/dev/null || true
+        chown plus:plus /run/user/1000 /run/user/1000/pulse 2>/dev/null || true
+        chmod 700 /run/user/1000 2>/dev/null || true
+    ' && logok "/run/user/1000 ownership set inside chroot" \
+      || logw  "chown /run/user/1000 failed inside chroot"
+
+    # ── Audio diagnostics: UCM2 + vendor XML dump ─────────────────────────────
+    logi "Collecting audio diagnostics -> /tmp/alp_audio_diag.log"
+    {
+        echo "========================================"
+        echo "=== UCM2 TOP-LEVEL CONFIG ==="
+        echo "========================================"
+        cat /usr/share/alsa/ucm2/ucm.conf 2>/dev/null || echo "(not found)"
+
+        echo ""
+        echo "========================================"
+        echo "=== UCM2 LIB FILES ==="
+        echo "========================================"
+        for f in /usr/share/alsa/ucm2/lib/*.conf; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+            echo ""
+        done
+
+        echo "========================================"
+        echo "=== VENDOR AUDIO XML FILES (/vendor/etc) ==="
+        echo "========================================"
+        for f in /vendor/etc/*audio*; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+            echo ""
+        done
+
+        echo "========================================"
+        echo "=== VENDOR AUDIO XML FILES (/vendor/etc/audio/sku_sprd) ==="
+        echo "========================================"
+        for f in /vendor/etc/audio/sku_sprd/*.xml; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+            echo ""
+        done
+
+        echo "========================================"
+        echo "=== VENDOR AUDIO PARAMS (/vendor/etc/audio_params/sprd) ==="
+        echo "========================================"
+        for f in /vendor/etc/audio_params/sprd/*.xml; do
+            [ -f "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+            echo ""
+        done
+
+        echo "========================================"
+        echo "=== VENDOR AUDIO HAL RC ==="
+        echo "========================================"
+        cat /vendor/etc/init/android.hardware.audio.service.rc 2>/dev/null || echo "(not found)"
+
+        echo ""
+        echo "========================================"
+        echo "=== ALSA CARDS / PCM / CONTROL NODES ==="
+        echo "========================================"
+        cat /proc/asound/cards  2>/dev/null || echo "(no /proc/asound/cards)"
+        ls -la /dev/snd/        2>/dev/null || echo "(no /dev/snd nodes)"
+    } > /tmp/alp_audio_diag.log 2>&1
+    logok "Audio diagnostics written to /tmp/alp_audio_diag.log"
+    grep -A5 "ALSA CARDS" /tmp/alp_audio_diag.log 2>/dev/null \
+        | while IFS= read -r l; do logi "  [audio-diag] $l"; done
+
+    # ── Write per-daemon launcher scripts into the chroot ─────────────────────
+    # Using temp files completely avoids nested quoting inside su -c "...".
+    # Each script is self-contained: sets its own env, execs the daemon,
+    # redirects output, and backgrounds itself.
+
+    cat > "$ALPINE/tmp/start_dbus_plus.sh" <<'SCRIPT'
+#!/bin/sh
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export HOME=/home/plus
+dbus-daemon \
+    --session \
+    --address=unix:path=/run/user/1000/bus \
+    --fork \
+    --nopidfile \
+    >/tmp/alp_plus_dbus_session.log 2>&1
+SCRIPT
+
+    cat > "$ALPINE/tmp/start_pipewire.sh" <<'SCRIPT'
+#!/bin/sh
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+export XDG_RUNTIME_DIR=/run/user/1000
+export PIPEWIRE_RUNTIME_DIR=/run/user/1000
+export PULSE_RUNTIME_PATH=/run/user/1000/pulse
+export HOME=/home/plus
+exec pipewire >/tmp/pipewire.log 2>&1
+SCRIPT
+
+    cat > "$ALPINE/tmp/start_wireplumber.sh" <<'SCRIPT'
+#!/bin/sh
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+export XDG_RUNTIME_DIR=/run/user/1000
+export PIPEWIRE_RUNTIME_DIR=/run/user/1000
+export PULSE_RUNTIME_PATH=/run/user/1000/pulse
+export HOME=/home/plus
+exec wireplumber >/tmp/wireplumber.log 2>&1
+SCRIPT
+
+    cat > "$ALPINE/tmp/start_pw_pulse.sh" <<'SCRIPT'
+#!/bin/sh
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+export XDG_RUNTIME_DIR=/run/user/1000
+export PIPEWIRE_RUNTIME_DIR=/run/user/1000
+export PULSE_RUNTIME_PATH=/run/user/1000/pulse
+export HOME=/home/plus
+exec pipewire-pulse >/tmp/pipewire-pulse.log 2>&1
+SCRIPT
+
+    chmod +x \
+        "$ALPINE/tmp/start_dbus_plus.sh" \
+        "$ALPINE/tmp/start_pipewire.sh" \
+        "$ALPINE/tmp/start_wireplumber.sh" \
+        "$ALPINE/tmp/start_pw_pulse.sh" \
+        2>/dev/null || true
+
+    # ── Run the stack inside the chroot ───────────────────────────────────────
+    chroot "$ALPINE" /bin/sh -lc '
+
+        echo "INFO: Alpine system dbus socket ready"
+        [ -S /run/dbus/system_bus_socket ] || echo "WARN: Alpine system dbus socket missing inside chroot"
+
+        # Realtime limits
+        mkdir -p /etc/security/limits.d 2>/dev/null || true
+        printf "@audio   -  rtprio     95\n@audio   -  memlock    512000\n" \
+            > /etc/security/limits.d/99-pipewire-realtime.conf
+        echo "INFO: Wrote realtime scheduling limits to /etc/security/limits.d/99-pipewire-realtime.conf"
+
+        # plus session bus
+        if [ ! -S /run/user/1000/bus ] && command -v dbus-daemon >/dev/null 2>&1; then
+            echo "INFO: Starting plus user session dbus"
+            su plus -s /bin/sh /tmp/start_dbus_plus.sh
+            sleep 2
+        fi
+
+        if [ -S /run/user/1000/bus ]; then
+            echo "INFO: plus user session dbus UP at unix:path=/run/user/1000/bus"
+        else
+            echo "WARN: plus user session dbus NOT present"
+            /usr/bin/tail -20 /tmp/alp_plus_dbus_session.log 2>/dev/null || true
+        fi
+
+        # PipeWire
+        if command -v pipewire >/dev/null 2>&1; then
+            echo "INFO: Starting pipewire as user plus"
+            su plus -s /bin/sh /tmp/start_pipewire.sh &
+            sleep 2
+            pgrep -u plus pipewire >/dev/null 2>&1 \
+                && echo "INFO: pipewire RUNNING" \
+                || { echo "WARN: pipewire not running"; /usr/bin/tail -20 /tmp/pipewire.log 2>/dev/null; }
+        else
+            echo "WARN: pipewire not found"
+        fi
+
+        # WirePlumber
+        if command -v wireplumber >/dev/null 2>&1; then
+            echo "INFO: Starting wireplumber as user plus"
+            su plus -s /bin/sh /tmp/start_wireplumber.sh &
+            sleep 2
+            pgrep -u plus wireplumber >/dev/null 2>&1 \
+                && echo "INFO: wireplumber RUNNING" \
+                || { echo "WARN: wireplumber not running"; /usr/bin/tail -20 /tmp/wireplumber.log 2>/dev/null; }
+        else
+            echo "WARN: wireplumber not found"
+        fi
+
+        # pipewire-pulse
+        if command -v pipewire-pulse >/dev/null 2>&1; then
+            echo "INFO: Starting pipewire-pulse as user plus"
+            su plus -s /bin/sh /tmp/start_pw_pulse.sh &
+            sleep 2
+            pgrep -u plus pipewire-pulse >/dev/null 2>&1 \
+                && echo "INFO: pipewire-pulse RUNNING" \
+                || { echo "WARN: pipewire-pulse not running"; /usr/bin/tail -20 /tmp/pipewire-pulse.log 2>/dev/null; }
+        else
+            echo "WARN: pipewire-pulse not found"
+        fi
+
+        # Verify pipewire-0 socket resolved to an absolute path
+        echo ""
+        echo "=== PipeWire socket check ==="
+        if [ -S /run/user/1000/pipewire-0 ]; then
+            echo "  + pipewire-0 socket present at /run/user/1000/pipewire-0"
+        else
+            echo "  ! pipewire-0 socket NOT found at /run/user/1000/pipewire-0"
+            ls /run/user/1000/ 2>/dev/null || echo "  ! /run/user/1000 is empty or missing"
+        fi
+
+        echo ""
+        echo "=== D-Bus / Audio Stack Summary ==="
+        printf "System bus         : "; [ -S /run/dbus/system_bus_socket ] && echo "UP" || echo "DOWN"
+        printf "Session bus (root) : "; [ -S /run/user/0/bus ]             && echo "UP" || echo "DOWN"
+        printf "Session bus (plus) : "; [ -S /run/user/1000/bus ]          && echo "UP" || echo "DOWN"
+        printf "PipeWire           : "; pgrep -u plus pipewire >/dev/null 2>&1        && echo "RUNNING" || echo "STOPPED"
+        printf "WirePlumber        : "; pgrep -u plus wireplumber >/dev/null 2>&1     && echo "RUNNING" || echo "STOPPED"
+        printf "PW-Pulse           : "; pgrep -u plus pipewire-pulse >/dev/null 2>&1  && echo "RUNNING" || echo "STOPPED"
+
+    ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    # Clean env file — plain VAR=value, no export, no quotes
+    cat > "$ROOTFSDBUSENV" <<'EOF'
+DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+PLUS_DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+XDG_RUNTIME_DIR=/run/user/1000
+PIPEWIRE_RUNTIME_DIR=/run/user/1000
+PULSE_RUNTIME_PATH=/run/user/1000/pulse
+EOF
+    logok "Wrote chroot dbus/audio env to $ROOTFSDBUSENV"
+    log ""
+}
+
+#SXMO
+launch_sxmo() {
+    logsection "SXMO LAUNCH VIA MIR WAYLAND SOCKET"
+
+    # ── Read the Mir socket name from the env file ─────────────────────────────
+    # miral-app sets WAYLAND_DISPLAY (e.g. "wayland-0") in XDG_RUNTIME_DIR.
+    # Your write_rootfs_env already hard-codes wayland-0; we honour that but
+    # also accept an override from the caller.
+    MIR_WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+    MIR_XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/0}"
+    MIR_SOCKET_PATH="$MIR_XDG_RUNTIME_DIR/$MIR_WAYLAND_DISPLAY"
+
+    logi "Expecting Mir Wayland socket at: $MIR_SOCKET_PATH"
+
+    # ── Wait for Mir to expose its Wayland socket ──────────────────────────────
+    WAITED=0
+    while [ ! -S "$MIR_SOCKET_PATH" ] && [ "$WAITED" -lt "$MIR_SOCKET_WAIT" ]; do
+        logi "Waiting for Mir socket ($WAITED/$MIR_SOCKET_WAIT s)..."
+        sleep 1
+        WAITED=$((WAITED + 1))
+    done
+
+    if [ ! -S "$MIR_SOCKET_PATH" ]; then
+        logerr "Mir Wayland socket not found at $MIR_SOCKET_PATH after ${MIR_SOCKET_WAIT}s"
+        logerr "Ensure miral-app has started and is listening before calling launch_sxmo"
+        return 1
+    fi
+    logok "Mir socket confirmed: $MIR_SOCKET_PATH"
+
+    # ── Verify sway exists inside chroot ───────────────────────────────────────
+    if ! chroot "$ALPINE" /bin/sh -c 'command -v sway >/dev/null 2>&1'; then
+        logerr "sway not found inside chroot — install sxmo-utils-common first"
+        return 1
+    fi
+    logok "sway found inside chroot"
+
+    # ── Write sxmo launch script into the chroot ───────────────────────────────
+    # sway detects WAYLAND_DISPLAY at startup and automatically switches to
+    # the Wayland backend (nested mode) rather than opening DRM directly.
+    # LIBSEAT_BACKEND=noop tells libseat not to try acquiring a seat — we don't
+    # need one since Mir already owns the DRM device.
+    cat > "$ALPINE/tmp/start_sxmo.sh" <<SCRIPT
+#!/bin/sh
+
+# --- Environment ---
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+export USER=root
+export LOGNAME=root
+export SHELL=/bin/sh
+export TERM=xterm-256color
+export XDG_RUNTIME_DIR=/run/user/0
+export XDG_CONFIG_HOME=/root/.config
+export XDG_DATA_HOME=/root/.local/share
+export XDG_CACHE_HOME=/root/.cache
+
+# Point sway at Mir's Wayland socket (nested backend)
+export WAYLAND_DISPLAY=${MIR_WAYLAND_DISPLAY}
+
+# Disable libseat seat acquisition — Mir owns DRM, we are a Wayland client
+export LIBSEAT_BACKEND=noop
+
+# DBus — read from env file written by start_rootfs_dbus / start_alpine_audio_stack
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+
+# PipeWire / PulseAudio
+export PIPEWIRE_RUNTIME_DIR=/run/user/1000
+export PULSE_RUNTIME_PATH=/run/user/1000/pulse
+export PULSE_SERVER=unix:/run/user/1000/pulse/native
+
+# Wayland-native toolkit hints
+export QT_QPA_PLATFORM=wayland
+export GDK_BACKEND=wayland
+export SDL_VIDEODRIVER=wayland
+export CLUTTER_BACKEND=wayland
+export MOZ_ENABLE_WAYLAND=1
+
+# sxmo expects these for gesture and keyboard daemons
+export SXMO_LOGDIR=/tmp/sxmo_logs
+export SXMO_STATE=unlocked
+mkdir -p /tmp/sxmo_logs /root/.config/sxmo 2>/dev/null || true
+
+# --- sway nested launch (sxmo-session wraps sway with all Sxmo daemons) ---
+# sxmo_winit.sh is the canonical entry point; it execs sway and starts
+# lisgd, wvkbd, bemenu, and all Sxmo hook scripts inside the sway session.
+if command -v sxmo_winit.sh >/dev/null 2>&1; then
+    exec sxmo_winit.sh >/tmp/sxmo.log 2>&1
+else
+    # Fallback: bare sway if sxmo_winit.sh is not in PATH
+    exec sway --config /dev/null >/tmp/sxmo_sway.log 2>&1
+fi
+SCRIPT
+
+    chmod +x "$ALPINE/tmp/start_sxmo.sh"
+    logok "Wrote /tmp/start_sxmo.sh into chroot"
+
+    # ── Bind the Mir socket into the chroot ────────────────────────────────────
+    # The Mir socket lives on the host at $MIR_XDG_RUNTIME_DIR/$MIR_WAYLAND_DISPLAY.
+    # The chroot's /run/user/0 is already bind-mounted from the host /run/user/0
+    # via bind_mounts_with_forced_dev_rebind, so the socket is visible inside
+    # the chroot at the same path automatically.
+    # Confirm it is visible:
+    CHROOT_SOCKET_PATH="$ALPINE$MIR_SOCKET_PATH"
+    if [ -S "$CHROOT_SOCKET_PATH" ]; then
+        logok "Mir socket visible inside chroot at $MIR_SOCKET_PATH"
+    else
+        logw "Mir socket not visible inside chroot — attempting explicit bind of XDG_RUNTIME_DIR"
+        mkdir -p "$ALPINE$MIR_XDG_RUNTIME_DIR" 2>/dev/null || true
+        mount --bind "$MIR_XDG_RUNTIME_DIR" "$ALPINE$MIR_XDG_RUNTIME_DIR" 2>/dev/null \
+            && logok "bind-mounted $MIR_XDG_RUNTIME_DIR into chroot" \
+            || logerr "failed to bind $MIR_XDG_RUNTIME_DIR — socket may not be reachable"
+    fi
+
+    # ── Launch sxmo inside the chroot ──────────────────────────────────────────
+    logi "Launching sxmo (sway nested in Mir) inside chroot..."
+    chroot "$ALPINE" /bin/sh /tmp/start_sxmo.sh &
+    SXMO_PID=$!
+    logi "sxmo background PID: $SXMO_PID"
+
+    # ── Wait for sway's own Wayland socket to appear ───────────────────────────
+    # sway (nested) creates its own socket at wayland-1 (or wayland-2 if
+    # wayland-1 is taken). Other Sxmo clients (lisgd, wvkbd, foot) connect to it.
+    SWAY_SOCKET=""
+    SWAY_WAIT=0
+    while [ "$SWAY_WAIT" -lt 15 ]; do
+        for candidate in \
+            "$ALPINE/run/user/0/wayland-1" \
+            "$ALPINE/run/user/0/wayland-2" \
+            "$ALPINE/run/user/0/wayland-3"; do
+            [ -S "$candidate" ] && { SWAY_SOCKET="$candidate"; break 2; }
+        done
+        sleep 1
+        SWAY_WAIT=$((SWAY_WAIT + 1))
+    done
+
+    if [ -n "$SWAY_SOCKET" ]; then
+        logok "sway Wayland socket ready: ${SWAY_SOCKET#$ALPINE}"
+    else
+        logw "sway socket not yet detected after 15s — check /tmp/sxmo.log inside chroot"
+        chroot "$ALPINE" /bin/sh -c \
+            '[ -f /tmp/sxmo.log ] && tail -30 /tmp/sxmo.log' \
+            2>/dev/null | while IFS= read -r l; do logw "  [sxmo] $l"; done
+    fi
+
+    # ── Hold Sxmo alive for MIR_SHELL_HOLD seconds (or until it exits) ────────
+    logi "Holding for up to ${MIR_SHELL_HOLD}s while sxmo runs (PID $SXMO_PID)..."
+    HOLD=0
+    while kill -0 "$SXMO_PID" 2>/dev/null && [ "$HOLD" -lt "$MIR_SHELL_HOLD" ]; do
+        sleep 5
+        HOLD=$((HOLD + 5))
+    done
+
+    if kill -0 "$SXMO_PID" 2>/dev/null; then
+        logok "sxmo still running after ${MIR_SHELL_HOLD}s hold — continuing script"
+    else
+        logw "sxmo exited within hold window (after ${HOLD}s)"
+        chroot "$ALPINE" /bin/sh -c \
+            '[ -f /tmp/sxmo.log ] && tail -40 /tmp/sxmo.log' \
+            2>/dev/null | while IFS= read -r l; do logw "  [sxmo-exit] $l"; done
+    fi
+
+    log ""
+}
+
+
+# UDEV (HOST)
+
+start_host_udevd() {
+    logsection "HOST UDEVD STARTUP"
+
+    mkdir -p /run/udev 2>/dev/null || true
+
+    if pgrep -x udevd >/dev/null 2>&1 || pgrep -x systemd-udevd >/dev/null 2>&1; then
+        logok "udevd / systemd-udevd already running"
+    else
+        UDEVDBIN=""
+        for p in \
+            /usr/lib/systemd/systemd-udevd \
+            /lib/systemd/systemd-udevd \
+            /usr/bin/udevd \
+            /sbin/udevd \
+            /bin/eudevd; do
+            [ -x "$p" ] && { UDEVDBIN="$p"; break; }
+        done
+
+        if [ -n "$UDEVDBIN" ]; then
+            logi "Starting udevd: $UDEVDBIN --daemon"
+            "$UDEVDBIN" --daemon >/tmp/alp_udevd.log 2>&1 || true
+            sleep 2
+            pgrep -x udevd >/dev/null 2>&1 || pgrep -x systemd-udevd >/dev/null 2>&1 \
+                && logok "udevd started" \
+                || logw  "udevd may not have started (check /tmp/alp_udevd.log)"
+        else
+            logw "No udevd binary found at any known path; skipping coldplug"
+            log ""
+            return
+        fi
+    fi
+
+    if command -v udevadm >/dev/null 2>&1; then
+        logi "Coldplug: udevadm trigger --action=add"
+        udevadm trigger --action=add 2>/tmp/alp_udevadm_trigger.log || \
+            logw "udevadm trigger returned non-zero"
+
+        logi "Settling: udevadm settle --timeout=10"
+        udevadm settle --timeout=10 2>/tmp/alp_udevadm_settle.log \
+            && logok "udevadm settle complete" \
+            || logw  "udevadm settle timed out or errored"
+    else
+        logw "udevadm not found; skipping coldplug/settle"
+    fi
+
+    log ""
+}
+
+# LIBINPUT
+
+run_libinput_list_devices() {
+    logsection "LIBINPUT LIST DEVICES"
+
+    chroot "$ALPINE" /usr/bin/env -i \
+        HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=xterm-256color \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus \
+        /bin/sh -lc '
+            LIBINPUT_BIN=""
+            if command -v libinput >/dev/null 2>&1; then
+                LIBINPUT_BIN="libinput list-devices"
+            elif command -v libinput-list-devices >/dev/null 2>&1; then
+                LIBINPUT_BIN="libinput-list-devices"
+            fi
+
+            if [ -z "$LIBINPUT_BIN" ]; then
+                echo "libinput list tool not found"
+            else
+                COUNT=$($LIBINPUT_BIN 2>/dev/null | grep -c "^Device:" || echo 0)
+                echo "libinput detected ${COUNT} input device(s)"
+            fi
+        ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    log ""
+}
+
+# ANDROID HAL / SERVICES
+
+android_service_managers() {
+    logsection "ANDROID SERVICE MANAGERS"
+    for mgr in servicemanager hwservicemanager; do
+        logsub "$mgr"
+        if pgrep -f "$mgr" >/dev/null 2>&1; then
+            logok "$mgr already running"
+            continue
+        fi
+        BIN=""
+        for p in "/bin/$mgr" "/system/bin/$mgr"; do
+            [ -x "$p" ] && { BIN="$p"; break; }
+        done
+        if [ -n "$BIN" ]; then
+            logi "Starting $BIN"
+            "$BIN" >/dev/null 2>&1 &
+            sleep "$SMWAIT"
+            pgrep -f "$mgr" >/dev/null 2>&1 \
+                && logok "$mgr running" \
+                || logw "$mgr not detected after start"
+        else
+            logw "$mgr binary not found"
+        fi
+    done
+    log ""
+}
+
+android_hal_services() {
+    logsection "ANDROID HAL SERVICES"
+
+    printf '%s\n' \
+'HIDLMemoryAllocator|/system/bin/hw/android.hidl.allocator@1.0-service' \
+'AudioHAL|/vendor/bin/hw/android.hardware.audio.service' \
+'BluetoothHAL|/vendor/bin/hw/android.hardware.bluetooth@1.1-service.unisoc' \
+'WiFiHAL|/vendor/bin/hw/android.hardware.wifi@1.0-service' \
+'GraphicsAllocator|/vendor/bin/hw/android.hardware.graphics.allocator@4.0-service' \
+'GraphicsComposer|/vendor/bin/hw/android.hardware.graphics.composer@2.1-service' \
+'HealthHAL|/vendor/bin/hw/android.hardware.health@2.1-service' \
+'ThermalHAL|/vendor/bin/hw/vendor.sprd.hardware.thermal@2.0-service' \
+    | while IFS='|' read -r NAME BIN; do
+        [ -n "$NAME" ] || continue
+        logsub "$NAME"
+        if [ -x "$BIN" ]; then
+            "$BIN" >/dev/null 2>&1 &
+            PID=$!
+            sleep "$HALSTARTUPWAIT"
+            ps -p "$PID" >/dev/null 2>&1 \
+                && logok "$NAME running PID $PID" \
+                || logw  "$NAME failed or exited"
+        else
+            logw "$NAME binary not found: $BIN"
+        fi
+    done
+
+    log ""
+}
+
+# VIRGL SERVER
+
+start_virgl_server() {
+    logsection "VIRGL SERVER STARTUP"
+
+    # ANGLE GL backend: prioritize /opt/angle-android/gl so virgl_test_server
+    # picks up ANGLE's EGL/GLES instead of the vendor's broken OpenGL.
+    # Venus still runs on top — the --venus flag is independent of the GL backend.
+    export LD_LIBRARY_PATH="\
+$ALPINE/opt/angle-android/gl:\
+$ALPINE/opt/virgl/lib:\
+/vendor/lib64:\
+/system/lib64"
+
+    VIRGL_SOCKET_PATH="/tmp/.virgl_test"
+    rm -f "$VIRGL_SOCKET_PATH" 2>/dev/null || true
+
+    logi "ANGLE GL path: $ALPINE/opt/angle-android/gl"
+    logi "Checking ANGLE libs present:"
+    for lib in libEGL_angle.so libGLESv1_CM_angle.so libGLESv2_angle.so; do
+        if [ -f "$ALPINE/opt/angle-android/gl/$lib" ]; then
+            logi "  [OK] $lib"
+        else
+            logw "  [MISSING] $lib — virgl will fall back to vendor GL"
+        fi
+    done
+
+    logi "Starting virgl_test_server with ANGLE GL + Venus (socket: $VIRGL_SOCKET_PATH)..."
+
+    "$ALPINE/opt/virgl/bin/virgl_test_server" \
+        --venus \
+        --no-fork \
+        --multi-clients \
+        --use-egl-surfaceless \
+        --use-gles \
+        --socket-path="$VIRGL_SOCKET_PATH" \
+        >/tmp/virgl.log 2>&1 &
+    VIRGL_PID=$!
+    sleep 2
+
+    if ! kill -0 "$VIRGL_PID" 2>/dev/null; then
+        logw "virgl_test_server failed to start"
+        cat /tmp/virgl.log >&2
+        return 1
+    fi
+    logok "virgl_test_server running PID $VIRGL_PID"
+
+    if [ -S "$VIRGL_SOCKET_PATH" ]; then
+        logok "virgl socket exists at $VIRGL_SOCKET_PATH"
+    else
+        logw "virgl socket missing after 2s — server started but did not bind"
+        cat /tmp/virgl.log >&2
+        return 1
+    fi
+
+    if chroot "$ALPINE" /bin/sh -c '[ -S /tmp/.virgl_test ]'; then
+        logok "virgl socket confirmed visible inside chroot at /tmp/.virgl_test"
+    else
+        logw "virgl socket NOT visible inside chroot — /tmp bind mount may have failed"
+        return 1
+    fi
+
+    logi "virgl_test_server startup log:"
+    cat /tmp/virgl.log | while IFS= read -r l; do logi "  [virgl] $l"; done
+
+    log ""
+}
+
+# DISPLAY PIPELINE
+
+wake_display_pipeline() {
+    logsection "PHASE : WAKE DISPLAY PIPELINE"
+
+    if [ -e /sys/class/graphics/fb0/blank ]; then
+        echo 0 >/sys/class/graphics/fb0/blank 2>/dev/null || true
+        logi "Unblanked fb0"
+    fi
+
+    for bl in /sys/class/backlight/*; do
+        [ -e "$bl/brightness" ] || continue
+        MAX_BL="$(cat "$bl/max_brightness" 2>/dev/null || echo 100)"
+        if [ "$MAX_BL" -le 25 ] 2>/dev/null; then
+            TARGET_BL="$MAX_BL"
+        else
+            TARGET_BL=25
+        fi
+        logi "Setting $bl/brightness to $TARGET_BL (max_brightness=$MAX_BL)"
+        echo "$TARGET_BL" >"$bl/brightness" 2>/dev/null || true
+    done
+
+    log ""
+}
+
+# MIRAL-APP DISPLAY TEST (strace)
+
+launch_miral_app_test() {
+    logsection "PHASE : MIRAL-APP DISPLAY TEST (strace)"
+
+    logi "Hardware snapshot before launch:"
+    hardware_status
+    wake_display_pipeline
+
+    chmod 666 /dev/dri/card0      2>/dev/null || true
+    chmod 666 /dev/mali0          2>/dev/null || true
+    chmod 666 /dev/ion            2>/dev/null || true
+    chmod -R 666 /dev/input       2>/dev/null || true
+
+    mkdir -p "$STRACELOGDIR" 2>/dev/null || true
+    mkdir -p "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    if ! grep -q " $ALPINE/tmp/strace_logs " /proc/mounts 2>/dev/null; then
+        mount --bind "$STRACELOGDIR" "$ALPINE/tmp/strace_logs" 2>/dev/null \
+            && logok "strace log dir bind-mounted at /tmp/strace_logs in chroot" \
+            || logw  "could not bind strace log dir into chroot"
+    fi
+
+    DBUS_SESSION_ADDR=""
+    if [ -r "$ROOTFSDBUSENV" ]; then
+        DBUS_SESSION_ADDR="$(grep '^DBUS_SESSION_BUS_ADDRESS=' "$ROOTFSDBUSENV" \
+            | cut -d= -f2- | head -1)"
+    fi
+    [ -z "$DBUS_SESSION_ADDR" ] && DBUS_SESSION_ADDR="unix:path=/run/user/0/bus"
+    logi "Using DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_ADDR"
+
+    chroot "$ALPINE" /bin/sh << EOF_CHROOT 2>&1 | tee -a "$LOGFILE"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib:/lib
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+export XDG_CONFIG_HOME=/tmp/runtime-root/config
+export MIR_SERVER_PLATFORM_PATH=/usr/lib/mir/server-platform
+export MIR_SERVER_PLATFORM_DISPLAY_LIBS=mir:atomic-kms
+export WAYLAND_DISPLAY=wayland-0
+export LIBSEAT_BACKEND=builtin
+export SEATD_VTBOUND=0
+export LIBGL_ALWAYS_SOFTWARE=1
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS='$DBUS_SESSION_ADDR'
+
+mkdir -p -m 0700 "\$XDG_RUNTIME_DIR"
+rm -rf "\$XDG_RUNTIME_DIR"/* 2>/dev/null
+
+mkdir -p -m 0700 "\$XDG_CONFIG_HOME"
+cat > "\$XDG_CONFIG_HOME/display.config" <<'EOF_DISPLAY'
+layouts:
+  default:
+    cards:
+    - card-id: 0
+      DSI-1:
+        orientation: right
+EOF_DISPLAY
+
+# Ensure input nodes are readable inside chroot right before launch
+chmod 666 /dev/input/js0    2>/dev/null && echo "  i [input] chmod js0 OK"    || true
+chmod 666 /dev/input/event5 2>/dev/null && echo "  i [input] chmod event5 OK" || true
+chmod 666 /dev/input/event0 2>/dev/null || true
+chmod 666 /dev/input/event1 2>/dev/null || true
+chmod 666 /dev/input/event2 2>/dev/null || true
+chmod 666 /dev/input/event3 2>/dev/null || true
+chmod 666 /dev/input/event4 2>/dev/null || true
+
+STRACE_LOG_CHROOT="/tmp/strace_logs"
+MIR_LOG="\$STRACE_LOG_CHROOT/mir.log"
+MIR_STRACE_LOG="\$STRACE_LOG_CHROOT/mir_strace.log"
+
+STRACE=""
+[ -x /usr/bin/strace ] && STRACE="/usr/bin/strace -f -tt -T -s 256 -o"
+
+echo "=== Launching miral-app ==="
+if [ -n "\$STRACE" ]; then
+    \$STRACE "\$MIR_STRACE_LOG" miral-app \
+        --display-config static="\$XDG_CONFIG_HOME/display.config" \
+        >"\$MIR_LOG" 2>&1 &
+else
+    miral-app \
+        --display-config static="\$XDG_CONFIG_HOME/display.config" \
+        >"\$MIR_LOG" 2>&1 &
+fi
+MIR_PID=\$!
+echo "  miral-app PID: \$MIR_PID"
+
+WAITED=0
+while [ \$WAITED -lt 10 ]; do
+    [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ] && break
+    sleep 1
+    WAITED=\$((WAITED + 1))
+done
+
+if [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ]; then
+    echo "Mir wayland socket ready after \${WAITED}s"
+else
+    echo "WARNING: Mir wayland socket did not appear after \${WAITED}s"
+fi
+
+sleep 3
+
+echo ""
+echo "=== PROCESS STATUS ==="
+kill -0 "\$MIR_PID" 2>/dev/null \
+    && echo "miral-app: RUNNING (\$MIR_PID)" \
+    || echo "miral-app: EXITED"
+
+echo ""
+echo "--- MIR LOG (tail 80) ---"
+tail -80 "\$MIR_LOG" 2>/dev/null || echo "No Mir log"
+echo "--- END MIR LOG ---"
+
+echo ""
+echo "--- MIR STRACE TAIL (last 60 lines, error/signal focus) ---"
+if [ -f "\$MIR_STRACE_LOG" ]; then
+    grep -E "(ENOENT|EACCES|EPERM|EFAULT|EIO|killed|SIGABRT|SIGSEGV|execve|openat|connect|exit_group)" \
+        "\$MIR_STRACE_LOG" 2>/dev/null | tail -60 \
+        || tail -60 "\$MIR_STRACE_LOG"
+else
+    echo "No strace log (strace not available)"
+fi
+echo "--- END MIR STRACE TAIL ---"
+
+kill "\$MIR_PID" 2>/dev/null
+wait "\$MIR_PID" 2>/dev/null
+EOF_CHROOT
+
+    umount -l "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    logsub "Hardware Status While Active / After Test Return"
+    hardware_status
+
+    logsub "Display Removal / Post-Compositor Snapshot"
+    hardware_status
+}
+
+# FLASH / HANDOFF
+
+flash_and_handoff() {
+    logsection "PHASE : FLASH & HANDOFF"
+
+    if [ ! -f "$TWRPIMG" ]; then
+        logerr "TWRP image not found: $TWRPIMG"
+    else
+        for PART in "$PART42" "$PART43"; do
+            if [ -b "$PART" ]; then
+                logi "Flashing $TWRPIMG -> $PART"
+                dd if="$TWRPIMG" of="$PART" bs=4096 conv=fsync 2>>"$LOGFILE" \
+                    && logok "dd -> $PART complete" \
+                    || logerr "dd -> $PART failed"
+            else
+                logerr "Block device missing: $PART"
+            fi
+        done
+        sync
+    fi
+
+    logsection "PHASE : UNMOUNT CHROOT SUPPORT"
+    cleanup_old_mounts
+
+    logsection "HANDOFF TO /system/bin/realrecovery"
+    sync
+    sleep 1
+    exec /system/bin/realrecovery
+}
+
+# MAIN
+
+logsection "FINAL TEST CHAIN"
+
+ueventd_precheck_and_populate_dev
+bind_mounts_with_forced_dev_rebind
+devnode_recheck_and_maybe_rebind_again
+probe_ld_config
+start_daemons
+start_host_udevd
+start_rootfs_dbus
+start_alpine_audio_stack
+run_libinput_list_devices
+android_service_managers
+android_hal_services
+start_virgl_server
+launch_miral_app_test
+launch_sxmo
+flash_and_handoff

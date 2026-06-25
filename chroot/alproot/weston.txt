@@ -1,0 +1,1049 @@
+Here's weston's dmesg when it ran:
+"
+--- DMESG DURING WESTON (filtered) ---
+[  289.213350] c3 type=1400 audit(1781069542.075:1776): avc: denied { ioctl } for comm="strace" path="/tmp/strace_logs/weston_drm_ioctls.log" dev="mmcblk1p1" ino=1048596 ioctlcmd=0x5413 scontext=u:r:recovery:s0 tcontext=u:object_r:exfat:s0 tclass=file permissive=1
+[  289.581608] c0 [drm] sprd_dsi_connector_detect()
+[  289.581778] c0 [drm] sprd_dsi_connector_get_modes()
+[  289.581781] c0 [drm] sprd_panel_get_modes()
+[  289.581807] c0 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  289.581817] c0 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  289.609857] c7 ueventd: Error reading from Uevent Fd: I/O error
+[  289.609876] c6 ueventd: Error reading from Uevent Fd: I/O error
+[  289.770881] c2 [drm] sprd_dsi_connector_detect()
+[  289.770889] c2 [drm] sprd_dsi_connector_get_modes()
+[  289.770892] c2 [drm] sprd_panel_get_modes()
+[  289.770919] c2 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  289.770926] c2 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  289.887514] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.887521] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.887538] c1 [drm] sprd_crtc_mode_valid() mode: 0:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  289.887542] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.887549] c1 [drm] dpu has already powered off
+[  289.887609] c0 [drm] sprd_crtc_mode_set_nofb() set mode: 752x1336
+[  289.887615] c0 [drm] sprd_dsi_encoder_mode_set() set mode: 752x1336
+[  289.887619] c0 [drm] sprd_crtc_atomic_enable()
+[  289.887625] c0 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_mcu_poweron_cammot():156]sprd_mcu power on
+[  289.887635] c0 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_regulator_enable():75]done!
+[  289.887640] c0 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_set_voltage():147]done!
+[  289.888947] c0 [drm][        dpu_dpi_init] Warning: (vsync + vbp) < 32, underflow risk!
+[  289.888985] c0 [drm] sprd_dsi_encoder_enable()
+[  289.893554] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.893561] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.893566] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.893657] c0 WARNING: CPU: 0 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.893661] c0 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.893716] c0 Workqueue: events_unbound sprd_commit_work
+[  289.893727] c0 pc : drm_format_plane_cpp+0x28/0x60
+[  289.893733] c0 lr : dpu_flip+0x444/0x970
+[  289.896291] c0  drm_format_plane_cpp+0x28/0x60
+[  289.896296] c0  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.896302] c0  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.896306] c0  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.896310] c0  sprd_commit_tail+0x40/0x80
+[  289.896313] c0  sprd_commit_work+0x10/0x18
+[  289.896385] c0 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.906715] c1 [drm] free logo memory addr:0x9e000000 size:0x9e4000
+[  289.910618] c2 [drm] sprd_dsi_connector_best_encoder()
+[  289.910626] c2 [drm] sprd_dsi_connector_best_encoder()
+[  289.910632] c2 [drm] sprd_dsi_encoder_atomic_check()
+[  289.910732] c0 WARNING: CPU: 0 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.910735] c0 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.910789] c0 Workqueue: events_unbound sprd_commit_work
+[  289.910802] c0 pc : drm_format_plane_cpp+0x28/0x60
+[  289.910809] c0 lr : dpu_flip+0x444/0x970
+[  289.913403] c0  drm_format_plane_cpp+0x28/0x60
+[  289.913412] c0  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.913425] c0  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.913433] c0  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.913440] c0  sprd_commit_tail+0x40/0x80
+[  289.913447] c0  sprd_commit_work+0x10/0x18
+[  289.913565] c0 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.927423] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.927431] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.927437] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.927541] c0 WARNING: CPU: 0 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.927549] c0 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.927621] c0 Workqueue: events_unbound sprd_commit_work
+[  289.927683] c0 pc : drm_format_plane_cpp+0x28/0x60
+[  289.927688] c0 lr : dpu_flip+0x444/0x970
+[  289.930200] c0  drm_format_plane_cpp+0x28/0x60
+[  289.930205] c0  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.930212] c0  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.930217] c0  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.930222] c0  sprd_commit_tail+0x40/0x80
+[  289.930227] c0  sprd_commit_work+0x10/0x18
+[  289.930297] c0 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.944160] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.944168] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.944175] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.944297] c0 WARNING: CPU: 0 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.944301] c0 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.944366] c0 Workqueue: events_unbound sprd_commit_work
+[  289.944382] c0 pc : drm_format_plane_cpp+0x28/0x60
+[  289.944389] c0 lr : dpu_flip+0x444/0x970
+[  289.947777] c0  drm_format_plane_cpp+0x28/0x60
+[  289.947787] c0  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.947795] c0  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.947801] c0  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.947807] c0  sprd_commit_tail+0x40/0x80
+[  289.947813] c0  sprd_commit_work+0x10/0x18
+[  289.947852] c0 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.962463] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.962469] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.962474] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.962552] c3 WARNING: CPU: 3 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.962555] c3 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.962598] c3 Workqueue: events_unbound sprd_commit_work
+[  289.962608] c3 pc : drm_format_plane_cpp+0x28/0x60
+[  289.962612] c3 lr : dpu_flip+0x444/0x970
+[  289.964786] c3  drm_format_plane_cpp+0x28/0x60
+[  289.964790] c3  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.964795] c3  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.964799] c3  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.964802] c3  sprd_commit_tail+0x40/0x80
+[  289.964805] c3  sprd_commit_work+0x10/0x18
+[  289.964852] c3 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.977478] c0 [drm] sprd_dsi_connector_best_encoder()
+[  289.977487] c0 [drm] sprd_dsi_connector_best_encoder()
+[  289.977493] c0 [drm] sprd_dsi_encoder_atomic_check()
+[  289.977650] c1 WARNING: CPU: 1 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.977653] c1 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.977698] c1 Workqueue: events_unbound sprd_commit_work
+[  289.977708] c1 pc : drm_format_plane_cpp+0x28/0x60
+[  289.977713] c1 lr : dpu_flip+0x444/0x970
+[  289.979918] c1  drm_format_plane_cpp+0x28/0x60
+[  289.979923] c1  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.979927] c1  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.979931] c1  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.979934] c1  sprd_commit_tail+0x40/0x80
+[  289.979937] c1  sprd_commit_work+0x10/0x18
+[  289.979972] c1 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  289.994635] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.994643] c1 [drm] sprd_dsi_connector_best_encoder()
+[  289.994649] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  289.994760] c2 WARNING: CPU: 2 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  289.994764] c2 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  289.994822] c2 Workqueue: events_unbound sprd_commit_work
+[  289.994835] c2 pc : drm_format_plane_cpp+0x28/0x60
+[  289.994841] c2 lr : dpu_flip+0x444/0x970
+[  289.997987] c2  drm_format_plane_cpp+0x28/0x60
+[  289.997993] c2  sprd_crtc_atomic_flush+0x70/0xc8
+[  289.997999] c2  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  289.998004] c2  sprd_atomic_commit_tail+0x3c/0x5c
+[  289.998009] c2  sprd_commit_tail+0x40/0x80
+[  289.998014] c2  sprd_commit_work+0x10/0x18
+[  289.998100] c2 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  290.011242] c1 [drm] sprd_dsi_connector_best_encoder()
+[  290.011249] c1 [drm] sprd_dsi_connector_best_encoder()
+[  290.011255] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  290.011592] c3 WARNING: CPU: 3 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  290.011596] c3 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  290.011680] c3 Workqueue: events_unbound sprd_commit_work
+[  290.011700] c3 pc : drm_format_plane_cpp+0x28/0x60
+[  290.011708] c3 lr : dpu_flip+0x444/0x970
+[  290.014790] c3  drm_format_plane_cpp+0x28/0x60
+[  290.014799] c3  sprd_crtc_atomic_flush+0x70/0xc8
+[  290.014808] c3  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  290.014816] c3  sprd_atomic_commit_tail+0x3c/0x5c
+[  290.014823] c3  sprd_commit_tail+0x40/0x80
+[  290.014833] c3  sprd_commit_work+0x10/0x18
+[  290.014926] c3 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  290.027582] c0 [drm] sprd_dsi_connector_best_encoder()
+[  290.027592] c0 [drm] sprd_dsi_connector_best_encoder()
+[  290.027599] c0 [drm] sprd_dsi_encoder_atomic_check()
+[  290.027743] c2 WARNING: CPU: 2 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  290.027747] c2 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  290.027826] c2 Workqueue: events_unbound sprd_commit_work
+[  290.027845] c2 pc : drm_format_plane_cpp+0x28/0x60
+[  290.027854] c2 lr : dpu_flip+0x444/0x970
+[  290.030957] c2  drm_format_plane_cpp+0x28/0x60
+[  290.030967] c2  sprd_crtc_atomic_flush+0x70/0xc8
+[  290.030977] c2  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  290.030985] c2  sprd_atomic_commit_tail+0x3c/0x5c
+[  290.030993] c2  sprd_commit_tail+0x40/0x80
+[  290.031002] c2  sprd_commit_work+0x10/0x18
+[  290.031106] c2 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  290.045140] c3 [drm] sprd_dsi_connector_best_encoder()
+[  290.045147] c3 [drm] sprd_dsi_connector_best_encoder()
+[  290.045152] c3 [drm] sprd_dsi_encoder_atomic_check()
+[  290.045261] c0 WARNING: CPU: 0 PID: 4168 at drm_format_plane_cpp+0x28/0x60
+[  290.045265] c0 Modules linked in: kheaders incrementalfs sprd_vdsp(O) sprdwl_ng(O) sprd_fm(O) sprdbt_tty(O) sprd_flash_drv(O) sprd_sensor(O) sprd_cpp(O) mmdvfs(O) mali_gondul(O)
+[  290.045326] c0 Workqueue: events_unbound sprd_commit_work
+[  290.045340] c0 pc : drm_format_plane_cpp+0x28/0x60
+[  290.045346] c0 lr : dpu_flip+0x444/0x970
+[  290.049325] c0  drm_format_plane_cpp+0x28/0x60
+[  290.049335] c0  sprd_crtc_atomic_flush+0x70/0xc8
+[  290.049348] c0  drm_atomic_helper_commit_planes+0x178/0x1d8
+[  290.049355] c0  sprd_atomic_commit_tail+0x3c/0x5c
+[  290.049363] c0  sprd_commit_tail+0x40/0x80
+[  290.049370] c0  sprd_commit_work+0x10/0x18
+[  290.049474] c0 [drm][           dpu_layer] layer[0] bytes per pixel is invalid
+[  290.061396] c0 [drm] sprd_dsi_connector_best_encoder()
+[  290.061403] c0 [drm] sprd_dsi_connector_best_encoder()
+[  290.061409] c0 [drm] sprd_dsi_encoder_atomic_check()
+"
+
+This is the function I used that showed the invalid pixel format:
+"
+launch_miral_app_test() {
+    logsection "PHASE : WESTON DRM COMPOSITOR + XWAYLAND TEST"
+
+    logi "Hardware snapshot before launch:"
+    hardware_status
+    wake_display_pipeline
+
+    chmod 666 /dev/dri/card0       2>/dev/null || true
+    chmod 666 /dev/mali0           2>/dev/null || true
+    chmod 666 /dev/ion             2>/dev/null || true
+    chmod -R 666 /dev/input        2>/dev/null || true
+
+    mkdir -p "$STRACELOGDIR"             2>/dev/null || true
+    mkdir -p "$ALPINE/tmp/strace_logs"   2>/dev/null || true
+
+    if ! grep -q " $ALPINE/tmp/strace_logs " /proc/mounts 2>/dev/null; then
+        mount --bind "$STRACELOGDIR" "$ALPINE/tmp/strace_logs" 2>/dev/null \
+            && logok "strace log dir bind-mounted at /tmp/strace_logs in chroot" \
+            || logw  "could not bind strace log dir into chroot"
+    fi
+
+    mkdir -p "$ALPINE/tmp/.X11-unix" 2>/dev/null || true
+    chmod 1777 "$ALPINE/tmp/.X11-unix"  2>/dev/null || true
+    logok "pre-created /tmp/.X11-unix in chroot (sticky 1777)"
+
+    # ---------------------------------------------------------------
+    # weston.ini — pixel-format=argb8888 forces the DPU atomic path
+    # to use DRM_FORMAT_ARGB8888 (4 bpp with alpha) instead of
+    # DRM_FORMAT_XRGB8888.  The Sprd DPU vendor kernel's
+    # drm_format_plane_cpp() does not have an entry for XRGB8888,
+    # which causes the "bytes per pixel is invalid" WARN and silent
+    # flip drop on every repaint.  ARGB8888 has the correct cpp=4
+    # entry.  The DSI wire is rgb888 (per DTS) but the DPU internal
+    # buffer format and the DSI output format are separate — the DPU
+    # converts internally.
+    # ---------------------------------------------------------------
+    mkdir -p "$ALPINE/tmp/weston" 2>/dev/null || true
+    cat > "$ALPINE/tmp/weston/weston.ini" << 'WESTONINI'
+[core]
+idle-time=0
+require-input=false
+xwayland=true
+
+[shell]
+background-color=0xff001a33
+panel-position=none
+locking=false
+
+[output]
+name=DSI-1
+mode=current
+pixel-format=argb8888
+WESTONINI
+    logok "wrote /tmp/weston/weston.ini (pixel-format=argb8888)"
+
+    SEATD_SOCK_PATH="${SEATD_SOCK:-/run/seatd.sock}"
+    [ -S "$SEATD_SOCK_PATH" ] \
+        && logok "seatd socket confirmed at $SEATD_SOCK_PATH" \
+        || logw  "seatd socket NOT found at $SEATD_SOCK_PATH — Weston will fail"
+
+    [ -S "$ALPINE/run/seatd.sock" ] \
+        && logok "seatd socket visible through chroot at $ALPINE/run/seatd.sock" \
+        || logw  "seatd socket NOT visible through chroot at $ALPINE/run/seatd.sock"
+
+    # ---------------------------------------------------------------
+    # HOST-SIDE PRE-LAUNCH DIAGNOSTICS (runs outside chroot)
+    # ---------------------------------------------------------------
+    logsub "PRE-LAUNCH: DRM / framebuffer / kernel state"
+
+    logi "--- dmesg: sprd/dpu/dsi/drm/panel (pre-launch) ---"
+    dmesg | grep -iE 'sprd|dpu|dispc|drm|dsi|panel|flip|vblank|lcd|backlight|display|FC11339|mipi' \
+          | tail -60 | tee -a "$LOGFILE" || true
+
+    logi "--- /sys/class/drm/card0-DSI-1 ---"
+    for f in status dpms modes enabled; do
+        v=$(cat "/sys/class/drm/card0-DSI-1/$f" 2>/dev/null) \
+            && logi "  card0-DSI-1/$f = $v" \
+            || logi "  card0-DSI-1/$f = (not found)"
+    done
+
+    logi "--- /sys/class/graphics/fb0 ---"
+    for f in virtual_size stride bits_per_pixel; do
+        v=$(cat "/sys/class/graphics/fb0/$f" 2>/dev/null) \
+            && logi "  fb0/$f = $v" \
+            || logi "  fb0/$f = (not found)"
+    done
+
+    logi "--- DRI debug state (best-effort) ---"
+    cat /sys/kernel/debug/dri/0/state 2>/dev/null | head -60 | tee -a "$LOGFILE" \
+        || logi "  /sys/kernel/debug/dri/0/state not accessible"
+
+    logi "--- DRM clients ---"
+    cat /sys/kernel/debug/dri/0/clients 2>/dev/null | tee -a "$LOGFILE" \
+        || logi "  /sys/kernel/debug/dri/0/clients not accessible"
+
+    # ---------------------------------------------------------------
+    # HOST-SIDE: DRM plane format advertisement
+    # Shows which DRM_FORMAT_* codes the Sprd DPU driver actually
+    # advertises for each plane.  If DRM_FORMAT_ARGB8888 is not in
+    # this list, pixel-format=argb8888 will also fail and we need
+    # to use fbdev-backend instead.
+    # ---------------------------------------------------------------
+    logi "--- DRM plane format advertisement (host sysfs) ---"
+    for plane_dir in /sys/class/drm/card0/device/drm/card0/plane*/; do
+        [ -d "$plane_dir" ] || continue
+        plane_name=$(basename "$plane_dir")
+        formats_file="$plane_dir/formats"
+        if [ -r "$formats_file" ]; then
+            logi "  $plane_name formats: $(cat "$formats_file" 2>/dev/null | tr '\n' ' ')"
+        else
+            logi "  $plane_name: no formats sysfs entry"
+        fi
+    done
+    # Also try debugfs path used on some 4.14 vendor kernels
+    for plane_dir in /sys/kernel/debug/dri/0/plane*/; do
+        [ -d "$plane_dir" ] || continue
+        plane_name=$(basename "$plane_dir")
+        logi "  debugfs/$plane_name: $(ls "$plane_dir" 2>/dev/null | tr '\n' ' ')"
+        [ -r "$plane_dir/formats" ] \
+            && logi "  debugfs/$plane_name/formats: $(cat "$plane_dir/formats" 2>/dev/null | tr '\n' ' ')"
+    done
+
+    chroot "$ALPINE" /bin/sh << 'EOF_CHROOT' 2>&1 | tee -a "$LOGFILE"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
+rm -rf "$XDG_RUNTIME_DIR"/* 2>/dev/null
+
+export LIBSEAT_BACKEND=seatd
+export SEATD_SOCK=/run/seatd.sock
+export SEATD_VTBOUND=0
+export XDG_SEAT=seat0
+
+echo "[INFO] LIBSEAT_BACKEND=$LIBSEAT_BACKEND  SEATD_SOCK=$SEATD_SOCK"
+
+if [ ! -S "$SEATD_SOCK" ]; then
+    echo "[FATAL] seatd socket not visible inside chroot"
+    echo "        /run: $(ls /run/ 2>/dev/null | tr '\n' ' ')"
+    exit 1
+fi
+echo "[OK] seatd socket visible"
+
+[ -d /tmp/.X11-unix ] \
+    && echo "[OK] /tmp/.X11-unix: $(ls -ld /tmp/.X11-unix)" \
+    || { mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix && echo "[OK] /tmp/.X11-unix created"; }
+
+unset LIBGL_ALWAYS_SOFTWARE GALLIUM_DRIVER MESA_LOADER_DRIVER_OVERRIDE
+unset VIRGL_SERVER_PATH MESA_GL_VERSION_OVERRIDE MESA_GLSL_VERSION_OVERRIDE
+unset MESA_GLES_VERSION_OVERRIDE MESA_NO_ERROR
+echo "[INFO] GL env: clean for Weston+Xwayland startup"
+
+STRACE_LOG_DIR="/tmp/strace_logs"
+WESTON_LOG="$STRACE_LOG_DIR/weston.log"
+WESTERM_LOG="$STRACE_LOG_DIR/weston-terminal.log"
+STRACE_DRM_LOG="$STRACE_LOG_DIR/weston_drm_ioctls.log"
+DMESG_DURING_LOG="$STRACE_LOG_DIR/dmesg_during_weston.log"
+DMESG_AFTER_LOG="$STRACE_LOG_DIR/dmesg_after_weston.log"
+WESTON_SOCKET="wayland-0"
+WESTON_INI="/tmp/weston/weston.ini"
+
+WESTERM_BIN=""
+for _p in /usr/local/bin/weston-terminal /usr/bin/weston-terminal; do
+    [ -x "$_p" ] && WESTERM_BIN="$_p" && break
+done
+if [ -z "$WESTERM_BIN" ]; then
+    echo "[FATAL] weston-terminal not found"
+    exit 1
+fi
+echo "[INFO] weston-terminal: $WESTERM_BIN"
+
+DESKTOP_SHELL_SO=""
+for _p in /usr/local/lib/weston/desktop-shell.so /usr/lib/weston/desktop-shell.so; do
+    [ -f "$_p" ] && DESKTOP_SHELL_SO="$_p" && break
+done
+
+if [ -n "$DESKTOP_SHELL_SO" ]; then
+    echo "[INFO] desktop-shell.so: $DESKTOP_SHELL_SO — using desktop-shell"
+    SHELL_ARG="--shell=desktop-shell.so"
+    CONFIG_ARG="--config=$WESTON_INI"
+else
+    echo "[WARN] desktop-shell.so not found — falling back to kiosk-shell"
+    SHELL_ARG="--shell=kiosk-shell.so"
+    CONFIG_ARG="--no-config"
+fi
+
+# Confirm pixel-format in the ini that Weston will read
+echo "[INFO] weston.ini [output] section:"
+grep -A5 '^\[output\]' "$WESTON_INI" 2>/dev/null | sed 's/^/  /' || echo "  (could not read weston.ini)"
+
+DMESG_PRE_LINES=$(dmesg 2>/dev/null | wc -l)
+echo "[INFO] dmesg line cursor before Weston: $DMESG_PRE_LINES"
+
+# ---------------------------------------------------------------
+# Enable Weston's internal drm-backend debug scope.
+# This causes Weston to log the exact DRM_FORMAT_* it negotiates
+# with the kernel for each output plane, and any format rejection
+# messages from its own drm_output_init_pixman() path.
+# Output goes to WESTON_LOG via stderr.
+# ---------------------------------------------------------------
+export LIBWESTON_DEBUG_SCOPES=drm-backend
+export WESTON_DEBUG_FORMAT=1
+
+echo "=== Launching Weston ($SHELL_ARG, pixman, drm, argb8888) ==="
+weston \
+    --backend=drm-backend.so \
+    --renderer=pixman \
+    --seat=seat0 \
+    --socket="$WESTON_SOCKET" \
+    $SHELL_ARG \
+    $CONFIG_ARG \
+    --xwayland \
+    --continue-without-input \
+    > "$WESTON_LOG" 2>&1 &
+WESTON_PID=$!
+echo "  Weston PID: $WESTON_PID"
+
+if command -v strace > /dev/null 2>&1; then
+    echo "[INFO] Attaching strace to Weston PID $WESTON_PID for DRM ioctl capture"
+    strace -p "$WESTON_PID" \
+        -e trace=ioctl \
+        -e signal=none \
+        -f \
+        -o "$STRACE_DRM_LOG" \
+        2>/dev/null &
+    STRACE_PID=$!
+    echo "  strace PID: $STRACE_PID"
+else
+    echo "[WARN] strace not found — install: apk add strace"
+    STRACE_PID=""
+fi
+
+# Wait up to 20s for Wayland compositor socket
+WAITED=0
+while [ $WAITED -lt 20 ]; do
+    [ -S "$XDG_RUNTIME_DIR/$WESTON_SOCKET" ] && break
+    kill -0 "$WESTON_PID" 2>/dev/null || { echo "[FATAL] Weston died at ${WAITED}s"; break; }
+    sleep 1; WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$XDG_RUNTIME_DIR/$WESTON_SOCKET" ]; then
+    echo "[FATAL] Weston socket never appeared after ${WAITED}s"
+    echo "--- WESTON LOG ---"; cat "$WESTON_LOG" 2>/dev/null; echo "--- END ---"
+    [ -n "$STRACE_PID" ] && kill "$STRACE_PID" 2>/dev/null
+    kill "$WESTON_PID" 2>/dev/null; exit 1
+fi
+echo "[OK] Weston socket ready after ${WAITED}s"
+
+# ---------------------------------------------------------------
+# Immediately check Weston log for format negotiation result.
+# Look for either the format it accepted or a rejection message.
+# ---------------------------------------------------------------
+echo "[INFO] Weston format negotiation (from log so far):"
+grep -iE 'format|argb|xrgb|rgb888|pixel|plane|drm_format|bytes.per' \
+    "$WESTON_LOG" 2>/dev/null | head -20 | sed 's/^/  /' \
+    || echo "  (no format lines in weston log yet)"
+
+# Wait up to 15s for Xwayland
+X_SOCKET="/tmp/.X11-unix/X0"
+WAITED=0
+while [ $WAITED -lt 15 ]; do
+    [ -S "$X_SOCKET" ] && break
+    kill -0 "$WESTON_PID" 2>/dev/null || break
+    sleep 1; WAITED=$((WAITED + 1))
+done
+[ -S "$X_SOCKET" ] \
+    && echo "[OK] Xwayland ready at $X_SOCKET after ${WAITED}s" \
+    || echo "[WARN] Xwayland socket absent after ${WAITED}s"
+
+echo "[INFO] Capturing early dmesg delta (post-modeset window)..."
+sleep 2
+dmesg 2>/dev/null | tail -n +"$DMESG_PRE_LINES" \
+    | grep -iE 'sprd|dpu|dispc|drm|dsi|panel|flip|vblank|lcd|backlight|display|FC11339|mipi|error|warn|fail|bytes.per|invalid|format' \
+    > "$DMESG_DURING_LOG" || true
+EARLY_DMESG_LINES=$(wc -l < "$DMESG_DURING_LOG")
+echo "[INFO] Early dmesg delta: $EARLY_DMESG_LINES matching lines"
+
+# ---------------------------------------------------------------
+# Critical check: did "bytes per pixel is invalid" appear again?
+# If yes → argb8888 also not in the DPU format table.
+# If no  → format fix worked; DPU is accepting flips.
+# ---------------------------------------------------------------
+BPP_INVALID=$(grep -c 'bytes per pixel is invalid\|bytes.per.pixel' \
+              "$DMESG_DURING_LOG" 2>/dev/null || echo 0)
+if [ "$BPP_INVALID" = "0" ]; then
+    echo "[OK] 'bytes per pixel is invalid' NOT seen — argb8888 accepted by DPU"
+else
+    echo "[WARN] 'bytes per pixel is invalid' still firing ($BPP_INVALID times)"
+    echo "       argb8888 also rejected by sprd DPU format table"
+    echo "       Next step: switch to fbdev-backend (bypasses DRM plane format check)"
+fi
+
+if [ -f "$STRACE_DRM_LOG" ]; then
+    FLIP_COUNT=$(grep -c 'PAGE_FLIP\|page_flip\|0xc01464ae\|0xc01864ae\|0xc06864b2' \
+                 "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    SETCRTC_COUNT=$(grep -c 'SETCRTC\|setcrtc\|0xc06864a1' \
+                    "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    echo "[INFO] strace early counts: SETCRTC=$SETCRTC_COUNT  PAGE_FLIP=$FLIP_COUNT"
+    [ "$SETCRTC_COUNT" = "0" ] && [ "$FLIP_COUNT" = "0" ] \
+        && echo "[WARN] No DRM modeset or flip ioctls seen yet"
+fi
+
+echo "[INFO] Waiting 5s for desktop-shell paint + compositor settle..."
+sleep 5
+
+if [ -f "$STRACE_DRM_LOG" ]; then
+    FLIP_COUNT=$(grep -c 'PAGE_FLIP\|page_flip\|0xc01464ae\|0xc01864ae\|0xc06864b2' \
+                 "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    SETCRTC_COUNT=$(grep -c 'SETCRTC\|setcrtc\|0xc06864a1' \
+                    "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    EBUSY_COUNT=$(grep -c 'EBUSY\|EINVAL\|ENOMEM\|ENODEV' \
+                  "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    echo "[INFO] strace post-settle: SETCRTC=$SETCRTC_COUNT  PAGE_FLIP=$FLIP_COUNT  ERRORS(EBUSY/EINVAL/etc)=$EBUSY_COUNT"
+    if [ "$FLIP_COUNT" = "0" ]; then
+        echo "[WARN] PAGE_FLIP count is 0 after settle — repaint loop stalled"
+    else
+        echo "[OK] PAGE_FLIP ioctls seen — kernel received repaint submissions"
+    fi
+fi
+
+# virpipe env — set after compositor is fully settled
+if [ -S "/tmp/.virgl_test" ]; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=virpipe
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+    export MESA_GL_VERSION_OVERRIDE=4.0
+    export MESA_GLSL_VERSION_OVERRIDE=400
+    export MESA_GLES_VERSION_OVERRIDE=3.1
+    export MESA_NO_ERROR=1
+    echo "[INFO] virpipe env set — children use virgl -> /dev/mali0"
+else
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=llvmpipe
+    echo "[WARN] virgl socket absent — children use llvmpipe"
+fi
+
+export WAYLAND_DISPLAY="$WESTON_SOCKET"
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+export DISPLAY=":0"
+
+echo "=== Launching weston-terminal (shell=/bin/sh) ==="
+"$WESTERM_BIN" \
+    --shell=/bin/sh \
+    > "$WESTERM_LOG" 2>&1 &
+WESTERM_PID=$!
+echo "  weston-terminal PID: $WESTERM_PID"
+
+WAITED=0
+while [ $WAITED -lt 8 ]; do
+    kill -0 "$WESTERM_PID" 2>/dev/null || break
+    sleep 1; WAITED=$((WAITED + 1))
+done
+
+if kill -0 "$WESTERM_PID" 2>/dev/null; then
+    echo "[OK] weston-terminal: RUNNING ($WESTERM_PID) after ${WAITED}s"
+    echo "     Screen: dark blue desktop + weston-terminal window visible"
+    echo "     Keyboard and touchscreen both mapped to DSI-1"
+else
+    echo "[WARN] weston-terminal exited within ${WAITED}s"
+    echo "--- WESTON-TERMINAL LOG (early exit) ---"
+    cat "$WESTERM_LOG" 2>/dev/null
+    echo "--- END ---"
+fi
+
+DISPLAY_WINDOW_SECS=300
+echo ""
+echo "[INFO] Display window: ${DISPLAY_WINDOW_SECS}s"
+echo "       weston-terminal shell has virpipe env — test commands:"
+echo "         glxinfo | grep renderer"
+echo "         es2gears_wayland &"
+echo "         es2tri &"
+echo "         WAYLAND_DISPLAY=$WESTON_SOCKET some-wayland-app &"
+echo "         DISPLAY=:0 xclock &"
+echo ""
+
+sleep "$DISPLAY_WINDOW_SECS"
+
+echo ""
+echo "=== PROCESS STATUS ==="
+kill -0 "$WESTON_PID"  2>/dev/null \
+    && echo "weston:           RUNNING ($WESTON_PID)" \
+    || echo "weston:           EXITED"
+kill -0 "$WESTERM_PID" 2>/dev/null \
+    && echo "weston-terminal:  RUNNING ($WESTERM_PID)" \
+    || echo "weston-terminal:  EXITED"
+
+if [ -f "$STRACE_DRM_LOG" ]; then
+    FLIP_FINAL=$(grep -c 'PAGE_FLIP\|page_flip\|0xc01464ae\|0xc01864ae\|0xc06864b2' \
+                 "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    SETCRTC_FINAL=$(grep -c 'SETCRTC\|setcrtc\|0xc06864a1' \
+                    "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    ERR_FINAL=$(grep -c 'EBUSY\|EINVAL\|ENOMEM\|ENODEV' \
+                "$STRACE_DRM_LOG" 2>/dev/null || echo 0)
+    BPP_FINAL=$(grep -c 'bytes per pixel is invalid\|bytes.per.pixel' \
+                "$DMESG_AFTER_LOG" 2>/dev/null || echo 0)
+    echo ""
+    echo "--- STRACE SUMMARY (full session) ---"
+    echo "  SETCRTC calls            : $SETCRTC_FINAL"
+    echo "  PAGE_FLIP calls          : $FLIP_FINAL"
+    echo "  DRM errors               : $ERR_FINAL"
+    echo "  'bytes per pixel invalid': $BPP_FINAL (from dmesg)"
+    if [ "$BPP_FINAL" -gt 0 ] 2>/dev/null; then
+        echo "  DIAGNOSIS: argb8888 also rejected by sprd DPU"
+        echo "             Root cause: drm_format_plane_cpp() missing entry in vendor 4.14 kernel"
+        echo "             Fix: switch to --backend=fbdev-backend.so"
+        echo "                  fbdev bypasses DRM plane format negotiation entirely"
+        echo "                  and writes directly to framebuffer-mem@fd708000"
+    elif [ "$FLIP_FINAL" = "0" ]; then
+        echo "  DIAGNOSIS: page-flip never submitted — repaint loop stalled"
+    elif [ "$ERR_FINAL" -gt 0 ]; then
+        echo "  DIAGNOSIS: flip submitted but errors returned — kernel rejected flips"
+    else
+        echo "  DIAGNOSIS: flips submitted without errors — kernel accepted them"
+        echo "             Screen should be showing content"
+        echo "             If still blank: DPU accepted flip but scanout pipeline stalled"
+        echo "             Check dmesg_after_weston.log for dispc/vblank messages"
+    fi
+    echo "--- END STRACE SUMMARY ---"
+fi
+
+echo ""
+echo "--- WESTON LOG (full) ---"
+cat "$WESTON_LOG" 2>/dev/null || echo "no weston log"
+echo "--- END WESTON LOG ---"
+
+echo ""
+echo "--- WESTON-TERMINAL LOG ---"
+cat "$WESTERM_LOG" 2>/dev/null || echo "no weston-terminal log"
+echo "--- END WESTON-TERMINAL LOG ---"
+
+echo ""
+echo "--- DMESG DURING WESTON (filtered) ---"
+cat "$DMESG_DURING_LOG" 2>/dev/null || echo "no dmesg during log"
+echo "--- END DMESG DURING ---"
+
+echo ""
+echo "--- DMESG AFTER WESTON (full session delta, filtered) ---"
+dmesg 2>/dev/null | tail -n +"$DMESG_PRE_LINES" \
+    | grep -iE 'sprd|dpu|dispc|drm|dsi|panel|flip|vblank|lcd|backlight|display|FC11339|mipi|error|warn|fail|bytes.per|invalid|format' \
+    | tee "$DMESG_AFTER_LOG" || true
+echo "--- END DMESG AFTER ---"
+
+echo ""
+echo "--- STRACE DRM IOCTLS (last 100 lines) ---"
+tail -100 "$STRACE_DRM_LOG" 2>/dev/null || echo "no strace log"
+echo "--- END STRACE DRM IOCTLS ---"
+
+# Teardown
+[ -n "$STRACE_PID" ] && kill "$STRACE_PID" 2>/dev/null
+kill "$WESTERM_PID" 2>/dev/null
+kill "$WESTON_PID"  2>/dev/null
+wait "$WESTON_PID"  2>/dev/null || true
+EOF_CHROOT
+
+    umount -l "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    logsub "Hardware Status After Test"
+    hardware_status
+
+    logsub "Display / Post-Compositor Snapshot"
+    hardware_status
+}
+"
+
+This is modetest:
+
+========== modetest output ==========
+`Spreadtrum SoCs' DRM Driver` on driver `sprd` (version 1.0.0 at 20180501)
+Encoders:
+id	crtc	type	possible crtcs	possible clones	
+83	0	DSI	0x00000001	0x00000000
+
+Connectors:
+id	encoder	status		name		size (mm)	modes	encoders
+84	0	connected	DSI-1          	62x107		1	83
+  modes:
+	index name refresh (Hz) hdisp hss hse htot vdisp vss vse vtot
+  #0 752x1336 60.00 752 770 774 782 1336 1352 1356 1364 64000 flags: ; type: preferred, driver
+  props:
+	1 EDID:
+		flags: immutable blob
+		blobs:
+
+		value:
+	2 DPMS:
+		flags: enum
+		enums: On=0 Standby=1 Suspend=2 Off=3
+		value: 0
+	5 link-status:
+		flags: enum
+		enums: Good=0 Bad=1
+		value: 0
+
+CRTCs:
+id	fb	pos	size
+79	0	(0,0)	(0x0)
+  #0  nan 0 0 0 0 0 0 0 0 0 flags: ; type: 
+  props:
+	81 dpu version:
+		flags: immutable blob
+		blobs:
+
+		value:
+			6470752d7234703000
+	82 corner size:
+		flags: immutable range
+		values:
+		value: 0
+
+Planes:
+id	crtc	fb	CRTC x,y	x,y	gamma size	possible crtcs
+27	0	0	0,0		0,0	0       	0x00000001
+  formats: XR24 XB24 AR24 AB24 RA24 BA24 RX24 BX24 RG16 BG16 NV12 NV21 NV16 NV61 YU12
+  props:
+	6 type:
+		flags: immutable enum
+		enums: Overlay=0 Primary=1 Cursor=2
+		value: 1
+	26 IN_FORMATS:
+		flags: immutable blob
+		blobs:
+
+		value:
+			01000000000000000f00000018000000
+			00000000580000005852323458423234
+			41523234414232345241323442413234
+			52583234425832345247313642473136
+			4e5631324e5632314e5631364e563631
+			5955313200000000
+		in_formats blob decoded:
+
+	29 rotation:
+		flags: bitmask
+		values: rotate-0=0x1 rotate-90=0x2 rotate-180=0x4 rotate-270=0x8 reflect-x=0x10 reflect-y=0x20
+		value: 0
+	30 zpos:
+		flags: immutable range
+		values: 0 0
+		value: 0
+	31 alpha:
+		flags: range
+		values: 0 255
+		value: 255
+	32 pixel blend mode:
+		flags: enum
+		enums: None=0 Pre-multiplied=2 Coverage=1
+		value: 0
+	33 FBC header size RGB:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	34 FBC header size Y:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	35 FBC header size UV:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	36 YUV2RGB coef:
+		flags: range
+		values: 0 4294967295
+		value: 0
+	37 pallete enable:
+		flags: range
+		values: 0 4294967295
+
+
+from dmesg_full.log when launching miral-app:
+
+[  258.832691] c3 type=1400 audit(1781142124.643:1690): avc: denied { read } for comm="pservice" name="cpu_variant:arm" dev="tmpfs" ino=75140 scontext=u:r:pservice:s0 tcontext=u:object_r:device:s0 tclass=file permissive=1
+[  258.832873] c3 type=1400 audit(1781142124.643:1691): avc: denied { open } for comm="pservice" path="/dev/cpu_variant:arm" dev="tmpfs" ino=75140 scontext=u:r:pservice:s0 tcontext=u:object_r:device:s0 tclass=file permissive=1
+[  258.895466] c3 type=1400 audit(1781142124.703:1692): avc: denied { write } for comm="pservice" name="logdw" dev="tmpfs" ino=72575 scontext=u:r:pservice:s0 tcontext=u:object_r:socket_device:s0 tclass=sock_file permissive=1
+[  262.372115] c0 logd: logd: accept... 
+[  262.372198] c0 logd: logd: accept:-1 
+[  262.789881] c2 type=1400 audit(1781142128.599:1693): avc: denied { read } for comm="pgrep" scontext=u:r:recovery:s0 tcontext=u:r:vendor_init:s0 tclass=file permissive=1
+[  262.794838] c2 type=1400 audit(1781142128.603:1694): avc: denied { open } for comm="pgrep" path="/proc/235/stat" dev="proc" ino=14905 scontext=u:r:recovery:s0 tcontext=u:r:vendor_init:s0 tclass=file permissive=1
+[  262.801625] c2 type=1400 audit(1781142128.611:1695): avc: denied { getattr } for comm="fuse.read" path="/mnt/alpine/system_a/system/bin/servicemanager" dev="loop0" ino=462 scontext=u:r:recovery:s0 tcontext=u:object_r:servicemanager_exec:s0 tclass=file permissive=1
+[  262.892680] c5 type=1400 audit(1781142128.699:1696): avc: denied { read } for comm="fuse.read" name="servicemanager" dev="loop0" ino=462 scontext=u:r:recovery:s0 tcontext=u:object_r:servicemanager_exec:s0 tclass=file permissive=1
+[  262.892946] c5 type=1400 audit(1781142128.703:1697): avc: denied { open } for comm="fuse.read" path="/mnt/alpine/system_a/system/bin/servicemanager" dev="loop0" ino=462 scontext=u:r:recovery:s0 tcontext=u:object_r:servicemanager_exec:s0 tclass=file permissive=1
+[  262.904877] c4 type=1400 audit(1781142128.715:1698): avc: denied { read } for comm="servicemanager" name="data" dev="rootfs" ino=6837 scontext=u:r:recovery:s0 tcontext=u:object_r:system_data_root_file:s0 tclass=dir permissive=1
+[  262.989346] c2 type=1400 audit(1781142128.799:1699): avc: denied { write } for comm="servicemanager" name="logdw" dev="tmpfs" ino=72575 scontext=u:r:recovery:s0 tcontext=u:object_r:socket_device:s0 tclass=sock_file permissive=1
+[  262.990157] c2 type=1400 audit(1781142128.799:1700): avc: denied { getattr } for comm="fuse.read" path="/mnt/alpine/system/etc/selinux/plat_service_contexts" dev="loop0" ino=941 scontext=u:r:recovery:s0 tcontext=u:object_r:service_contexts_file:s0 tclass=file permissive=1
+[  262.990614] c0 type=1400 audit(1781142128.799:1701): avc: denied { read } for comm="servicemanager" name="system_ext_service_contexts" dev="loop2" ino=155 scontext=u:r:recovery:s0 tcontext=u:object_r:service_contexts_file:s0 tclass=file permissive=1
+[  262.991833] c2 type=1400 audit(1781142128.799:1702): avc: denied { open } for comm="servicemanager" path="/system_ext/etc/selinux/system_ext_service_contexts" dev="loop2" ino=155 scontext=u:r:recovery:s0 tcontext=u:object_r:service_contexts_file:s0 tclass=file permissive=1
+[  262.996632] c3 type=1400 audit(1781142128.807:1703): avc: denied { create } for comm="servicemanager" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_selinux_socket permissive=1
+[  262.996708] c3 type=1400 audit(1781142128.807:1704): avc: denied { bind } for comm="servicemanager" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_selinux_socket permissive=1
+[  262.996768] c3 type=1400 audit(1781142128.807:1705): avc: denied { read } for comm="servicemanager" name="perms" dev="selinuxfs" ino=67112389 scontext=u:r:recovery:s0 tcontext=u:object_r:selinuxfs:s0 tclass=dir permissive=1
+[  262.996838] c3 type=1400 audit(1781142128.807:1706): avc: denied { open } for comm="servicemanager" path="/sys/fs/selinux/class/service_manager/perms" dev="selinuxfs" ino=67112389 scontext=u:r:recovery:s0 tcontext=u:object_r:selinuxfs:s0 tclass=dir permissive=1
+[  262.996950] c3 type=1400 audit(1781142128.807:1707): avc: denied { write } for comm="servicemanager" name="access" dev="selinuxfs" ino=6 scontext=u:r:recovery:s0 tcontext=u:object_r:selinuxfs:s0 tclass=file permissive=1
+[  262.997011] c3 type=1400 audit(1781142128.807:1708): avc: denied { compute_av } for comm="servicemanager" scontext=u:r:recovery:s0 tcontext=u:object_r:kernel:s0 tclass=security permissive=1
+[  262.997112] c3 type=1400 audit(1781142128.807:1709): avc: denied { set_context_mgr } for comm="servicemanager" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=binder permissive=1
+[  263.835620] c2 type=1400 audit(1781142129.643:1710): avc: denied { getattr } for comm="init" path="/system/bin/pservice" dev="fuse" ino=8006740006160683690 scontext=u:r:init:s0 tcontext=u:object_r:fuse:s0 tclass=file permissive=1
+[  263.839687] c3 type=1400 audit(1781142129.647:1711): avc: denied { execute } for comm="init" name="pservice" dev="fuse" ino=8006740006160683690 scontext=u:r:init:s0 tcontext=u:object_r:fuse:s0 tclass=file permissive=1
+[  263.839915] c3 type=1400 audit(1781142129.647:1712): avc: denied { read open } for comm="init" path="/system/bin/pservice" dev="fuse" ino=8006740006160683690 scontext=u:r:init:s0 tcontext=u:object_r:fuse:s0 tclass=file permissive=1
+[  263.840293] c1 type=1400 audit(1781142129.651:1713): avc: denied { nosuid_transition } for comm="init" scontext=u:r:init:s0 tcontext=u:r:pservice:s0 tclass=process2 permissive=1
+[  265.312786] c4 type=1400 audit(1781142131.123:1714): avc: denied { getattr } for comm="fuse.read" path="/mnt/alpine/system_a/system/bin/hwservicemanager" dev="loop0" ino=292 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservicemanager_exec:s0 tclass=file permissive=1
+[  265.400718] c1 type=1400 audit(1781142131.211:1715): avc: denied { read } for comm="fuse.read" name="hwservicemanager" dev="loop0" ino=292 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservicemanager_exec:s0 tclass=file permissive=1
+[  265.400972] c1 type=1400 audit(1781142131.211:1716): avc: denied { open } for comm="fuse.read" path="/mnt/alpine/system_a/system/bin/hwservicemanager" dev="loop0" ino=292 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservicemanager_exec:s0 tclass=file permissive=1
+[  265.512844] c2 type=1400 audit(1781142131.323:1717): avc: denied { getattr } for comm="fuse.read" path="/mnt/alpine/system/etc/selinux/plat_hwservice_contexts" dev="loop0" ino=935 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservice_contexts_file:s0 tclass=file permissive=1
+[  265.513172] c2 type=1400 audit(1781142131.323:1718): avc: denied { read } for comm="hwservicemanage" name="system_ext_hwservice_contexts" dev="loop2" ino=149 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservice_contexts_file:s0 tclass=file permissive=1
+[  265.513354] c2 type=1400 audit(1781142131.323:1719): avc: denied { open } for comm="hwservicemanage" path="/system_ext/etc/selinux/system_ext_hwservice_contexts" dev="loop2" ino=149 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservice_contexts_file:s0 tclass=file permissive=1
+[  265.517011] c2 type=1107 audit(1781142131.327:1720): uid=0 auid=4294967295 ses=4294967295 subj=u:r:init:s0 msg='avc: denied { set } for property=hwservicemanager.ready pid=6667 uid=0 gid=0 scontext=u:r:recovery:s0 tcontext=u:object_r:hwservicemanager_prop:s0 tclass=property_service permissive=1'
+[  267.412711] c0 logd: logd: accept... 
+[  267.412753] c0 logd: logd: accept:-1 
+[  268.139544] c3 type=1400 audit(1781142133.947:1721): avc: denied { read } for comm="fuse.read" name="android.hidl.allocator@1.0-service" dev="loop0" ino=289 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_allocator_default_exec:s0 tclass=file permissive=1
+[  268.139740] c3 type=1400 audit(1781142133.947:1722): avc: denied { open } for comm="fuse.read" path="/mnt/alpine/system/bin/hw/android.hidl.allocator@1.0-service" dev="loop0" ino=289 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_allocator_default_exec:s0 tclass=file permissive=1
+[  268.205804] c4 type=1400 audit(1781142134.015:1723): avc: denied { call } for comm="android.hidl.al" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=binder permissive=1
+[  268.214365] c2 type=1400 audit(1781142134.023:1724): avc: denied { transfer } for comm="android.hidl.al" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=binder permissive=1
+[  269.475484] c2 type=1400 audit(1781142135.283:1725): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.audio.service" dev="loop1" ino=124 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_audio_default_exec:s0 tclass=file permissive=1
+[  269.483836] c2 type=1400 audit(1781142135.291:1726): avc: denied { read } for comm="android.hardwar" name="cpu_variant:arm" dev="tmpfs" ino=75140 scontext=u:r:recovery:s0 tcontext=u:object_r:device:s0 tclass=file permissive=1
+[  269.484078] c2 type=1400 audit(1781142135.291:1727): avc: denied { open } for comm="android.hardwar" path="/dev/cpu_variant:arm" dev="tmpfs" ino=75140 scontext=u:r:recovery:s0 tcontext=u:object_r:device:s0 tclass=file permissive=1
+[  270.825667] c2 type=1400 audit(1781142136.635:1728): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.bluetooth@1.1-service.unisoc" dev="loop1" ino=125 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_bluetooth_default_exec:s0 tclass=file permissive=1
+[  272.165330] c0 type=1400 audit(1781142137.975:1729): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.wifi@1.0-service" dev="loop1" ino=142 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_wifi_default_exec:s0 tclass=file permissive=1
+[  272.453291] c0 logd: logd: accept... 
+[  272.453332] c0 logd: logd: accept:-1 
+[  273.506635] c0 type=1400 audit(1781142139.315:1730): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.graphics.allocator@4.0-service" dev="loop1" ino=131 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_graphics_allocator_default_exec:s0 tclass=file permissive=1
+[  274.848977] c0 type=1400 audit(1781142140.659:1731): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.graphics.composer@2.1-service" dev="loop1" ino=132 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_graphics_composer_default_exec:s0 tclass=file permissive=1
+[  276.188931] c3 type=1400 audit(1781142141.999:1732): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/android.hardware.health@2.1-service" dev="loop1" ino=133 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_health_default_exec:s0 tclass=file permissive=1
+[  277.492109] c3 logd: logd: accept... 
+[  277.492143] c3 logd: logd: accept:-1 
+[  277.524624] c2 type=1400 audit(1781142143.335:1733): avc: denied { execute_no_trans } for comm="recovery" path="/vendor/bin/hw/vendor.sprd.hardware.thermal@2.0-service" dev="loop1" ino=151 scontext=u:r:recovery:s0 tcontext=u:object_r:hal_thermal_ext_exec:s0 tclass=file permissive=1
+[  279.328433] c3 type=1400 audit(1781142145.139:1734): avc: denied { create } for comm="virgl_test_serv" name=".virgl_test" scontext=u:r:recovery:s0 tcontext=u:object_r:tmpfs:s0 tclass=sock_file permissive=1
+[  281.433748] c1 type=1400 audit(1781142147.243:1735): avc: denied { getattr } for comm="recovery" path="/tmp/.virgl_test" dev="tmpfs" ino=96650 scontext=u:r:recovery:s0 tcontext=u:object_r:tmpfs:s0 tclass=sock_file permissive=1
+[  282.191020] c2 type=1400 audit(1781142147.999:1736): avc: denied { read } for comm="recovery" name="meminfo" dev="proc" ino=4026531977 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_meminfo:s0 tclass=file permissive=1
+[  282.218863] c2 type=1400 audit(1781142148.027:1737): avc: denied { open } for comm="awk" path="/proc/meminfo" dev="proc" ino=4026531977 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_meminfo:s0 tclass=file permissive=1
+[  282.219102] c2 type=1400 audit(1781142148.027:1738): avc: denied { getattr } for comm="awk" path="/proc/meminfo" dev="proc" ino=4026531977 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_meminfo:s0 tclass=file permissive=1
+[  282.479634] c2 type=1400 audit(1781142148.287:1739): avc: denied { read } for comm="awk" name="uptime" dev="proc" ino=4026531979 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_uptime:s0 tclass=file permissive=1
+[  282.479795] c2 type=1400 audit(1781142148.287:1740): avc: denied { open } for comm="awk" path="/proc/uptime" dev="proc" ino=4026531979 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_uptime:s0 tclass=file permissive=1
+[  282.479893] c2 type=1400 audit(1781142148.287:1741): avc: denied { getattr } for comm="awk" path="/proc/uptime" dev="proc" ino=4026531979 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_uptime:s0 tclass=file permissive=1
+[  282.532134] c1 logd: logd: accept... 
+[  282.532167] c1 logd: logd: accept:-1 
+[  282.595882] c2 type=1400 audit(1781142148.403:1742): avc: denied { read } for comm="awk" name="loadavg" dev="proc" ino=4026531976 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_loadavg:s0 tclass=file permissive=1
+[  282.596117] c2 type=1400 audit(1781142148.403:1743): avc: denied { open } for comm="awk" path="/proc/loadavg" dev="proc" ino=4026531976 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_loadavg:s0 tclass=file permissive=1
+[  282.596198] c2 type=1400 audit(1781142148.403:1744): avc: denied { getattr } for comm="awk" path="/proc/loadavg" dev="proc" ino=4026531976 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_loadavg:s0 tclass=file permissive=1
+[  283.517368] c7 ueventd: Error reading from Uevent Fd: I/O error
+[  283.517385] c6 ueventd: Error reading from Uevent Fd: I/O error
+[  283.905910] c2 type=1400 audit(1781142149.715:1745): avc: denied { setattr } for comm="chmod" name="input" dev="tmpfs" ino=7898 scontext=u:r:recovery:s0 tcontext=u:object_r:input_device:s0 tclass=dir permissive=1
+[  284.534867] c2 type=1400 audit(1781142150.343:1746): avc: denied { read } for comm="dmesg" name="kmsg" dev="tmpfs" ino=7516 scontext=u:r:recovery:s0 tcontext=u:object_r:kmsg_device:s0 tclass=chr_file permissive=1
+[  287.572139] c1 logd: logd: accept... 
+[  287.572188] c1 logd: logd: accept:-1 
+[  288.938670] c0 type=1400 audit(1781142154.747:1747): avc: denied { sendto } for comm="pservice" path="/dev/socket/logdw" scontext=u:r:pservice:s0 tcontext=u:r:recovery:s0 tclass=unix_dgram_socket permissive=1
+[  292.612090] c1 logd: logd: accept... 
+[  292.612116] c1 logd: logd: accept:-1 
+[  297.652104] c2 logd: logd: accept... 
+[  297.652128] c2 logd: logd: accept:-1 
+[  302.692126] c1 logd: logd: accept... 
+[  302.692165] c1 logd: logd: accept:-1 
+[  307.732128] c0 logd: logd: accept... 
+[  307.732179] c0 logd: logd: accept:-1 
+[  309.675118] c3 type=1400 audit(1781142175.483:1748): avc: denied { read } for comm="strace" name="pid_max" dev="proc" ino=109444 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_pid_max:s0 tclass=file permissive=1
+[  309.675363] c3 type=1400 audit(1781142175.483:1749): avc: denied { open } for comm="strace" path="/proc/sys/kernel/pid_max" dev="proc" ino=109444 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_pid_max:s0 tclass=file permissive=1
+[  309.675783] c2 type=1400 audit(1781142175.483:1750): avc: denied { ptrace } for comm="strace" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=process permissive=1
+[  309.676703] c2 type=1400 audit(1781142175.487:1751): avc: denied { ioctl } for comm="strace" path="/tmp/strace_logs/mir_strace.log" dev="mmcblk1p1" ino=1048597 ioctlcmd=0x5413 scontext=u:r:recovery:s0 tcontext=u:object_r:exfat:s0 tclass=file permissive=1
+[  309.711135] c0 type=1400 audit(1781142175.519:1752): avc: denied { ioctl } for comm="bash" path="/tmp/strace_logs/mir.log" dev="mmcblk1p1" ino=1048596 ioctlcmd=0x540f scontext=u:r:recovery:s0 tcontext=u:object_r:exfat:s0 tclass=file permissive=1
+[  309.713289] c0 type=1400 audit(1781142175.523:1753): avc: denied { ioctl } for comm="bash" path="/usr/bin/miral-app" dev="mmcblk0p77" ino=1062135 ioctlcmd=0x5413 scontext=u:r:recovery:s0 tcontext=u:object_r:unlabeled:s0 tclass=file permissive=1
+[  312.772094] c2 logd: logd: accept... 
+[  312.772130] c2 logd: logd: accept:-1 
+[  312.795873] c2 type=1400 audit(1781142178.603:1754): avc: denied { read } for comm="strace" name="optmem_max" dev="proc" ino=109452 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_net:s0 tclass=file permissive=1
+[  312.796133] c2 type=1400 audit(1781142178.603:1755): avc: denied { open } for comm="strace" path="/proc/sys/net/core/optmem_max" dev="proc" ino=109452 scontext=u:r:recovery:s0 tcontext=u:object_r:proc_net:s0 tclass=file permissive=1
+[  313.364448] c3 type=1400 audit(1781142179.171:1756): avc: denied { execmem } for comm="miral-shell" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=process permissive=1
+[  315.389133] c1 [drm] sprd_dsi_connector_detect()
+[  315.389307] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.389310] c1 [drm] sprd_panel_get_modes()
+[  315.389336] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.389346] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.390433] c0 [drm] sprd_dsi_connector_detect()
+[  315.390439] c0 [drm] sprd_dsi_connector_get_modes()
+[  315.390442] c0 [drm] sprd_panel_get_modes()
+[  315.390469] c0 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.390479] c0 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.394424] c0 type=1400 audit(1781142181.203:1757): avc: denied { write } for comm="udevd" name="226:0" dev="tmpfs" ino=11648 scontext=u:r:recovery:s0 tcontext=u:object_r:device:s0 tclass=lnk_file permissive=1
+[  315.417672] c7 ueventd: Error reading from Uevent Fd: I/O error
+[  315.417700] c6 ueventd: Error reading from Uevent Fd: I/O error
+[  315.419365] c1 [drm] sprd_dsi_connector_detect()
+[  315.419369] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.419372] c1 [drm] sprd_panel_get_modes()
+[  315.419400] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.419411] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.421794] c1 [drm] sprd_dsi_connector_detect()
+[  315.421798] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.421801] c1 [drm] sprd_panel_get_modes()
+[  315.421826] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.421836] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.435426] c1 [drm] sprd_dsi_connector_detect()
+[  315.435430] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.435432] c1 [drm] sprd_panel_get_modes()
+[  315.435450] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.435458] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.436145] c1 [drm] sprd_dsi_connector_detect()
+[  315.436148] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.436150] c1 [drm] sprd_panel_get_modes()
+[  315.436164] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.436171] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.436604] c1 [drm] sprd_dsi_connector_detect()
+[  315.436606] c1 [drm] sprd_dsi_connector_get_modes()
+[  315.436608] c1 [drm] sprd_panel_get_modes()
+[  315.436621] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.436627] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.442103] c1 [drm] sprd_dsi_connector_best_encoder()
+[  315.442110] c1 [drm] sprd_dsi_connector_best_encoder()
+[  315.442115] c1 [drm] sprd_dsi_connector_best_encoder()
+[  315.442128] c1 [drm] sprd_crtc_mode_valid() mode: 0:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  315.442133] c1 [drm] sprd_dsi_encoder_atomic_check()
+[  315.442140] c1 [drm] dpu has already powered off
+[  315.442153] c1 [drm] sprd_crtc_mode_set_nofb() set mode: 752x1336
+[  315.442158] c1 [drm] sprd_dsi_encoder_mode_set() set mode: 752x1336
+[  315.442161] c1 [drm] sprd_crtc_atomic_enable()
+[  315.442166] c1 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_mcu_poweron_cammot():156]sprd_mcu power on
+[  315.442169] c1 
+[  315.442177] c1 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_regulator_enable():75]done!
+[  315.442179] c1 
+[  315.442182] c1 RetroidPocket [drivers/gpu/drm/sprd/sprd_mcu.c:sprd_sensor_set_voltage():147]done!
+[  315.442184] c1 
+[  315.443190] c1 RetroidPocket [drivers/input/touchscreen/cst3xx/hyn_cst3xx.c:touch_irq_enable():314]==1==
+[  315.443192] c1 
+[  315.443505] c1 [drm][        dpu_dpi_init] Warning: (vsync + vbp) < 32, underflow risk!
+[  315.443545] c1 [drm] sprd_dsi_encoder_enable()
+[  316.771074] c1 [drm] free logo memory addr:0x9e000000 size:0x9e4000
+[  316.802395] c1 type=1400 audit(1781142182.611:1758): avc: denied { create } for comm="strace" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_tcpdiag_socket permissive=1
+[  316.802536] c1 type=1400 audit(1781142182.611:1759): avc: denied { write } for comm="strace" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_tcpdiag_socket permissive=1
+[  316.802614] c1 type=1400 audit(1781142182.611:1760): avc: denied { nlmsg_read } for comm="strace" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_tcpdiag_socket permissive=1
+[  316.802750] c1 type=1400 audit(1781142182.611:1761): avc: denied { read } for comm="strace" scontext=u:r:recovery:s0 tcontext=u:r:recovery:s0 tclass=netlink_tcpdiag_socket permissive=1
+[  316.804089] c1 [drm] sprd_dsi_connector_detect()
+[  316.804094] c1 [drm] sprd_dsi_connector_get_modes()
+[  316.804096] c1 [drm] sprd_panel_get_modes()
+[  316.804117] c1 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  316.804125] c1 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  316.804328] c0 [drm] sprd_dsi_connector_detect()
+[  316.804331] c0 [drm] sprd_dsi_connector_get_modes()
+[  316.804333] c0 [drm] sprd_panel_get_modes()
+[  316.804365] c0 [drm] sprd_dsi_connector_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  316.804374] c0 [drm] sprd_crtc_mode_valid() mode: 85:"752x1336" 60 64000 752 770 774 782 1336 1352 1356 1364 0x48 0x0
+[  317.780567] c0 logd: logd: accept... 
+[  317.780617] c0 logd: logd: accept:-1 
+[  322.812163] c0 logd: logd: accept... 
+[  322.812189] c0 logd: logd: accept:-1 
+[  325.620227] c2 type=1400 audit(1781142191.427:1762): avc: denied { read write } for comm="xterm" name="0" dev="devpts" ino=3 scontext=u:r:recovery:s0 tcontext=u:object_r:devpts:s0 tclass=chr_file permissive=1
+[  325.620361] c2 type=1400 audit(1781142191.427:1763): avc: denied { open } for comm="xterm" path="/dev/pts/0" dev="devpts" ino=3 scontext=u:r:recovery:s0 tcontext=u:object_r:devpts:s0 tclass=chr_file permissive=1
+[  326.230267] c0 type=1400 audit(1781142192.039:1764): avc: denied { ioctl } for comm="xterm" path="/dev/pts/0" dev="devpts" ino=3 ioctlcmd=0x5414 scontext=u:r:recovery:s0 tcontext=u:object_r:devpts:s0 tclass=chr_file permissive=1
+[  326.232394] c1 type=1400 audit(1781142192.043:1765): avc: denied { setattr } for comm="xterm" name="0" dev="devpts" ino=3 scontext=u:r:recovery:s0 tcontext=u:object_r:devpts:s0 tclass=chr_file permissive=1
+[  327.852131] c0 logd: logd: accept... 
+[  327.852153] c0 logd: logd: accept:-1 
+[  332.093343] c2 type=1400 audit(1781142197.903:1766): avc: denied { execute } for comm="sh" name="dmesg" dev="mmcblk1p1" ino=1048598 scontext=u:r:recovery:s0 tcontext=u:object_r:exfat:s0 tclass=file permissive=1
+[  332.093668] c2 type=1400 audit(1781142197.903:1767): avc: denied { execute_no_trans } for comm="sh" path="/sdcard/dmesg" dev="mmcblk1p1" ino=1048598 scontext=u:r:recovery:s0 tcontext=u:object_r:exfat:s0 tclass=file permissive=1
+
+Those logs reflect this function:
+"
+launch_miral_app_test() {
+    logsection "PHASE : MIRAL-APP DISPLAY TEST (strace)"
+
+    logi "Hardware snapshot before launch:"
+    hardware_status
+    wake_display_pipeline
+
+    chmod 666 /dev/dri/card0      2>/dev/null || true
+    chmod 666 /dev/mali0          2>/dev/null || true
+    chmod 666 /dev/ion            2>/dev/null || true
+    chmod -R 666 /dev/input       2>/dev/null || true
+
+    mkdir -p "$STRACELOGDIR" 2>/dev/null || true
+    mkdir -p "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    if ! grep -q " $ALPINE/tmp/strace_logs " /proc/mounts 2>/dev/null; then
+        mount --bind "$STRACELOGDIR" "$ALPINE/tmp/strace_logs" 2>/dev/null \
+            && logok "strace log dir bind-mounted at /tmp/strace_logs in chroot" \
+            || logw  "could not bind strace log dir into chroot"
+    fi
+
+    DBUS_SESSION_ADDR=""
+    if [ -r "$ROOTFSDBUSENV" ]; then
+        DBUS_SESSION_ADDR=$(grep 'DBUS_SESSION_BUS_ADDRESS' "$ROOTFSDBUSENV" \
+            | sed 's/.*="\{0,1\}\([^"]*\)"\{0,1\}/\1/' | head -1)
+    fi
+    [ -z "$DBUS_SESSION_ADDR" ] && \
+        DBUS_SESSION_ADDR="unix:path=/run/dbus/session_bus_socket"
+
+    chroot "$ALPINE" /bin/sh << EOF_CHROOT 2>&1 | tee -a "$LOGFILE"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib:/lib
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+export MIR_SERVER_PLATFORM_PATH=/usr/lib/mir/server-platform
+export MIR_SERVER_PLATFORM_DISPLAY_LIBS=mir:gbm-kms
+export WAYLAND_DISPLAY=wayland-0
+export LIBSEAT_BACKEND=builtin
+export SEATD_VTBOUND=0
+export LIBGL_ALWAYS_SOFTWARE=1
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS='$DBUS_SESSION_ADDR'
+
+mkdir -p -m 0700 "\$XDG_RUNTIME_DIR"
+rm -rf "\$XDG_RUNTIME_DIR"/* 2>/dev/null
+
+STRACE_LOG_CHROOT="/tmp/strace_logs"
+MIR_LOG="\$STRACE_LOG_CHROOT/mir.log"
+MIR_STRACE_LOG="\$STRACE_LOG_CHROOT/mir_strace.log"
+
+STRACE=""
+[ -x /usr/bin/strace ] && STRACE="/usr/bin/strace -f -tt -T -s 256 -o"
+
+echo "=== Launching miral-app ==="
+if [ -n "\$STRACE" ]; then
+    \$STRACE "\$MIR_STRACE_LOG" miral-app >"\$MIR_LOG" 2>&1 &
+else
+    miral-app >"\$MIR_LOG" 2>&1 &
+fi
+MIR_PID=\$!
+echo "  miral-app PID: \$MIR_PID"
+
+WAITED=0
+while [ \$WAITED -lt 10 ]; do
+    [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ] && break
+    sleep 1
+    WAITED=\$((WAITED + 1))
+done
+
+if [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ]; then
+    echo "Mir wayland socket ready after \${WAITED}s"
+else
+    echo "WARNING: Mir wayland socket did not appear after \${WAITED}s"
+fi
+
+sleep 3
+
+echo ""
+echo "=== PROCESS STATUS ==="
+kill -0 "\$MIR_PID" 2>/dev/null \
+    && echo "miral-app: RUNNING (\$MIR_PID)" \
+    || echo "miral-app: EXITED"
+
+echo ""
+echo "--- MIR LOG (tail 80) ---"
+tail -80 "\$MIR_LOG" 2>/dev/null || echo "No Mir log"
+echo "--- END MIR LOG ---"
+
+echo ""
+echo "--- MIR STRACE TAIL (last 60 lines, error/signal focus) ---"
+if [ -f "\$MIR_STRACE_LOG" ]; then
+    grep -E "(ENOENT|EACCES|EPERM|EFAULT|EIO|killed|SIGABRT|SIGSEGV|execve|openat|connect|exit_group)" \
+        "\$MIR_STRACE_LOG" 2>/dev/null | tail -60 \
+        || tail -60 "\$MIR_STRACE_LOG"
+else
+    echo "No strace log (strace not available)"
+fi
+echo "--- END MIR STRACE TAIL ---"
+
+kill "\$MIR_PID" 2>/dev/null
+wait "\$MIR_PID" 2>/dev/null
+EOF_CHROOT
+
+    umount -l "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    logsub "Hardware Status While Active / After Test Return"
+    hardware_status
+
+    logsub "Display Removal / Post-Compositor Snapshot"
+    hardware_status
+}
+"
+
+Explain to me what the devices did when running their respective function and why one worked while the other didn't

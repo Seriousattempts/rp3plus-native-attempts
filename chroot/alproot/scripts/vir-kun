@@ -1,0 +1,125 @@
+#!/bin/sh
+# vir-vulkan — Venus Vulkan runner (guest Mesa virtio → virgl_test_server → host Vulkan)
+# Usage: vir-vulkan vulkaninfo
+#        vir-vulkan vkcube
+#        vir-vulkan vkmark
+
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir-vulkan_${APP_NAME}_${TIMESTAMP}.log"
+
+# Venus ICD — installed by Mesa build with -Dvulkan-drivers=virtio
+VENUS_ICD=/usr/local/share/vulkan/icd.d/virtio_icd.aarch64.json
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    echo ""
+    echo "Vulkan path: Venus ICD → virtio-vk → virgl_test_server --venus → host Mali Vulkan"
+    exit 1
+fi
+
+echo "=========================================================="
+echo "[vir-vulkan] Launching '$*' via Venus"
+echo "[vir-vulkan] Log: $STDOUT_LOG"
+echo "=========================================================="
+
+(
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    # Mesa libraries
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/lib
+
+    # Display
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    export WAYLAND_DISPLAY=wayland-0
+    export DISPLAY=:0
+
+    # ── Vulkan loader blindfold ──────────────────────────────────────
+    # Pin the loader to ONLY the Venus ICD. This prevents it from:
+    #   - scanning /vendor/lib64/hw/vulkan.ums512.so (needs liblog.so)
+    #   - loading liblsfg-vk.so (broken C++ ABI)
+    #   - picking up any Android implicit layers
+    export VK_ICD_FILENAMES="$VENUS_ICD"
+
+    # Suppress all implicit and explicit layers from Android paths
+    export VK_LAYER_PATH=/usr/local/share/vulkan/explicit_layer.d
+    unset VK_INSTANCE_LAYERS
+    export VK_LOADER_DISABLE_INST_EXT_FILTER=1
+
+    # Silence the loader's noise about skipped ICDs/layers
+    export VK_LOADER_DEBUG=error
+
+    # Disable vendor-specific layer injection
+    export DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1=1
+    export DISABLE_LAYER_NV_OPTIMUS_1=1
+
+    # Venus / virtio-gpu socket
+    # VIRGL_SERVER_PATH tells the Venus driver where the vtest socket is.
+    # VN_DEBUG=vtest is intentionally omitted — it triggers a strict
+    # vtest-mode handshake that causes SIGABRT against this virglrenderer build.
+    # The socket transport works without it via the standard Venus init path.
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+    # ── End blindfold ────────────────────────────────────────────────
+
+    # GL fallback — in case the app also opens an OpenGL context
+    export GALLIUM_DRIVER=virpipe
+    export LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+    unset LIBGL_ALWAYS_SOFTWARE
+
+    # Debug
+    export MESA_DEBUG=1
+    export MESA_VULKAN_DEVICE_INDEX=0
+
+    echo "----------------------------------------------------------"
+    echo "[vir-vulkan] Diagnostics:"
+    echo "  VK_ICD_FILENAMES   = $VK_ICD_FILENAMES"
+    echo "  VK_LAYER_PATH      = $VK_LAYER_PATH"
+    echo "  VK_LOADER_DEBUG    = $VK_LOADER_DEBUG"
+    echo "  VIRGL_SERVER_PATH  = $VIRGL_SERVER_PATH"
+    echo "  VN_DEBUG           = ${VN_DEBUG:-(unset)}"
+    echo "  DISPLAY            = $DISPLAY"
+    echo "  WAYLAND_DISPLAY    = $WAYLAND_DISPLAY"
+    echo "----------------------------------------------------------"
+
+    # Confirm Venus ICD file exists
+    if [ ! -f "$VENUS_ICD" ]; then
+        echo "[vir-vulkan] ERROR: Venus ICD not found at $VENUS_ICD"
+        echo "             Mesa was not built with -Dvulkan-drivers=virtio, or"
+        echo "             install prefix is wrong. Check:"
+        echo "             find /usr/local -name 'virtio_icd*'"
+        exit 1
+    fi
+
+    # Confirm vtest socket is live
+    if [ ! -S "$VIRGL_SERVER_PATH" ]; then
+        echo "[vir-vulkan] ERROR: virgl socket not found at $VIRGL_SERVER_PATH"
+        echo "             Start virgl_test_server --venus from the Android host first."
+        exit 1
+    fi
+
+    # Dump virgl server log at start so we have a pre-run baseline
+    echo "[vir-vulkan] virgl server log (pre-run):"
+    cat /tmp/virgl.log 2>/dev/null | while IFS= read -r l; do echo "  [virgl] $l"; done
+
+    "$@"
+    APP_EXIT_CODE=$?
+
+    # Dump virgl server log after run to catch context errors written on connect
+    echo "[vir-vulkan] virgl server log (post-run):"
+    cat /tmp/virgl.log 2>/dev/null | while IFS= read -r l; do echo "  [virgl] $l"; done
+
+    echo "=========================================================="
+    if [ "$APP_EXIT_CODE" -eq 0 ]; then
+        echo "[vir-vulkan] SUCCESS (exit 0)"
+    elif [ "$APP_EXIT_CODE" -eq 134 ]; then
+        echo "[vir-vulkan] FAILED — SIGABRT (exit 134)"
+        echo "             This is a Venus context creation crash inside virgl_test_server."
+        echo "             Check the virgl server log above for VTEST_CLIENT_ERROR or assert()."
+    else
+        echo "[vir-vulkan] FAILED (exit $APP_EXIT_CODE)"
+    fi
+    echo "=========================================================="
+    exit $APP_EXIT_CODE
+
+) 2>&1 | tee "$STDOUT_LOG"

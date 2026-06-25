@@ -1,0 +1,153 @@
+#!/bin/sh
+# /sdcard/westpine <app> [args...]
+# Nested Weston inside Mir, rendering via virpipe -> /tmp/.virgl_test
+# EGL_PLATFORM=surfaceless lets virtio_gpu_dri bypass the missing wl_drm/DRI2
+# path that Mir does not advertise, so virgl talks directly over its socket.
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <app> [args...]"
+    exit 1
+fi
+
+SCRIPT_NAME="${0##*/}"
+LOGFILE="/sdcard/${SCRIPT_NAME}.log"
+
+ts_echo() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOGFILE"
+}
+
+ts_echo "======================================================="
+ts_echo "STARTING SESSION: $*"
+
+# Alpine musl libs only — never prepend Termux libs here.
+# Termux .so files are Bionic-linked and will fail with musl
+# (__register_atfork and similar symbols missing).
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+ALPINE_DRI="/usr/lib/dri"
+
+# --- Sanity checks ---
+if [ -S "/tmp/.virgl_test" ]; then
+    ts_echo "[INFO] virgl socket present at /tmp/.virgl_test"
+else
+    ts_echo "[WARN] virgl socket /tmp/.virgl_test missing — is virgl_test_server running?"
+fi
+
+# --- Detect outer Mir Wayland socket ---
+if [ -S "/tmp/runtime-root/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/tmp/runtime-root"
+elif [ -S "/run/user/0/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/run/user/0"
+else
+    ts_echo "[FATAL] Cannot find wayland-0 socket. Is miral-app running?"
+    exit 1
+fi
+
+export WAYLAND_DISPLAY=wayland-0
+ts_echo "[INFO] Outer compositor socket: $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+
+# ============================================================
+# STRATEGY SELECTOR
+#   WESTPINE_MODE=virpipe   (default) virgl via Alpine's musl virtio_gpu_dri.so
+#                           Requires: apk add mesa-dri-gallium
+#                           EGL_PLATFORM=surfaceless bypasses missing wl_drm on Mir.
+#                           virgl speaks directly to /tmp/.virgl_test socket.
+#   WESTPINE_MODE=swrast    llvmpipe software baseline, no virgl dependency.
+# ============================================================
+WESTPINE_MODE="${WESTPINE_MODE:-virpipe}"
+ts_echo "[INFO] WESTPINE_MODE=$WESTPINE_MODE"
+
+case "$WESTPINE_MODE" in
+
+    virpipe)
+        ALPINE_VIRTIO="$ALPINE_DRI/virtio_gpu_dri.so"
+        if [ ! -f "$ALPINE_VIRTIO" ]; then
+            ts_echo "[FATAL] $ALPINE_VIRTIO not found."
+            ts_echo "[FATAL] Fix: apk add mesa-dri-gallium  (inside Alpine chroot)"
+            exit 1
+        fi
+        ts_echo "[INFO] Found musl virtio_gpu_dri.so at $ALPINE_VIRTIO"
+        # EGL_PLATFORM=surfaceless:
+        #   virtio_gpu_dri.so will NOT attempt wl_drm/DRI2 negotiation with Mir.
+        #   Instead it opens a direct virgl protocol connection to VIRGL_SERVER_PATH.
+        #   This bypasses the "failed to create dri2 screen" / EGL_NOT_INITIALIZED
+        #   failure seen when Mir's Wayland socket lacks wl_drm/zwp_linux_dmabuf.
+        export EGL_PLATFORM=surfaceless
+        export GALLIUM_DRIVER=virpipe
+        export MESA_LOADER_DRIVER_OVERRIDE=virtio_gpu
+        export VIRGL_SERVER_PATH=/tmp/.virgl_test
+        unset  LIBGL_ALWAYS_SOFTWARE
+        export MESA_GL_VERSION_OVERRIDE=4.1COMPAT
+        export MESA_GLSL_VERSION_OVERRIDE=410
+        export MESA_GLES_VERSION_OVERRIDE=3.1
+        export MESA_NO_ERROR=1
+        ts_echo "[INFO] Strategy: virpipe | EGL_PLATFORM=surfaceless | $VIRGL_SERVER_PATH"
+        ;;
+
+    swrast)
+        export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+        export LIBGL_ALWAYS_SOFTWARE=1
+        export GALLIUM_DRIVER=llvmpipe
+        unset  MESA_LOADER_DRIVER_OVERRIDE
+        unset  VIRGL_SERVER_PATH
+        unset  EGL_PLATFORM
+        ts_echo "[INFO] Strategy: swrast/llvmpipe (software baseline)"
+        ;;
+
+    *)
+        ts_echo "[FATAL] Unknown WESTPINE_MODE=$WESTPINE_MODE. Use: virpipe | swrast"
+        exit 1
+        ;;
+esac
+
+NESTED_SOCKET="wayland-nested-$$"
+ts_echo "[Nested Weston] Starting on socket: $NESTED_SOCKET"
+
+# Weston itself launches with EGL_PLATFORM=surfaceless (inherited from above
+# in virpipe mode) so its GL renderer initialises via virgl without wl_drm.
+weston --backend=wayland-backend.so \
+       --socket="$NESTED_SOCKET" \
+       --shell=kiosk-shell.so \
+       --width=752 --height=1336 \
+       --no-config \
+       2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [WESTON]"), $0; fflush(); }' >> "$LOGFILE" &
+WESTON_PID=$!
+
+WAITED=0
+while [ $WAITED -lt 15 ]; do
+    [ -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ] && break
+    sleep 1
+    WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ]; then
+    ts_echo "[Nested Weston] FATAL: socket never appeared after ${WAITED}s"
+    ts_echo "[Nested Weston] Last Weston log lines:"
+    grep '\[WESTON\]' "$LOGFILE" | tail -20 | while IFS= read -r l; do ts_echo "  $l"; done
+    kill "$WESTON_PID" 2>/dev/null
+    exit 1
+fi
+
+ts_echo "[Nested Weston] Socket ready after ${WAITED}s — launching: $*"
+
+# Switch app to speak normal Wayland EGL to the nested Weston socket.
+# Unset EGL_PLATFORM=surfaceless here so the app uses the Wayland EGL
+# platform (EGL_KHR_platform_wayland) against nested Weston, not the
+# virgl socket directly.
+unset EGL_PLATFORM
+
+export WAYLAND_DISPLAY="$NESTED_SOCKET"
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
+export GDK_BACKEND=wayland
+
+ts_echo "--- LAUNCHING APPLICATION ---"
+"$@" 2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [APP]"), $0; fflush(); }' >> "$LOGFILE"
+APP_EXIT_CODE=$?
+
+ts_echo "[Nested Weston] App exited (code $APP_EXIT_CODE). Tearing down."
+kill "$WESTON_PID" 2>/dev/null
+wait "$WESTON_PID" 2>/dev/null || true
+
+exit $APP_EXIT_CODE

@@ -1,0 +1,201 @@
+#!/bin/sh
+# /sdcard/exorg <app> [args...]
+# Launches nested Weston on Mir, then Xwayland inside it,
+# then runs <app> as an X11 client with virgl GL acceleration.
+#
+# GPU path:  app (X11/GLX) -> Xwayland -> Weston (EGL/virpipe) -> virgl socket
+#
+# Xwayland is used (not Xorg/Xnest) because:
+#   - Xorg requires raw DRM/KMS — unavailable inside this chroot compositor stack.
+#   - Xnest has no GL forwarding path.
+#   - Xwayland runs as a Wayland client on the nested Weston socket and
+#     proxies GLX through Weston's virpipe EGL context via DRI3/Present.
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <app> [args...]"
+    exit 1
+fi
+
+SCRIPT_NAME="${0##*/}"
+LOGFILE="/sdcard/${SCRIPT_NAME}.log"
+
+ts_echo() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOGFILE"
+}
+
+ts_echo "======================================================="
+ts_echo "STARTING SESSION: $*"
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+ALPINE_DRI="/usr/lib/dri"
+
+# --- Sanity checks ---
+if [ ! -x "/usr/bin/Xwayland" ]; then
+    ts_echo "[FATAL] /usr/bin/Xwayland not found. Run: apk add xwayland"
+    exit 1
+fi
+
+if [ -S "/tmp/.virgl_test" ]; then
+    ts_echo "[INFO] virgl socket present at /tmp/.virgl_test"
+else
+    ts_echo "[WARN] virgl socket /tmp/.virgl_test missing — is virgl_test_server running?"
+fi
+
+# --- Detect outer Mir Wayland socket ---
+if [ -S "/tmp/runtime-root/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/tmp/runtime-root"
+elif [ -S "/run/user/0/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/run/user/0"
+else
+    ts_echo "[FATAL] Cannot find wayland-0 socket. Is miral-app running?"
+    exit 1
+fi
+
+export WAYLAND_DISPLAY=wayland-0
+ts_echo "[INFO] Outer compositor: $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+
+# ============================================================
+# EXORG_MODE selector:
+#   EXORG_MODE=virpipe   (default) virgl via Alpine's musl virtio_gpu_dri.so
+#   EXORG_MODE=swrast    llvmpipe software baseline
+# ============================================================
+EXORG_MODE="${EXORG_MODE:-virpipe}"
+ts_echo "[INFO] EXORG_MODE=$EXORG_MODE"
+
+case "$EXORG_MODE" in
+
+    virpipe)
+        ALPINE_VIRTIO="$ALPINE_DRI/virtio_gpu_dri.so"
+        if [ ! -f "$ALPINE_VIRTIO" ]; then
+            ts_echo "[FATAL] $ALPINE_VIRTIO not found. Run: apk add mesa-dri-gallium"
+            exit 1
+        fi
+        ts_echo "[INFO] Found musl virtio_gpu_dri.so at $ALPINE_VIRTIO"
+        # Weston uses EGL_PLATFORM=surfaceless to init virpipe without wl_drm.
+        # Xwayland (as a Wayland client) will use normal EGL_PLATFORM=wayland
+        # against the nested Weston socket — it does NOT need surfaceless.
+        export EGL_PLATFORM=surfaceless
+        export GALLIUM_DRIVER=virpipe
+        export MESA_LOADER_DRIVER_OVERRIDE=virtio_gpu
+        export VIRGL_SERVER_PATH=/tmp/.virgl_test
+        unset  LIBGL_ALWAYS_SOFTWARE
+        export MESA_GL_VERSION_OVERRIDE=4.1COMPAT
+        export MESA_GLSL_VERSION_OVERRIDE=410
+        export MESA_GLES_VERSION_OVERRIDE=3.1
+        export MESA_NO_ERROR=1
+        ts_echo "[INFO] Strategy: virpipe | EGL_PLATFORM=surfaceless | $VIRGL_SERVER_PATH"
+        ;;
+
+    swrast)
+        export LIBGL_ALWAYS_SOFTWARE=1
+        export GALLIUM_DRIVER=llvmpipe
+        unset  MESA_LOADER_DRIVER_OVERRIDE
+        unset  VIRGL_SERVER_PATH
+        unset  EGL_PLATFORM
+        ts_echo "[INFO] Strategy: swrast/llvmpipe"
+        ;;
+
+    *)
+        ts_echo "[FATAL] Unknown EXORG_MODE=$EXORG_MODE. Use: virpipe | swrast"
+        exit 1
+        ;;
+esac
+
+# --- Step 1: Start nested Weston on Mir ---
+NESTED_SOCKET="weston-exorg-$$"
+ts_echo "[Weston] Starting nested compositor on socket: $NESTED_SOCKET"
+
+weston --backend=wayland-backend.so \
+       --socket="$NESTED_SOCKET" \
+       --shell=kiosk-shell.so \
+       --width=752 --height=1336 \
+       --no-config \
+       2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [WESTON]"), $0; fflush(); }' >> "$LOGFILE" &
+WESTON_PID=$!
+
+WAITED=0
+while [ $WAITED -lt 15 ]; do
+    [ -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ] && break
+    sleep 1
+    WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$XDG_RUNTIME_DIR/$NESTED_SOCKET" ]; then
+    ts_echo "[Weston] FATAL: socket never appeared after ${WAITED}s"
+    grep '\[WESTON\]' "$LOGFILE" | tail -20 | while IFS= read -r l; do ts_echo "  $l"; done
+    kill "$WESTON_PID" 2>/dev/null
+    exit 1
+fi
+
+ts_echo "[Weston] Socket ready after ${WAITED}s"
+
+# Weston is up. Now apps speak normal Wayland EGL to Weston's socket.
+# Unset EGL_PLATFORM=surfaceless so Xwayland uses EGL_KHR_platform_wayland.
+unset EGL_PLATFORM
+export WAYLAND_DISPLAY="$NESTED_SOCKET"
+
+# --- Step 2: Start Xwayland as a client on the nested Weston socket ---
+# Pick an unused X display number.
+XDISPLAY=":$((RANDOM % 50 + 10))"
+XAUTH_FILE="/tmp/.exorg-xauth-$$"
+
+ts_echo "[Xwayland] Starting on display $XDISPLAY (Wayland socket: $NESTED_SOCKET)"
+
+# Generate a throwaway MIT-MAGIC-COOKIE for this session.
+xauth -f "$XAUTH_FILE" generate "$XDISPLAY" . trusted 2>/dev/null || \
+    xauth -f "$XAUTH_FILE" add "$XDISPLAY" . "$(xxd -l 16 -p /dev/urandom 2>/dev/null || head -c 16 /dev/urandom | od -A n -t x1 | tr -d ' \n')" 2>/dev/null
+
+# -rootless   : Xwayland manages individual X windows inside Weston,
+#               no full-screen root window eating the display.
+# -glamor     : Enable Glamor GL acceleration — Xwayland uses Weston's
+#               EGL (virpipe) for 2D acceleration and GLX forwarding.
+# -wm 0       : No internal window manager (Weston's kiosk shell handles it).
+# -nolisten tcp : security.
+Xwayland "$XDISPLAY" \
+    -rootless \
+    -glamor \
+    -nolisten tcp \
+    -auth "$XAUTH_FILE" \
+    2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [XWAYLAND]"), $0; fflush(); }' >> "$LOGFILE" &
+XWAYLAND_PID=$!
+
+# Wait up to 10s for the X socket to appear.
+X_SOCKET="/tmp/.X11-unix/X${XDISPLAY#:}"
+WAITED=0
+while [ $WAITED -lt 10 ]; do
+    [ -S "$X_SOCKET" ] && break
+    sleep 1
+    WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$X_SOCKET" ]; then
+    ts_echo "[Xwayland] FATAL: X socket $X_SOCKET never appeared after ${WAITED}s"
+    grep '\[XWAYLAND\]' "$LOGFILE" | tail -20 | while IFS= read -r l; do ts_echo "  $l"; done
+    kill "$XWAYLAND_PID" "$WESTON_PID" 2>/dev/null
+    rm -f "$XAUTH_FILE"
+    exit 1
+fi
+
+ts_echo "[Xwayland] X display $XDISPLAY ready after ${WAITED}s — launching: $*"
+
+# --- Step 3: Launch the X11 app ---
+export DISPLAY="$XDISPLAY"
+export XAUTHORITY="$XAUTH_FILE"
+# GLX will flow: app -> Xwayland Glamor -> Weston EGL -> virpipe -> virgl socket
+export LIBGL_ALWAYS_INDIRECT=0   # force direct rendering through Glamor/DRI3
+export MESA_LOADER_DRIVER_OVERRIDE=virtio_gpu
+
+ts_echo "--- LAUNCHING APPLICATION ---"
+"$@" 2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [APP]"), $0; fflush(); }' >> "$LOGFILE"
+APP_EXIT_CODE=$?
+
+ts_echo "[exorg] App exited (code $APP_EXIT_CODE). Tearing down."
+kill "$XWAYLAND_PID" 2>/dev/null
+wait "$XWAYLAND_PID" 2>/dev/null || true
+kill "$WESTON_PID" 2>/dev/null
+wait "$WESTON_PID" 2>/dev/null || true
+rm -f "$XAUTH_FILE"
+
+exit $APP_EXIT_CODE

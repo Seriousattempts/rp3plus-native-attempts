@@ -1,0 +1,370 @@
+#!/bin/sh
+# west1 — nested Weston under Mir using Debian chroot
+# Debian rootfs: /debian
+# Weston:        /debian/usr/local/bin/weston
+# Strategy:      Try Zink (Vulkan→GL) first, then pixman fallback
+
+LOGFILE="/sdcard/west1.log"
+# Weston log goes to /tmp inside chroot (visible on host as /tmp/west1-weston.log
+# since /tmp is bind-mounted). /sdcard requires its own bind mount.
+WESTON_LOG_CHROOT="/tmp/west1-weston.log"
+WESTON_LOG_HOST="/tmp/west1-weston.log"
+APP_LOG="/sdcard/west1-app.log"
+
+DEBIAN="/debian"
+XDG_RUNTIME_DIR="/tmp/runtime-root"
+MIR_SOCKET="wayland-0"
+WESTON_SOCKET="weston-1"
+VIRGL_SOCK="/tmp/.virgl_test"
+
+ts()  { date '+%H:%M:%S' 2>/dev/null; }
+log() { echo "[$(ts)] $*" | tee -a "$LOGFILE"; }
+
+: >> "$LOGFILE"
+log "========================================"
+log "west1: $*"
+log "========================================"
+
+###############################################################################
+# USAGE
+###############################################################################
+if [ -z "$1" ]; then
+    cat << 'USAGE'
+Usage: west1 <app> [args...]
+  west1 glxgears
+  west1 es2gears_wayland
+  west1 glxinfo
+  west1 weston-terminal
+  west1 vkcube
+USAGE
+    exit 1
+fi
+APP="$1"; shift
+
+###############################################################################
+# BIND MOUNT CHECK & SETUP
+###############################################################################
+log "--- Bind mount check ---"
+
+ensure_bind() {
+    # $1 = relative path inside chroot, $2 = source (defaults to /$1)
+    TARGET="$DEBIAN/$1"
+    SOURCE="${2:-/$1}"
+    mkdir -p "$TARGET" 2>/dev/null || true
+    if grep -q " $TARGET " /proc/mounts 2>/dev/null; then
+        log "OK (already bound): $TARGET"
+    else
+        if mount --bind "$SOURCE" "$TARGET" 2>/dev/null; then
+            log "bound: $SOURCE -> $TARGET"
+        else
+            log "WARN: could not bind $SOURCE -> $TARGET"
+        fi
+    fi
+}
+
+# Standard pseudo-filesystems
+ensure_bind proc        /proc
+ensure_bind sys         /sys
+ensure_bind dev         /dev
+ensure_bind dev/pts     /dev/pts
+ensure_bind dev/shm     /dev/shm
+ensure_bind run         /run
+
+# /tmp — critical: virgl socket (.virgl_test) and X11 sockets live here
+# Pre-create .X11-unix on the HOST before binding so it exists inside chroot
+mkdir -p /tmp/.X11-unix "$XDG_RUNTIME_DIR" 2>/dev/null || true
+chmod 1777 /tmp/.X11-unix  2>/dev/null || true
+chmod 700  "$XDG_RUNTIME_DIR" 2>/dev/null || true
+ensure_bind tmp         /tmp
+
+# Android overlay mounts — needed by some Debian libs that dlopen Android .so files
+ensure_bind vendor      /vendor
+ensure_bind system      /system
+ensure_bind system_ext  /system_ext
+ensure_bind product     /product
+ensure_bind apex        /apex
+
+# sdcard — required so Weston/apps can write to /sdcard paths inside chroot
+# and so that app log files on /sdcard are accessible
+mkdir -p "$DEBIAN/sdcard" /sdcard 2>/dev/null || true
+ensure_bind sdcard      /sdcard
+
+log "--- Bind mounts done ---"
+
+###############################################################################
+# PREFLIGHT CHECKS
+###############################################################################
+log "--- Preflight ---"
+
+if [ ! -S "$XDG_RUNTIME_DIR/$MIR_SOCKET" ]; then
+    log "FAIL: Mir socket missing: $XDG_RUNTIME_DIR/$MIR_SOCKET"
+    log "  Start miral-app first, then run west1."
+    exit 1
+fi
+log "OK: Mir socket present: $XDG_RUNTIME_DIR/$MIR_SOCKET"
+
+if [ ! -S "$VIRGL_SOCK" ]; then
+    log "WARN: virgl socket missing: $VIRGL_SOCK"
+    log "  GPU accel unavailable. Falling back to pixman."
+    VIRGL_AVAILABLE=0
+else
+    log "OK: virgl socket present: $VIRGL_SOCK"
+    VIRGL_AVAILABLE=1
+fi
+
+if [ ! -x "$DEBIAN/usr/local/bin/weston" ]; then
+    log "FAIL: Weston not found at $DEBIAN/usr/local/bin/weston"
+    exit 1
+fi
+log "OK: Weston binary present"
+
+rm -f "$XDG_RUNTIME_DIR/$WESTON_SOCKET" 2>/dev/null || true
+
+###############################################################################
+# RENDERER SELECTION
+#
+# Priority order for your Mali-G52 Vulkan 1.2 setup:
+#
+# 1. zink_dri.so  — OpenGL-over-Vulkan, uses your Mali's native Vulkan 1.2 driver
+#                   directly via /dev/mali0 or Android Vulkan ICD.
+#                   Best real hardware acceleration path in your Debian Mesa.
+#                   Uses Weston --renderer=gl with MESA_LOADER_DRIVER_OVERRIDE=zink
+#
+# 2. virtio_gpu / virpipe — only works if virgl_test_server is running AND
+#                   Mesa has the socket-based virpipe patch. Your Debian Mesa
+#                   does NOT have it (it's QEMU DRM-based). Skip unless patched.
+#
+# 3. pixman       — pure software, always works, no GPU.
+###############################################################################
+log "--- Renderer selection ---"
+
+DRI_PATH="$DEBIAN/usr/lib/aarch64-linux-gnu/dri"
+WESTON_RENDERER="--renderer=pixman"
+MESA_DRIVER_OVERRIDE=""
+GALLIUM_DRV="llvmpipe"
+RENDERER_NAME="pixman (software fallback)"
+
+# Check for Zink (best path for Mali-G52 with Vulkan 1.2)
+if [ -f "$DRI_PATH/zink_dri.so" ]; then
+    log "OK: zink_dri.so found — OpenGL-over-Vulkan available"
+    # Verify Vulkan ICD is accessible inside chroot
+    # Android Vulkan loader is at /vendor/lib64/hw/vulkan.*.so or similar
+    VULKAN_ICD=""
+    for icd in \
+        "$DEBIAN/usr/share/vulkan/icd.d/"*.json \
+        /vendor/lib64/hw/vulkan.*.so \
+        /vendor/lib64/libvulkan*.so; do
+        [ -e "$icd" ] && { VULKAN_ICD="$icd"; break; }
+    done
+
+    if [ -n "$VULKAN_ICD" ]; then
+        log "OK: Vulkan ICD/driver found: $VULKAN_ICD"
+        WESTON_RENDERER="--renderer=gl"
+        MESA_DRIVER_OVERRIDE="zink"
+        GALLIUM_DRV="zink"
+        RENDERER_NAME="gl via Zink (OpenGL→Vulkan hardware accel)"
+    else
+        log "WARN: zink_dri.so present but no Vulkan ICD found — Zink would fail"
+        log "  Falling back. Try binding /vendor if Android Vulkan is needed."
+    fi
+fi
+
+# Check virtio_gpu/virpipe only if Zink not selected and virgl socket exists
+if [ "$MESA_DRIVER_OVERRIDE" = "" ] && [ "$VIRGL_AVAILABLE" = "1" ]; then
+    if [ -f "$DRI_PATH/virtio_gpu_dri.so" ]; then
+        if strings "$DRI_PATH/virtio_gpu_dri.so" 2>/dev/null | grep -q "\.virgl_test"; then
+            log "OK: virtio_gpu_dri.so has socket-based virpipe path"
+            WESTON_RENDERER="--renderer=gl"
+            MESA_DRIVER_OVERRIDE="virpipe"
+            GALLIUM_DRV="virpipe"
+            RENDERER_NAME="gl via virpipe (virgl socket)"
+        else
+            log "WARN: virtio_gpu_dri.so is QEMU DRM-based only, no virpipe socket support"
+        fi
+    fi
+fi
+
+log "Selected renderer: $RENDERER_NAME"
+
+###############################################################################
+# START WESTON INSIDE DEBIAN CHROOT
+###############################################################################
+: > "$WESTON_LOG_HOST"
+log "--- Starting Weston (chroot: $DEBIAN, renderer: $RENDERER_NAME) ---"
+
+chroot "$DEBIAN" /usr/bin/env -i \
+    HOME=/root USER=root LOGNAME=root \
+    SHELL=/bin/sh TERM=xterm-256color \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LD_LIBRARY_PATH=/usr/local/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:/lib \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    WAYLAND_DISPLAY="$MIR_SOCKET" \
+    GALLIUM_DRIVER="$GALLIUM_DRV" \
+    MESA_LOADER_DRIVER_OVERRIDE="${MESA_DRIVER_OVERRIDE:-}" \
+    EGL_PLATFORM=surfaceless \
+    VIRGL_SOCKET_PATH="$VIRGL_SOCK" \
+    MESA_GL_VERSION_OVERRIDE=4.0 \
+    MESA_GLSL_VERSION_OVERRIDE=400 \
+    LIBSEAT_BACKEND=builtin \
+    DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus \
+    /usr/local/bin/weston \
+        -B wayland \
+        $WESTON_RENDERER \
+        --socket="$WESTON_SOCKET" \
+        --width=1336 \
+        --height=752 \
+        --no-config \
+        --shell=kiosk-shell.so \
+        --xwayland \
+        --log="$WESTON_LOG_CHROOT" \
+    >> "$WESTON_LOG_HOST" 2>&1 &
+
+WESTON_PID=$!
+log "Weston PID: $WESTON_PID"
+
+###############################################################################
+# WAIT FOR WESTON SOCKET
+###############################################################################
+log "--- Waiting for Weston socket (max 20s) ---"
+WAITED=0
+while [ "$WAITED" -lt 20 ]; do
+    [ -S "$XDG_RUNTIME_DIR/$WESTON_SOCKET" ] && break
+    if ! kill -0 "$WESTON_PID" 2>/dev/null; then
+        log "FAIL: Weston died before socket appeared."
+        log "--- Weston log tail ---"
+        tail -80 "$WESTON_LOG_HOST" | while IFS= read -r l; do log "  $l"; done
+        exit 1
+    fi
+    sleep 1
+    WAITED=$((WAITED + 1))
+done
+
+if [ ! -S "$XDG_RUNTIME_DIR/$WESTON_SOCKET" ]; then
+    log "FAIL: Weston socket never appeared after 20s."
+    tail -80 "$WESTON_LOG_HOST" | while IFS= read -r l; do log "  $l"; done
+    kill "$WESTON_PID" 2>/dev/null
+    exit 1
+fi
+log "OK: Weston socket ready after ${WAITED}s: $XDG_RUNTIME_DIR/$WESTON_SOCKET"
+
+grep -i "renderer\|pixman\|gl\|virgl\|zink\|vulkan\|error\|warn" \
+    "$WESTON_LOG_HOST" 2>/dev/null \
+    | while IFS= read -r l; do log "  [weston] $l"; done
+
+###############################################################################
+# APP MODE DETECTION
+###############################################################################
+case "$APP" in
+    es2gears_wayland|es2tri|simple-egl|weston-*|glmark2-wayland|\
+    pegasus-fe|retroarch|mpv|vlc|kodi|vkcube)
+        APP_MODE="wayland" ;;
+    glxgears|glxinfo|glxdemo|xterm|antimicrox|\
+    attractplus|attract|es-de|emulationstation|\
+    wine|winecfg|winetricks|steam)
+        APP_MODE="x11" ;;
+    *)
+        APP_MODE="wayland"
+        log "Unknown app '$APP', defaulting to wayland mode." ;;
+esac
+log "App mode: $APP_MODE"
+
+###############################################################################
+# COMMON APP ENV BUILDER
+###############################################################################
+app_env() {
+    echo HOME=/root
+    echo USER=root
+    echo LOGNAME=root
+    echo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    echo LD_LIBRARY_PATH=/usr/local/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:/lib
+    echo XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
+    echo GALLIUM_DRIVER="$GALLIUM_DRV"
+    echo MESA_LOADER_DRIVER_OVERRIDE="${MESA_DRIVER_OVERRIDE:-}"
+    echo EGL_PLATFORM=surfaceless
+    echo VIRGL_SOCKET_PATH="$VIRGL_SOCK"
+    echo MESA_GL_VERSION_OVERRIDE=4.0
+    echo MESA_GLSL_VERSION_OVERRIDE=400
+    echo DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+}
+
+: > "$APP_LOG"
+
+###############################################################################
+# LAUNCH APP
+###############################################################################
+if [ "$APP_MODE" = "wayland" ]; then
+    log "--- Launching Wayland app: $APP $* ---"
+    chroot "$DEBIAN" /usr/bin/env -i \
+        $(app_env) \
+        WAYLAND_DISPLAY="$WESTON_SOCKET" \
+        "$APP" "$@" >> "$APP_LOG" 2>&1
+    APP_EXIT=$?
+
+else
+    log "--- Preparing X11 via Xwayland ---"
+    XDISPLAY=""
+    XNUM=""
+
+    XWAIT=0
+    while [ "$XWAIT" -lt 15 ]; do
+        XLINE=$(grep -iE "xserver.*listening|xwayland.*:([0-9]+)|listening on display" \
+            "$WESTON_LOG_HOST" 2>/dev/null | tail -1)
+        if [ -n "$XLINE" ]; then
+            XDISPLAY=$(echo "$XLINE" | grep -oE ':[0-9]+' | head -1)
+            XNUM="${XDISPLAY#:}"
+            [ -n "$XDISPLAY" ] && { log "Xwayland display: $XDISPLAY"; break; }
+        fi
+        sleep 1; XWAIT=$((XWAIT + 1))
+    done
+
+    if [ -n "$XNUM" ]; then
+        log "Waiting for /tmp/.X11-unix/X$XNUM (max 15s)..."
+        SWAIT=0
+        while [ "$SWAIT" -lt 15 ]; do
+            [ -S "/tmp/.X11-unix/X$XNUM" ] && break
+            sleep 1; SWAIT=$((SWAIT + 1))
+        done
+        [ -S "/tmp/.X11-unix/X$XNUM" ] \
+            && log "OK: Xwayland socket ready: /tmp/.X11-unix/X$XNUM" \
+            || log "WARN: Xwayland socket /tmp/.X11-unix/X$XNUM did not appear after ${SWAIT}s"
+    fi
+
+    if [ -z "$XDISPLAY" ]; then
+        for N in 0 1 2 3 4 5; do
+            [ -S "/tmp/.X11-unix/X$N" ] && {
+                XDISPLAY=":$N"
+                log "Fallback: /tmp/.X11-unix/X$N -> DISPLAY=$XDISPLAY"
+                break
+            }
+        done
+    fi
+    [ -z "$XDISPLAY" ] && { XDISPLAY=":0"; log "WARNING: defaulting DISPLAY=:0"; }
+
+    log "--- Launching X11 app: $APP $* (DISPLAY=$XDISPLAY) ---"
+    chroot "$DEBIAN" /usr/bin/env -i \
+        $(app_env) \
+        DISPLAY="$XDISPLAY" \
+        WAYLAND_DISPLAY="$WESTON_SOCKET" \
+        QT_QPA_PLATFORM=xcb \
+        "$APP" "$@" >> "$APP_LOG" 2>&1
+    APP_EXIT=$?
+fi
+
+###############################################################################
+# POST-RUN
+###############################################################################
+log "--- App exited (code $APP_EXIT) ---"
+[ -s "$APP_LOG" ] && tail -40 "$APP_LOG" | while IFS= read -r l; do log "  [app] $l"; done
+
+log "--- Weston log summary ---"
+tail -20 "$WESTON_LOG_HOST" | while IFS= read -r l; do log "  [weston] $l"; done
+
+log "--- Stopping Weston ---"
+kill "$WESTON_PID" 2>/dev/null
+wait "$WESTON_PID" 2>/dev/null || true
+
+log "========================================"
+log "west1 done. exit=$APP_EXIT"
+log "========================================"
+exit $APP_EXIT

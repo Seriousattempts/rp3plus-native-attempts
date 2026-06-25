@@ -1,0 +1,65 @@
+----------------------------------------------------------
+[vir-gl] Diagnostics:
+  GALLIUM_DRIVER     = virpipe
+  VIRGL_SERVER_PATH  = /tmp/.virgl_test
+  LIBGL_DRIVERS_PATH = /usr/local/lib/dri
+  DISPLAY            = :0
+  WAYLAND_DISPLAY    = wayland-0
+  VK_ICD_FILENAMES   = (cleared)
+----------------------------------------------------------
+libGL: Can't open configuration file /usr/local/etc/drirc: No such file or directory.
+MESA-EGL: warning: failed to get driver name for fd -1
+libGL: Can't open configuration file /usr/local/etc/drirc: No such file or directory.
+MESA-EGL: warning: MESA-LOADER: failed to retrieve device information
+MESA-EGL: warning: failed to get driver name for fd -1
+libGL: Can't open configuration file /usr/local/etc/drirc: No such file or directory.
+libGL: Can't open configuration file /usr/local/etc/drirc: No such file or directory.
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      Mesa
+    GL_RENDERER:    virgl (Mali-G52)
+    GL_VERSION:     4.0 (Compatibility Profile) Mesa 26.2.0-devel (git-304324eb28)
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+[build] use-vbo=false: FPS: 37 FrameTime: 27.602 ms
+[build] use-vbo=true: FPS: 38 FrameTime: 26.850 ms
+[texture] texture-filter=nearest: FPS: 36 FrameTime: 28.035 ms
+[texture] texture-filter=linear: FPS: 33 FrameTime: 30.671 ms
+[texture] texture-filter=mipmap: FPS: 34 FrameTime: 30.139 ms
+[shading] shading=gouraud: FPS: 33 FrameTime: 30.488 ms
+[shading] shading=blinn-phong-inf: FPS: 32 FrameTime: 31.681 ms
+[shading] shading=phong: FPS: 32 FrameTime: 32.181 ms
+[shading] shading=cel: FPS: 33 FrameTime: 31.077 ms
+[bump] bump-render=high-poly: FPS: 30 FrameTime: 33.783 ms
+[bump] bump-render=normals: FPS: 33 FrameTime: 31.022 ms
+[bump] bump-render=height: FPS: 34 FrameTime: 30.135 ms
+[effect2d] kernel=0,1,0;1,-4,1;0,1,0;: FPS: 33 FrameTime: 31.117 ms
+[effect2d] kernel=1,1,1,1,1;1,1,1,1,1;1,1,1,1,1;: FPS: 29 FrameTime: 34.949 ms
+[pulsar] light=false:quads=5:texture=false: FPS: 33 FrameTime: 31.049 ms
+[desktop] blur-radius=5:effect=blur:passes=1:separable=true:windows=4: FPS: 28 FrameTime: 36.403 ms
+[desktop] effect=shadow:windows=4: FPS: 31 FrameTime: 32.905 ms
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 21 FrameTime: 48.117 ms
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=subdata: FPS: 24 FrameTime: 43.369 ms
+[buffer] columns=200:interleave=true:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 25 FrameTime: 40.288 ms
+[ideas] speed=duration: FPS: 26 FrameTime: 38.892 ms
+[jellyfish] <default>: FPS: 31 FrameTime: 32.717 ms
+[terrain] <default>: FPS: 14 FrameTime: 76.430 ms
+[shadow] <default>: FPS: 31 FrameTime: 32.786 ms
+[refract] <default>: FPS: 21 FrameTime: 48.486 ms
+[conditionals] fragment-steps=0:vertex-steps=0: FPS: 34 FrameTime: 29.677 ms
+[conditionals] fragment-steps=5:vertex-steps=0: FPS: 34 FrameTime: 29.935 ms
+[conditionals] fragment-steps=0:vertex-steps=5: FPS: 34 FrameTime: 30.220 ms
+[function] fragment-complexity=low:fragment-steps=5: FPS: 33 FrameTime: 30.774 ms
+[function] fragment-complexity=medium:fragment-steps=5: FPS: 33 FrameTime: 30.692 ms
+[loop] fragment-loop=false:fragment-steps=5:vertex-steps=5: FPS: 34 FrameTime: 29.757 ms
+[loop] fragment-steps=5:fragment-uniform=false:vertex-steps=5: FPS: 34 FrameTime: 30.039 ms
+[loop] fragment-steps=5:fragment-uniform=true:vertex-steps=5: FPS: 34 FrameTime: 30.208 ms
+=======================================================
+                                  glmark2 Score: 29 
+=======================================================
+==========================================================
+[vir-gl] SUCCESS (exit 0)
+==========================================================

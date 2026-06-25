@@ -1,0 +1,303 @@
+#!/bin/sh
+# /sdcard/vnc  — run INSIDE Alpine chroot under miral-app
+# Usage: vnc <app> [args...]
+#
+# Architecture:
+#   Xvnc :1  (software X server, GLX via llvmpipe/virpipe)
+#     └─ <app> renders on DISPLAY=:1 with GALLIUM_DRIVER=virpipe
+#   vncviewer (TigerVNC via Xwayland on DISPLAY=:0, connecting to Xvnc :1 on localhost:5901)
+#     OR wlvncc (Wayland-native, if Xwayland absent)
+#     └─ composites Xvnc framebuffer as a Wayland surface in miral-app
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <app> [args...]"
+    echo ""
+    echo "Starts Xvnc :1, launches <app> on it with virpipe acceleration,"
+    echo "then bridges the Xvnc output into miral-app's Wayland display."
+    exit 1
+fi
+
+APP_BASENAME="$(basename "$1")"
+LOGFILE="/sdcard/vnc_${APP_BASENAME}.log"
+STRACE_LOG="/sdcard/vnc_${APP_BASENAME}_vncviewer_strace.log"
+
+ts()     { date +'%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "00:00:00"; }
+log()    { echo "[$(ts)] $*" | tee -a "$LOGFILE"; }
+logok()  { log "  + $*"; }
+logw()   { log "  ! $*"; }
+logerr() { log "  X $*"; }
+logsub() { log "--- $* ---"; }
+
+log "======================================================="
+log "STARTING VNC SESSION: $*"
+log "======================================================="
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+# ── 1. LOCATE MIR'S WAYLAND SOCKET ───────────────────────────────────────────
+logsub "Locating Mir Wayland socket"
+MIR_XDG_RUNTIME_DIR=""
+for d in /tmp/runtime-root /run/user/0 /tmp; do
+    [ -S "$d/wayland-0" ] && { MIR_XDG_RUNTIME_DIR="$d"; break; }
+done
+if [ -z "$MIR_XDG_RUNTIME_DIR" ]; then
+    logerr "wayland-0 socket not found — is miral-app running?"
+    exit 1
+fi
+logok "Mir socket dir: $MIR_XDG_RUNTIME_DIR"
+
+# Check whether Xwayland is already running under Mir (gives us DISPLAY=:0)
+XWAYLAND_DISPLAY=""
+for xd in /tmp/.X11-unix/X0 /tmp/.X11-unix/X1; do
+    [ -S "$xd" ] && XWAYLAND_DISPLAY=":${xd##*X}" && break
+done
+if [ -n "$XWAYLAND_DISPLAY" ]; then
+    logok "Xwayland detected at DISPLAY=$XWAYLAND_DISPLAY — will use vncviewer (TigerVNC)"
+else
+    logw  "No Xwayland socket found — will try wlvncc (Wayland-native VNC client)"
+fi
+
+# ── 2. START XVNC :1 IF NOT ALREADY RUNNING ──────────────────────────────────
+logsub "Xvnc :1 setup"
+XVNC_LOG="/sdcard/vnc_${APP_BASENAME}_xvnc.log"
+
+if [ -f /tmp/.X1-lock ]; then
+    logok "Xvnc :1 already running (found /tmp/.X1-lock)"
+else
+    logok "Starting Xvnc :1..."
+
+    # -iglx         : allow indirect GLX (required for software GLX inside Xvnc)
+    # -ac           : disable access control (chroot, no xauth)
+    # -nolisten tcp : loopback only, no external exposure needed
+    # -SecurityTypes None : no password (loopback only)
+    Xvnc :1 \
+        -geometry 1280x720 \
+        -depth 24 \
+        -rfbport 5901 \
+        -rfbauth /dev/null \
+        -SecurityTypes None \
+        -iglx \
+        -ac \
+        -nolisten tcp \
+        >/dev/null 2>"$XVNC_LOG" &
+    XVNC_PID=$!
+    log "  Xvnc PID: $XVNC_PID"
+
+    # Wait for :1 socket
+    WAITED=0
+    while [ "$WAITED" -lt 15 ]; do
+        [ -S /tmp/.X11-unix/X1 ] && break
+        sleep 1; WAITED=$((WAITED + 1))
+    done
+    if [ ! -S /tmp/.X11-unix/X1 ]; then
+        logerr "Xvnc :1 socket never appeared — check $XVNC_LOG"
+        tail -20 "$XVNC_LOG" | while IFS= read -r l; do logerr "  $l"; done
+        exit 1
+    fi
+    logok "Xvnc :1 ready after ${WAITED}s"
+fi
+
+# ── 3. VERIFY VIRGL SOCKET ────────────────────────────────────────────────────
+logsub "Verifying virgl socket"
+VIRGL_SOCKET=/tmp/.virgl_test
+if [ ! -S "$VIRGL_SOCKET" ]; then
+    logerr "virgl socket missing at $VIRGL_SOCKET"
+    exit 1
+fi
+logok "virgl socket: $VIRGL_SOCKET"
+
+# ── 4. LAUNCH APP ON DISPLAY=:1 WITH VIRPIPE ─────────────────────────────────
+#
+# Why LIBGL_ALWAYS_SOFTWARE=1 + GALLIUM_DRIVER=virpipe BOTH together:
+#   Without LIBGL_ALWAYS_SOFTWARE=1, Mesa tries to open a real DRI device
+#   directly (dri2/dri3). Inside Xvnc there is no DRI render node backed by
+#   a KMS device. It falls through to drisw which also fails ("failed to create
+#   drisw screen") because Xvnc doesn't export the right SHM-based DRI path.
+#   LIBGL_ALWAYS_SOFTWARE=1 makes Mesa skip ALL direct DRI attempts and go
+#   straight to the Gallium software stack — which GALLIUM_DRIVER=virpipe
+#   then redirects to the virgl_test_server socket. The result is hardware-
+#   accelerated rendering via virgl even though Mesa thinks it's "software".
+#
+# WAYLAND_DISPLAY must be UNSET for the app. If set, Qt/SDL/GTK4 may try
+# to connect to the Wayland compositor directly instead of using DISPLAY=:1.
+logsub "Launching $APP_BASENAME on DISPLAY=:1 (virpipe→virgl_test_server)"
+APP_LOG="/sdcard/vnc_${APP_BASENAME}_app.log"
+APP_RUNTIME_DIR="/tmp/runtime-app-$$"
+mkdir -p -m 0700 "$APP_RUNTIME_DIR"
+
+env -i \
+    PATH="$PATH" \
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+    HOME=/root \
+    USER=root \
+    LOGNAME=root \
+    TERM=xterm-256color \
+    DISPLAY=:1 \
+    XDG_RUNTIME_DIR="$APP_RUNTIME_DIR" \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    GALLIUM_DRIVER=virpipe \
+    MESA_LOADER_DRIVER_OVERRIDE=virpipe \
+    VIRGL_SERVER_PATH="$VIRGL_SOCKET" \
+    MESA_GL_VERSION_OVERRIDE=4.0 \
+    MESA_GLSL_VERSION_OVERRIDE=400 \
+    MESA_NO_ERROR=1 \
+    GDK_BACKEND=x11 \
+    QT_QPA_PLATFORM=xcb \
+    SDL_VIDEODRIVER=x11 \
+    DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus \
+    "$@" \
+    > "$APP_LOG" 2>&1 &
+APP_PID=$!
+log "  App PID: $APP_PID — log: $APP_LOG"
+
+sleep 3
+if ! kill -0 "$APP_PID" 2>/dev/null; then
+    logerr "App exited within 3s:"
+    tail -30 "$APP_LOG" | while IFS= read -r l; do logerr "  [APP] $l"; done
+    rm -rf "$APP_RUNTIME_DIR"
+    exit 1
+fi
+logok "$APP_BASENAME running"
+
+# ── 5. VNC VIEWER: TigerVNC via Xwayland, or wlvncc as fallback ──────────────
+#
+# WHY TigerVNC vncviewer works here even though Mir is a Wayland compositor:
+#   TigerVNC vncviewer is an X11 app. Mir is running Xwayland on DISPLAY=:0.
+#   xterm already proves X11 apps can run via that Xwayland. vncviewer does
+#   the same: it opens a window on DISPLAY=:0 (Xwayland→Mir), connects to
+#   Xvnc on localhost:5901, and forwards the Xvnc framebuffer into that window.
+#   The viewer itself uses llvmpipe (fine — it's just blitting pixels).
+#   Only the APP inside Xvnc:1 needs virpipe acceleration.
+#
+# wlvncc is the fallback for when Xwayland is absent.
+logsub "Launching VNC viewer (bridges Xvnc→miral-app)"
+VIEWER_LOG="/sdcard/vnc_${APP_BASENAME}_viewer.log"
+
+# Strace the viewer — catches XDG_RUNTIME_DIR issues, socket problems, etc.
+STRACE_BIN=""
+[ -x /usr/bin/strace ] && STRACE_BIN=/usr/bin/strace
+
+if [ -n "$XWAYLAND_DISPLAY" ]; then
+    # ── TigerVNC vncviewer via Xwayland ──────────────────────────────────────
+    VIEWER_BIN=""
+    for p in /usr/bin/vncviewer /usr/bin/tigervnc /usr/local/bin/vncviewer; do
+        [ -x "$p" ] && VIEWER_BIN="$p" && break
+    done
+
+    if [ -z "$VIEWER_BIN" ]; then
+        logw "vncviewer not found — falling back to wlvncc"
+    else
+        logok "Using TigerVNC: $VIEWER_BIN on DISPLAY=$XWAYLAND_DISPLAY"
+
+        VIEWER_RUNTIME_DIR="/tmp/runtime-viewer-$$"
+        mkdir -p -m 0700 "$VIEWER_RUNTIME_DIR"
+
+        if [ -n "$STRACE_BIN" ]; then
+            logok "strace enabled for vncviewer — log: $STRACE_LOG"
+            STRACE_PREFIX="$STRACE_BIN -f -tt -T -s 256 -o $STRACE_LOG"
+        else
+            logw "strace not found — proceeding without it"
+            STRACE_PREFIX=""
+        fi
+
+        env -i \
+            PATH="$PATH" \
+            LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+            HOME=/root \
+            USER=root \
+            DISPLAY="$XWAYLAND_DISPLAY" \
+            XDG_RUNTIME_DIR="$VIEWER_RUNTIME_DIR" \
+            LIBGL_ALWAYS_SOFTWARE=1 \
+            GALLIUM_DRIVER=llvmpipe \
+            DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+            $STRACE_PREFIX \
+            "$VIEWER_BIN" \
+                -FullScreen \
+                -FullColour \
+                -NoJpeg \
+                -SecurityTypes None \
+                localhost:5901 \
+            > "$VIEWER_LOG" 2>&1 &
+        VIEWER_PID=$!
+        log "  vncviewer PID: $VIEWER_PID — log: $VIEWER_LOG"
+        sleep 2
+        if ! kill -0 "$VIEWER_PID" 2>/dev/null; then
+            logw "vncviewer exited within 2s — check $VIEWER_LOG"
+            [ -n "$STRACE_BIN" ] && logw "  strace: $STRACE_LOG"
+        else
+            logok "vncviewer running"
+        fi
+        VIEWER_PID_FINAL=$VIEWER_PID
+    fi
+fi
+
+# ── Fallback: wlvncc (Wayland-native) ────────────────────────────────────────
+if [ -z "$VIEWER_PID_FINAL" ]; then
+    WLVNCC_BIN=""
+    for p in /usr/bin/wlvncc /usr/local/bin/wlvncc; do
+        [ -x "$p" ] && WLVNCC_BIN="$p" && break
+    done
+
+    if [ -z "$WLVNCC_BIN" ]; then
+        logerr "Neither vncviewer nor wlvncc found — app is running on :1 but not displayed"
+    else
+        logok "Using wlvncc (Wayland-native): $WLVNCC_BIN"
+
+        if [ -n "$STRACE_BIN" ]; then
+            logok "strace enabled for wlvncc — log: $STRACE_LOG"
+            STRACE_PREFIX="$STRACE_BIN -f -tt -T -s 256 -o $STRACE_LOG"
+        else
+            STRACE_PREFIX=""
+        fi
+
+        env -i \
+            PATH="$PATH" \
+            LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+            HOME=/root \
+            XDG_RUNTIME_DIR="$MIR_XDG_RUNTIME_DIR" \
+            WAYLAND_DISPLAY=wayland-0 \
+            LIBGL_ALWAYS_SOFTWARE=1 \
+            GALLIUM_DRIVER=llvmpipe \
+            $STRACE_PREFIX \
+            "$WLVNCC_BIN" \
+                --no-decorations \
+                localhost 5901 \
+            > "$VIEWER_LOG" 2>&1 &
+        VIEWER_PID_FINAL=$!
+        log "  wlvncc PID: $VIEWER_PID_FINAL — log: $VIEWER_LOG"
+        sleep 2
+        if ! kill -0 "$VIEWER_PID_FINAL" 2>/dev/null; then
+            logw "wlvncc exited within 2s — check $VIEWER_LOG"
+            [ -n "$STRACE_BIN" ] && logw "  strace: $STRACE_LOG"
+        fi
+    fi
+fi
+
+# ── 6. WAIT FOR APP ───────────────────────────────────────────────────────────
+logsub "Session running"
+log "  App PID:    $APP_PID"
+log "  Viewer PID: ${VIEWER_PID_FINAL:-none}"
+log "  App log:    $APP_LOG"
+log "  Viewer log: $VIEWER_LOG"
+[ -n "$STRACE_BIN" ] && log "  Strace log: $STRACE_LOG"
+
+wait "$APP_PID" 2>/dev/null
+APP_EXIT=$?
+log "App exited (code $APP_EXIT)"
+
+# ── 7. TEARDOWN ────────────────────────────────────────────────────────────────
+logsub "Teardown"
+[ -n "$VIEWER_PID_FINAL" ] && kill "$VIEWER_PID_FINAL" 2>/dev/null && \
+    wait "$VIEWER_PID_FINAL" 2>/dev/null && logok "viewer stopped"
+rm -rf "$APP_RUNTIME_DIR" /tmp/runtime-viewer-$$ 2>/dev/null
+
+log ""
+log "Session complete. App exit code: $APP_EXIT"
+log "Xvnc log:     $XVNC_LOG"
+log "App log:      $APP_LOG"
+log "Viewer log:   $VIEWER_LOG"
+[ -n "$STRACE_BIN" ] && log "Strace log:   $STRACE_LOG"
+log "======================================================="
+exit "$APP_EXIT"

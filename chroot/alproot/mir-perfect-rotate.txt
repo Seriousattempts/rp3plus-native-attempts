@@ -1,0 +1,875 @@
+ROOTFSENVFILE="${ROOTFSENVFILE:-/tmp/alp_gpu_env.sh}"
+ROOTFSDBUSENV="${ROOTFSDBUSENV:-/tmp/alp_gpu_dbus.env}"
+STRACELOGDIR="${STRACELOGDIR:-$SD_MOUNT/strace_logs}"
+
+EARLYDAEMONWAIT="${EARLYDAEMONWAIT:-2}"
+SMWAIT="${SMWAIT:-2}"
+HALSTARTUPWAIT="${HALSTARTUPWAIT:-1}"
+MAX_MALI_WAIT="${MAX_MALI_WAIT:-120}"
+MIR_SOCKET_WAIT="${MIR_SOCKET_WAIT:-15}"
+MIR_SHELL_HOLD="${MIR_SHELL_HOLD:-60}"
+
+TWRPIMG="${TWRPIMG:-$SD_MOUNT/twrp-customv2.img}"
+PART42="${PART42:-/dev/block/mmcblk0p42}"
+PART43="${PART43:-/dev/block/mmcblk0p43}"
+
+mkdir -p "$SD_MOUNT" "$STRACELOGDIR" 2>/dev/null || true
+touch "$LOGFILE" 2>/dev/null || true
+
+# LOGGING
+
+ts()         { date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "1970-01-01 00:00:00"; }
+log()        { echo "[$(ts)] $*" | tee -a "$LOGFILE"; }
+logsection() { log "========================================="; log "=== $* ==="; log "========================================="; }
+logsub()     { log "--- $* ---"; }
+logi()       { log "  i $*"; }
+logok()      { log "  + $*"; }
+logw()       { log "  ! $*"; }
+logerr()     { log "  X $*"; }
+readfile()   { [ -r "$1" ] && cat "$1" 2>/dev/null; }
+
+# HELPERS
+
+write_rootfs_env() {
+    cat > "$ROOTFSENVFILE" <<'EOF'
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/usr/lib:/lib
+export XDG_RUNTIME_DIR=/run/user/0
+export WAYLAND_DISPLAY=wayland-0
+export QT_QPA_PLATFORM=mirserver
+export QSG_RENDER_LOOP=basic
+export LOMIRI_SKIP_GREETER=1
+export LIBSEAT_BACKEND=builtin
+export MIR_SERVER_PLATFORM_PATH=/usr/lib/mir/server-platform
+export MIR_SERVER_CONSOLE_PROVIDER=none
+EOF
+}
+
+hardware_status() {
+    logsub "Hardware Status"
+
+    # ── Memory ────────────────────────────────────────────────────────────────
+    if [ -r /proc/meminfo ]; then
+        MEMTOTALKB="$(awk '/MemTotal:/    {print $2}' /proc/meminfo 2>/dev/null)"
+        MEMAVAILKB="$(awk '/MemAvailable:/{print $2}' /proc/meminfo 2>/dev/null)"
+        [ -z "$MEMAVAILKB" ] && \
+            MEMAVAILKB="$(awk '/MemFree:/{print $2}' /proc/meminfo 2>/dev/null)"
+        USEDKB=$((MEMTOTALKB - MEMAVAILKB))
+        TOTALGB="$(awk "BEGIN { printf \"%.2f\", $MEMTOTALKB/1048576 }")"
+        USEDGB="$(awk "BEGIN { printf \"%.2f\", $USEDKB/1048576 }")"
+        FREEGB="$(awk "BEGIN { printf \"%.2f\", $MEMAVAILKB/1048576 }")"
+        PCT="$(awk "BEGIN { if ($MEMTOTALKB > 0) printf \"%.1f\", 100*$USEDKB/$MEMTOTALKB; else print \"0.0\" }")"
+        logi "RAM: Total ${TOTALGB}GB  Used ${USEDGB}GB  Free ${FREEGB}GB  (${PCT}%)"
+    fi
+
+    # ── Uptime ────────────────────────────────────────────────────────────────
+    UPTIME_S="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
+    logi "Uptime: $((UPTIME_S/86400))d $(((UPTIME_S%86400)/3600))h $(((UPTIME_S%3600)/60))m"
+
+    # ── CPU load average ──────────────────────────────────────────────────────
+    # /proc/loadavg format:  <1m> <5m> <15m> <running>/<total> <last_pid>
+    # The three averages are exponentially weighted counts of runnable +
+    # uninterruptible threads over the past 1, 5, and 15 minutes.
+    # Dividing by the number of CPU cores gives the *saturation ratio*:
+    #   < 1.0  → cores have spare capacity
+    #   = 1.0  → exactly saturated
+    #   > 1.0  → more work queued than cores; threads are waiting for CPU time
+    if [ -r /proc/loadavg ]; then
+        LOAD1="$(  awk '{print $1}' /proc/loadavg 2>/dev/null)"
+        LOAD5="$(  awk '{print $2}' /proc/loadavg 2>/dev/null)"
+        LOAD15="$( awk '{print $3}' /proc/loadavg 2>/dev/null)"
+        TASKS="$(  awk '{print $4}' /proc/loadavg 2>/dev/null)"   # e.g. "5/312"
+        RUNNING_T="${TASKS%%/*}"   # tasks currently on a CPU
+        TOTAL_T="${TASKS##*/}"     # total tasks (threads) in the scheduler
+
+        # CPU core count — try nproc first, fall back to counting cpuinfo blocks
+        NCPU="$(nproc 2>/dev/null)"
+        if [ -z "$NCPU" ] || [ "$NCPU" -eq 0 ] 2>/dev/null; then
+            NCPU="$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
+        fi
+        [ "$NCPU" -lt 1 ] 2>/dev/null && NCPU=1
+
+        # Saturation verdict based on 1-min average per core
+        SAT="$(awk "BEGIN { printf \"%.2f\", $LOAD1/$NCPU }")"
+        if awk "BEGIN { exit ($LOAD1/$NCPU < 0.70) ? 0 : 1 }"; then
+            VERDICT="idle"
+        elif awk "BEGIN { exit ($LOAD1/$NCPU < 1.00) ? 0 : 1 }"; then
+            VERDICT="busy"
+        elif awk "BEGIN { exit ($LOAD1/$NCPU < 1.50) ? 0 : 1 }"; then
+            VERDICT="saturated"
+        else
+            VERDICT="OVERLOADED"
+        fi
+
+        logi "CPU cores: $NCPU"
+        logi "Load avg : 1m=${LOAD1}  5m=${LOAD5}  15m=${LOAD15}  (per-core 1m: ${SAT} — ${VERDICT})"
+        logi "Tasks    : ${RUNNING_T} running / ${TOTAL_T} total threads"
+    fi
+
+    # ── Battery ───────────────────────────────────────────────────────────────
+    BATTCAP="$(readfile /sys/class/power_supply/battery/capacity)"
+    BATTSTAT="$(readfile /sys/class/power_supply/battery/status)"
+    [ -n "$BATTCAP" ]  || BATTCAP="NA"
+    [ -n "$BATTSTAT" ] || BATTSTAT="unknown"
+    logi "Battery: ${BATTCAP}% (${BATTSTAT})"
+
+    # ── GPU / DRM nodes ───────────────────────────────────────────────────────
+    [ -e /dev/mali0     ] && logok "/dev/mali0 present"     || logw "/dev/mali0 missing"
+    [ -e /dev/dri/card0 ] && logok "/dev/dri/card0 present" || logw "/dev/dri/card0 missing"
+}
+
+cleanup_old_mounts() {
+    for d in \
+        "$ALPINE/tmp/strace_logs" \
+        "$ALPINE/mnt/sdcard" \
+        "$ALPINE/linkerconfig" \
+        "$ALPINE/run" \
+        "$ALPINE/dev/pts" \
+        "$ALPINE/dev/shm" \
+        "$ALPINE/dev" \
+        "$ALPINE/proc" \
+        "$ALPINE/system" \
+        "$ALPINE/vendor" \
+        "$ALPINE/system_ext" \
+        "$ALPINE/product" \
+        "$ALPINE/sys"; do
+        umount -l "$d" 2>/dev/null || true
+    done
+}
+
+# CHROOT / VFS / DEV + UEVENTD / UDEV
+
+ueventd_precheck_and_populate_dev() {
+    logsection "ANDROID UEVENTD PRECHECK"
+
+    logsub "ueventd rc discovery"
+    [ -f /system/etc/ueventd.rc ] && logok "found /system/etc/ueventd.rc" || logw "missing /system/etc/ueventd.rc"
+    [ -f /vendor/ueventd.rc      ] && logok "found /vendor/ueventd.rc"    || logw "missing /vendor/ueventd.rc"
+
+    logsub "host uevent coldboot replay"
+    for f in /sys/class/*/*/uevent /sys/devices/*/uevent /sys/devices/**/*/uevent; do
+        [ -e "$f" ] || continue
+        echo add >"$f" 2>/dev/null || true
+    done
+    logok "best-effort sysfs uevent replay done"
+
+    UEVENTD_BIN=""
+    for p in /system/bin/ueventd /sbin/ueventd; do
+        [ -x "$p" ] && { UEVENTD_BIN="$p"; break; }
+    done
+
+    if [ -n "$UEVENTD_BIN" ]; then
+        logi "Starting Android ueventd: $UEVENTD_BIN -d"
+        "$UEVENTD_BIN" -d >/tmp/alp_ueventd.log 2>&1 &
+        sleep 3
+    else
+        logw "No executable ueventd found on host"
+    fi
+    log ""
+}
+
+bind_mounts_with_forced_dev_rebind() {
+    logsection "ALPINE BIND MOUNTS"
+    logi "Binding pseudo-filesystems into $ALPINE"
+
+    mkdir -p \
+        "$ALPINE/proc" \
+        "$ALPINE/sys" \
+        "$ALPINE/run" \
+        "$ALPINE/dev" \
+        "$ALPINE/dev/pts" \
+        "$ALPINE/dev/shm" \
+        "$ALPINE/tmp" \
+        "$ALPINE/tmp/.X11-unix" \
+        "$ALPINE/sdcard" \
+        "$ALPINE/vendor" \
+        "$ALPINE/system_ext" \
+        "$ALPINE/product" \
+        "$ALPINE/system" \
+        "$ALPINE/apex" \
+        2>/dev/null || true
+    chmod 1777 "$ALPINE/tmp"          2>/dev/null || true
+    chmod 1777 "$ALPINE/tmp/.X11-unix" 2>/dev/null || true
+
+    # Bind mount standard host directories into Alpine
+    for d in proc sys run vendor system_ext product apex; do
+        if grep -q " $ALPINE/$d " /proc/mounts 2>/dev/null; then
+            logi "already bound: $d"
+        else
+            mount --bind "/$d" "$ALPINE/$d" 2>/dev/null \
+                && logok "bound: /$d -> /$d" \
+                || logw "failed bind: /$d"
+        fi
+    done
+
+    # Bind /tmp so virgl socket and X11 sockets are visible inside chroot
+    if grep -q " $ALPINE/tmp " /proc/mounts 2>/dev/null; then
+        logi "already bound: /tmp"
+    else
+        mount --bind /tmp "$ALPINE/tmp" 2>/dev/null \
+            && logok "bound: /tmp -> $ALPINE/tmp" \
+            || logw  "failed bind: /tmp"
+    fi
+
+    # Bind mount sdcard
+    if ! grep -q " $ALPINE/sdcard " /proc/mounts 2>/dev/null; then
+        mount --bind /sdcard "$ALPINE/sdcard" 2>/dev/null \
+            && logok "bound: /sdcard -> /sdcard" \
+            || logw "failed bind: /sdcard"
+    fi
+
+    # PERSISTENT APPLICATION CONFIGURATIONS
+
+    logi "Setting up persistent application configs on /sdcard"
+    
+    SD_PEGASUS="/sdcard/rp3plus/pegasus"
+    SD_ES="/sdcard/rp3plus/emulationstation"
+    
+    # 1. Create destination directories on the SD card if they don't exist
+    mkdir -p "$SD_PEGASUS" "$SD_ES" 2>/dev/null || true
+    
+    # 2. Ensure the parent .config directory exists inside Alpine's root home
+    mkdir -p "$ALPINE/root/.config" 2>/dev/null || true
+    
+    # 3. Point Pegasus config to /sdcard
+    if [ ! -L "$ALPINE/root/.config/pegasus-frontend" ]; then
+        rm -rf "$ALPINE/root/.config/pegasus-frontend" 2>/dev/null || true
+        ln -sf "/sdcard/rp3plus/pegasus" "$ALPINE/root/.config/pegasus-frontend"
+        logok "Symlinked ~/.config/pegasus-frontend -> /sdcard/rp3plus/pegasus"
+    else
+        logi "already symlinked: ~/.config/pegasus-frontend"
+    fi
+
+    # 4. Point EmulationStation config to /sdcard
+    if [ ! -L "$ALPINE/root/.emulationstation" ]; then
+        rm -rf "$ALPINE/root/.emulationstation" 2>/dev/null || true
+        ln -sf "/sdcard/rp3plus/emulationstation" "$ALPINE/root/.emulationstation"
+        logok "Symlinked ~/.emulationstation -> /sdcard/rp3plus/emulationstation"
+    else
+        logi "already symlinked: ~/.emulationstation"
+    fi
+    # -------------------------------------------------------------------------
+
+    # Bind mount specific system directory
+    if ! grep -q " $ALPINE/system " /proc/mounts 2>/dev/null; then
+        mount --bind "$ALPINE/system_a/system" "$ALPINE/system" 2>/dev/null \
+            && logok "bound: system_a/system -> /system" \
+            || logw "failed bind: system_a/system -> /system"
+    fi
+
+    if grep -q " $ALPINE/dev " /proc/mounts 2>/dev/null; then
+        logi "unmounting stale $ALPINE/dev for fresh rbind"
+        umount -l "$ALPINE/dev/pts" 2>/dev/null || true
+        umount -l "$ALPINE/dev/shm" 2>/dev/null || true
+        umount -l "$ALPINE/dev"     2>/dev/null || true
+    fi
+
+    mount --rbind /dev "$ALPINE/dev" 2>/dev/null \
+        && logok "rbind /dev -> $ALPINE/dev" \
+        || logerr "failed rbind /dev"
+    mount --make-rslave "$ALPINE/dev" 2>/dev/null || true
+
+    if grep -q " $ALPINE/dev/pts " /proc/mounts 2>/dev/null; then
+        logi "devpts already mounted in chroot"
+    else
+        mount -t devpts devpts "$ALPINE/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null \
+            && logok "devpts mounted at $ALPINE/dev/pts" \
+            || logw  "devpts mount failed (PTY allocation may not work)"
+    fi
+
+    if grep -q " $ALPINE/dev/shm " /proc/mounts 2>/dev/null; then
+        logi "devshm already mounted in chroot"
+    else
+        mount -t tmpfs tmpfs "$ALPINE/dev/shm" -o nosuid,nodev,mode=1777 2>/dev/null \
+            && logok "devshm (tmpfs) mounted at $ALPINE/dev/shm" \
+            || logw  "devshm mount failed (non-fatal)"
+    fi
+
+    if [ ! -e "$ALPINE/dev/ptmx" ]; then
+        mknod "$ALPINE/dev/ptmx" c 5 2 2>/dev/null \
+            && chmod 666 "$ALPINE/dev/ptmx" \
+            && logok "created /dev/ptmx in chroot" \
+            || logw  "could not create /dev/ptmx (PTY allocation may fail)"
+    else
+        chmod 666 "$ALPINE/dev/ptmx" 2>/dev/null || true
+        logok "/dev/ptmx present in chroot"
+    fi
+
+    log ""
+}
+
+devnode_recheck_and_maybe_rebind_again() {
+    logsection "CHROOT DEV NODE RECHECK"
+
+    NODECOUNT="$(chroot "$ALPINE" /bin/sh -c \
+        '/usr/bin/find /dev -mindepth 1 2>/dev/null | /usr/bin/wc -l' 2>/dev/null || echo 0)"
+    logi "after-rbind dev count: ${NODECOUNT:-0}"
+
+    if [ "${NODECOUNT:-0}" -lt 200 ]; then
+        logw "dev node count < 200 inside chroot; re-running ueventd and re-rbinding /dev"
+
+        UEVENTD_BIN=""
+        for p in /system/bin/ueventd /sbin/ueventd; do
+            [ -x "$p" ] && { UEVENTD_BIN="$p"; break; }
+        done
+        if [ -n "$UEVENTD_BIN" ]; then
+            logi "Starting Android ueventd again: $UEVENTD_BIN -d"
+            "$UEVENTD_BIN" -d >/tmp/alp_ueventd_2.log 2>&1 &
+            sleep 3
+        else
+            logw "Still no executable ueventd found"
+        fi
+
+        logi "Rebinding /dev into chroot unconditionally with --make-rslave"
+        umount -l "$ALPINE/dev/pts" 2>/dev/null || true
+        umount -l "$ALPINE/dev/shm" 2>/dev/null || true
+        umount -l "$ALPINE/dev"     2>/dev/null || true
+        mount --rbind /dev "$ALPINE/dev" 2>/dev/null \
+            && logok "second rbind /dev -> $ALPINE/dev" \
+            || logerr "second rbind /dev failed"
+        mount --make-rslave "$ALPINE/dev" 2>/dev/null || true
+
+        mount -t devpts devpts "$ALPINE/dev/pts" -o noexec,nosuid,gid=5,mode=620 2>/dev/null \
+            && logok "devpts re-mounted after second rbind" \
+            || logw  "devpts re-mount failed"
+        mount -t tmpfs tmpfs "$ALPINE/dev/shm" -o nosuid,nodev,mode=1777 2>/dev/null \
+            && logok "devshm re-mounted after second rbind" \
+            || logw  "devshm re-mount failed (non-fatal)"
+
+        NODECOUNT2="$(chroot "$ALPINE" /bin/sh -c \
+            '/usr/bin/find /dev -mindepth 1 2>/dev/null | /usr/bin/wc -l' 2>/dev/null || echo 0)"
+        logi "after second rbind dev count: ${NODECOUNT2:-0}"
+    fi
+
+    log ""
+}
+
+probe_ld_config() {
+    logsection "LD.CONFIG.TXT VERIFICATION"
+
+    LDCONFIGSRC=""
+    for src in \
+        "$ALPINE/home/ld.config.txt" \
+        "$ALPINE/root/ld.config.txt" \
+        "$ALPINE/etc/ld.config.txt"; do
+        [ -f "$src" ] && { LDCONFIGSRC="$src"; break; }
+    done
+
+    mkdir -p /linkerconfig "$ALPINE/linkerconfig" 2>/dev/null || true
+
+    if [ -n "$LDCONFIGSRC" ]; then
+        cp -f "$LDCONFIGSRC" /linkerconfig/ld.config.txt 2>/dev/null \
+            && logok "Copied $LDCONFIGSRC -> /linkerconfig/ld.config.txt" \
+            || logerr "Copy failed"
+    else
+        logerr "ld.config.txt not found in chroot"
+    fi
+
+    if [ ! -f "$ALPINE/linkerconfig/ld.config.txt" ]; then
+        mount --bind /linkerconfig "$ALPINE/linkerconfig" 2>/dev/null \
+            && logok "bind-mounted /linkerconfig into chroot" \
+            || logw "failed bind of /linkerconfig"
+    fi
+
+    chroot "$ALPINE" /bin/sh -c '
+        /sbin/ldconfig >/tmp/alp_ldconfig.log 2>&1 && echo "ldconfig OK" || {
+            echo "ldconfig FAILED"
+            /usr/bin/tail -20 /tmp/alp_ldconfig.log 2>/dev/null || true
+        }
+    ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    log ""
+}
+
+# DBUS
+
+start_daemons() {
+    logsection "EARLY HOST DBUS STARTUP"
+
+    mkdir -p /run /run/dbus /run/user/0 /tmp 2>/dev/null || true
+    chmod 755 /run /run/dbus 2>/dev/null || true
+    chmod 700 /run/user/0   2>/dev/null || true
+
+    if [ -S /run/dbus/system_bus_socket ]; then
+        logok "host dbus system socket already present"
+    else
+        DBUSBIN=""
+        for p in /usr/bin/dbus-daemon /bin/dbus-daemon; do
+            [ -x "$p" ] && { DBUSBIN="$p"; break; }
+        done
+        if [ -n "$DBUSBIN" ]; then
+            logi "Starting host dbus: $DBUSBIN --system --fork --nopidfile"
+            "$DBUSBIN" --system --fork --nopidfile >/tmp/alp_gpu_host_dbus.raw.log 2>&1
+            sleep "$EARLYDAEMONWAIT"
+        else
+            logw "host dbus-daemon not available"
+        fi
+    fi
+
+    [ -S /run/dbus/system_bus_socket ] \
+        && logok "host system dbus socket ready" \
+        || logw  "host system dbus socket NOT present"
+
+    export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+    logi "DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SYSTEM_BUS_ADDRESS"
+    log ""
+}
+
+start_rootfs_dbus() {
+    logsection "ALPINE DBUS STARTUP"
+    write_rootfs_env
+
+    chroot "$ALPINE" /usr/bin/env -i \
+        HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=xterm-256color \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        /bin/sh -lc '
+            mkdir -p /run /run/dbus /run/user/0 /tmp /var/run /var/lib/dbus /etc 2>/dev/null || true
+            chmod 755 /run /run/dbus /tmp /var/run 2>/dev/null || true
+            chmod 700 /run/user/0 2>/dev/null || true
+
+            command -v dbus-uuidgen >/dev/null 2>&1 && {
+                dbus-uuidgen --ensure=/etc/machine-id          >/dev/null 2>&1 || true
+                dbus-uuidgen --ensure=/var/lib/dbus/machine-id >/dev/null 2>&1 || true
+            }
+
+            if [ ! -S /run/dbus/system_bus_socket ] && command -v dbus-daemon >/dev/null 2>&1; then
+                dbus-daemon --system --fork --nopidfile >/tmp/alp_dbus_system.log 2>&1 || true
+                sleep 2
+            fi
+
+            if [ -S /run/dbus/system_bus_socket ]; then
+                echo "ALPINE system dbus is up"
+            else
+                echo "ALPINE system dbus is NOT up"
+                [ -f /tmp/alp_dbus_system.log ] && /usr/bin/tail -20 /tmp/alp_dbus_system.log
+            fi
+
+            rm -f /run/user/0/bus 2>/dev/null || true
+            if command -v dbus-daemon >/dev/null 2>&1; then
+                dbus-daemon --session --address=unix:path=/run/user/0/bus \
+                    --fork --nopidfile >/tmp/alp_dbus_session.log 2>&1 || true
+                sleep 2
+            fi
+
+            if [ -S /run/user/0/bus ]; then
+                echo "ALPINE session dbus is up at unix:path=/run/user/0/bus"
+            else
+                echo "ALPINE session dbus is NOT up"
+                [ -f /tmp/alp_dbus_session.log ] && /usr/bin/tail -20 /tmp/alp_dbus_session.log
+            fi
+        ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    cat > "$ROOTFSDBUSENV" <<EOF
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+EOF
+
+    logok "Wrote explicit chroot DBus environment to $ROOTFSDBUSENV"
+    log ""
+}
+
+# UDEV (HOST)
+
+start_host_udevd() {
+    logsection "HOST UDEVD STARTUP"
+
+    mkdir -p /run/udev 2>/dev/null || true
+
+    if pgrep -x udevd >/dev/null 2>&1 || pgrep -x systemd-udevd >/dev/null 2>&1; then
+        logok "udevd / systemd-udevd already running"
+    else
+        UDEVDBIN=""
+        for p in \
+            /usr/lib/systemd/systemd-udevd \
+            /lib/systemd/systemd-udevd \
+            /usr/bin/udevd \
+            /sbin/udevd \
+            /bin/eudevd; do
+            [ -x "$p" ] && { UDEVDBIN="$p"; break; }
+        done
+
+        if [ -n "$UDEVDBIN" ]; then
+            logi "Starting udevd: $UDEVDBIN --daemon"
+            "$UDEVDBIN" --daemon >/tmp/alp_udevd.log 2>&1 || true
+            sleep 2
+            pgrep -x udevd >/dev/null 2>&1 || pgrep -x systemd-udevd >/dev/null 2>&1 \
+                && logok "udevd started" \
+                || logw  "udevd may not have started (check /tmp/alp_udevd.log)"
+        else
+            logw "No udevd binary found at any known path; skipping coldplug"
+            log ""
+            return
+        fi
+    fi
+
+    if command -v udevadm >/dev/null 2>&1; then
+        logi "Coldplug: udevadm trigger --action=add"
+        udevadm trigger --action=add 2>/tmp/alp_udevadm_trigger.log || \
+            logw "udevadm trigger returned non-zero"
+
+        logi "Settling: udevadm settle --timeout=10"
+        udevadm settle --timeout=10 2>/tmp/alp_udevadm_settle.log \
+            && logok "udevadm settle complete" \
+            || logw  "udevadm settle timed out or errored"
+    else
+        logw "udevadm not found; skipping coldplug/settle"
+    fi
+
+    log ""
+}
+
+# LIBINPUT
+
+run_libinput_list_devices() {
+    logsection "LIBINPUT LIST DEVICES"
+
+    chroot "$ALPINE" /usr/bin/env -i \
+        HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=xterm-256color \
+        PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus \
+        /bin/sh -lc '
+            LIBINPUT_BIN=""
+            if command -v libinput >/dev/null 2>&1; then
+                LIBINPUT_BIN="libinput list-devices"
+            elif command -v libinput-list-devices >/dev/null 2>&1; then
+                LIBINPUT_BIN="libinput-list-devices"
+            fi
+
+            if [ -z "$LIBINPUT_BIN" ]; then
+                echo "libinput list tool not found"
+            else
+                COUNT=$($LIBINPUT_BIN 2>/dev/null | grep -c "^Device:" || echo 0)
+                echo "libinput detected ${COUNT} input device(s)"
+            fi
+        ' 2>&1 | while IFS= read -r l; do log "$l"; done
+
+    log ""
+}
+
+# ANDROID HAL / SERVICES
+
+android_service_managers() {
+    logsection "ANDROID SERVICE MANAGERS"
+    for mgr in servicemanager hwservicemanager; do
+        logsub "$mgr"
+        if pgrep -f "$mgr" >/dev/null 2>&1; then
+            logok "$mgr already running"
+            continue
+        fi
+        BIN=""
+        for p in "/bin/$mgr" "/system/bin/$mgr"; do
+            [ -x "$p" ] && { BIN="$p"; break; }
+        done
+        if [ -n "$BIN" ]; then
+            logi "Starting $BIN"
+            "$BIN" >/dev/null 2>&1 &
+            sleep "$SMWAIT"
+            pgrep -f "$mgr" >/dev/null 2>&1 \
+                && logok "$mgr running" \
+                || logw "$mgr not detected after start"
+        else
+            logw "$mgr binary not found"
+        fi
+    done
+    log ""
+}
+
+android_hal_services() {
+    logsection "ANDROID HAL SERVICES"
+
+    printf '%s\n' \
+'HIDLMemoryAllocator|/system/bin/hw/android.hidl.allocator@1.0-service' \
+'AudioHAL|/vendor/bin/hw/android.hardware.audio.service' \
+'BluetoothHAL|/vendor/bin/hw/android.hardware.bluetooth@1.1-service.unisoc' \
+'WiFiHAL|/vendor/bin/hw/android.hardware.wifi@1.0-service' \
+'GraphicsAllocator|/vendor/bin/hw/android.hardware.graphics.allocator@4.0-service' \
+'GraphicsComposer|/vendor/bin/hw/android.hardware.graphics.composer@2.1-service' \
+'HealthHAL|/vendor/bin/hw/android.hardware.health@2.1-service' \
+'ThermalHAL|/vendor/bin/hw/vendor.sprd.hardware.thermal@2.0-service' \
+    | while IFS='|' read -r NAME BIN; do
+        [ -n "$NAME" ] || continue
+        logsub "$NAME"
+        if [ -x "$BIN" ]; then
+            "$BIN" >/dev/null 2>&1 &
+            PID=$!
+            sleep "$HALSTARTUPWAIT"
+            ps -p "$PID" >/dev/null 2>&1 \
+                && logok "$NAME running PID $PID" \
+                || logw  "$NAME failed or exited"
+        else
+            logw "$NAME binary not found: $BIN"
+        fi
+    done
+
+    log ""
+}
+
+# VIRGL SERVER
+
+start_virgl_server() {
+    logsection "VIRGL SERVER STARTUP"
+
+    # ANGLE GL backend: prioritize /opt/angle-android/gl so virgl_test_server
+    # picks up ANGLE's EGL/GLES instead of the vendor's broken OpenGL.
+    # Venus still runs on top — the --venus flag is independent of the GL backend.
+    export LD_LIBRARY_PATH="\
+$ALPINE/opt/angle-android/gl:\
+$ALPINE/opt/virgl/lib:\
+/vendor/lib64:\
+/system/lib64"
+
+    VIRGL_SOCKET_PATH="/tmp/.virgl_test"
+    rm -f "$VIRGL_SOCKET_PATH" 2>/dev/null || true
+
+    logi "ANGLE GL path: $ALPINE/opt/angle-android/gl"
+    logi "Checking ANGLE libs present:"
+    for lib in libEGL_angle.so libGLESv1_CM_angle.so libGLESv2_angle.so; do
+        if [ -f "$ALPINE/opt/angle-android/gl/$lib" ]; then
+            logi "  [OK] $lib"
+        else
+            logw "  [MISSING] $lib — virgl will fall back to vendor GL"
+        fi
+    done
+
+    logi "Starting virgl_test_server with ANGLE GL + Venus (socket: $VIRGL_SOCKET_PATH)..."
+
+    "$ALPINE/opt/virgl/bin/virgl_test_server" \
+        --venus \
+        --no-fork \
+        --multi-clients \
+        --use-egl-surfaceless \
+        --use-gles \
+        --socket-path="$VIRGL_SOCKET_PATH" \
+        >/tmp/virgl.log 2>&1 &
+    VIRGL_PID=$!
+    sleep 2
+
+    if ! kill -0 "$VIRGL_PID" 2>/dev/null; then
+        logw "virgl_test_server failed to start"
+        cat /tmp/virgl.log >&2
+        return 1
+    fi
+    logok "virgl_test_server running PID $VIRGL_PID"
+
+    if [ -S "$VIRGL_SOCKET_PATH" ]; then
+        logok "virgl socket exists at $VIRGL_SOCKET_PATH"
+    else
+        logw "virgl socket missing after 2s — server started but did not bind"
+        cat /tmp/virgl.log >&2
+        return 1
+    fi
+
+    if chroot "$ALPINE" /bin/sh -c '[ -S /tmp/.virgl_test ]'; then
+        logok "virgl socket confirmed visible inside chroot at /tmp/.virgl_test"
+    else
+        logw "virgl socket NOT visible inside chroot — /tmp bind mount may have failed"
+        return 1
+    fi
+
+    logi "virgl_test_server startup log:"
+    cat /tmp/virgl.log | while IFS= read -r l; do logi "  [virgl] $l"; done
+
+    log ""
+}
+
+# DISPLAY PIPELINE
+
+wake_display_pipeline() {
+    logsection "PHASE : WAKE DISPLAY PIPELINE"
+
+    if [ -e /sys/class/graphics/fb0/blank ]; then
+        echo 0 >/sys/class/graphics/fb0/blank 2>/dev/null || true
+        logi "Unblanked fb0"
+    fi
+
+    for bl in /sys/class/backlight/*; do
+        [ -e "$bl/brightness" ] || continue
+        MAX_BL="$(cat "$bl/max_brightness" 2>/dev/null || echo 100)"
+        if [ "$MAX_BL" -le 25 ] 2>/dev/null; then
+            TARGET_BL="$MAX_BL"
+        else
+            TARGET_BL=25
+        fi
+        logi "Setting $bl/brightness to $TARGET_BL (max_brightness=$MAX_BL)"
+        echo "$TARGET_BL" >"$bl/brightness" 2>/dev/null || true
+    done
+
+    log ""
+}
+
+# MIRAL-APP DISPLAY TEST (strace)
+
+launch_miral_app_test() {
+    logsection "PHASE : MIRAL-APP DISPLAY TEST (strace)"
+
+    logi "Hardware snapshot before launch:"
+    hardware_status
+    wake_display_pipeline
+
+    chmod 666 /dev/dri/card0      2>/dev/null || true
+    chmod 666 /dev/mali0          2>/dev/null || true
+    chmod 666 /dev/ion            2>/dev/null || true
+    chmod -R 666 /dev/input       2>/dev/null || true
+
+    mkdir -p "$STRACELOGDIR" 2>/dev/null || true
+    mkdir -p "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    if ! grep -q " $ALPINE/tmp/strace_logs " /proc/mounts 2>/dev/null; then
+        mount --bind "$STRACELOGDIR" "$ALPINE/tmp/strace_logs" 2>/dev/null \
+            && logok "strace log dir bind-mounted at /tmp/strace_logs in chroot" \
+            || logw  "could not bind strace log dir into chroot"
+    fi
+
+    DBUS_SESSION_ADDR=""
+    if [ -r "$ROOTFSDBUSENV" ]; then
+        DBUS_SESSION_ADDR=$(grep 'DBUS_SESSION_BUS_ADDRESS' "$ROOTFSDBUSENV" \
+            | sed 's/.*="\{0,1\}\([^"]*\)"\{0,1\}/\1/' | head -1)
+    fi
+    [ -z "$DBUS_SESSION_ADDR" ] && \
+        DBUS_SESSION_ADDR="unix:path=/run/dbus/session_bus_socket"
+
+    chroot "$ALPINE" /bin/sh << EOF_CHROOT 2>&1 | tee -a "$LOGFILE"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib:/lib
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+export XDG_CONFIG_HOME=/tmp/runtime-root/config
+export MIR_SERVER_PLATFORM_PATH=/usr/lib/mir/server-platform
+export MIR_SERVER_PLATFORM_DISPLAY_LIBS=mir:atomic-kms
+export WAYLAND_DISPLAY=wayland-0
+export LIBSEAT_BACKEND=builtin
+export SEATD_VTBOUND=0
+export LIBGL_ALWAYS_SOFTWARE=1
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+export DBUS_SESSION_BUS_ADDRESS='$DBUS_SESSION_ADDR'
+
+mkdir -p -m 0700 "\$XDG_RUNTIME_DIR"
+rm -rf "\$XDG_RUNTIME_DIR"/* 2>/dev/null
+
+# Set up the Mir display configuration directory
+mkdir -p -m 0700 "\$XDG_CONFIG_HOME"
+
+# Write the explicit display configuration as display.config
+cat > "\$XDG_CONFIG_HOME/display.config" <<'EOF_DISPLAY'
+layouts:
+  default:
+    cards:
+    - card-id: 0
+      DSI-1:
+        orientation: right
+EOF_DISPLAY
+
+STRACE_LOG_CHROOT="/tmp/strace_logs"
+MIR_LOG="\$STRACE_LOG_CHROOT/mir.log"
+MIR_STRACE_LOG="\$STRACE_LOG_CHROOT/mir_strace.log"
+
+STRACE=""
+[ -x /usr/bin/strace ] && STRACE="/usr/bin/strace -f -tt -T -s 256 -o"
+
+echo "=== Launching miral-app ==="
+# Force Mir to use the static display config via runtime arguments
+if [ -n "\$STRACE" ]; then
+    \$STRACE "\$MIR_STRACE_LOG" miral-app --display-config static="\$XDG_CONFIG_HOME/display.config" >"\$MIR_LOG" 2>&1 &
+else
+    miral-app --display-config static="\$XDG_CONFIG_HOME/display.config" >"\$MIR_LOG" 2>&1 &
+fi
+MIR_PID=\$!
+echo "  miral-app PID: \$MIR_PID"
+
+WAITED=0
+while [ \$WAITED -lt 10 ]; do
+    [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ] && break
+    sleep 1
+    WAITED=\$((WAITED + 1))
+done
+
+if [ -S "\$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY" ]; then
+    echo "Mir wayland socket ready after \${WAITED}s"
+else
+    echo "WARNING: Mir wayland socket did not appear after \${WAITED}s"
+fi
+
+sleep 3
+
+echo ""
+echo "=== PROCESS STATUS ==="
+kill -0 "\$MIR_PID" 2>/dev/null \
+    && echo "miral-app: RUNNING (\$MIR_PID)" \
+    || echo "miral-app: EXITED"
+
+echo ""
+echo "--- MIR LOG (tail 80) ---"
+tail -80 "\$MIR_LOG" 2>/dev/null || echo "No Mir log"
+echo "--- END MIR LOG ---"
+
+echo ""
+echo "--- MIR STRACE TAIL (last 60 lines, error/signal focus) ---"
+if [ -f "\$MIR_STRACE_LOG" ]; then
+    grep -E "(ENOENT|EACCES|EPERM|EFAULT|EIO|killed|SIGABRT|SIGSEGV|execve|openat|connect|exit_group)" \
+        "\$MIR_STRACE_LOG" 2>/dev/null | tail -60 \
+        || tail -60 "\$MIR_STRACE_LOG"
+else
+    echo "No strace log (strace not available)"
+fi
+echo "--- END MIR STRACE TAIL ---"
+
+kill "\$MIR_PID" 2>/dev/null
+wait "\$MIR_PID" 2>/dev/null
+EOF_CHROOT
+
+    umount -l "$ALPINE/tmp/strace_logs" 2>/dev/null || true
+
+    logsub "Hardware Status While Active / After Test Return"
+    hardware_status
+
+    logsub "Display Removal / Post-Compositor Snapshot"
+    hardware_status
+}
+
+# FLASH / HANDOFF
+
+flash_and_handoff() {
+    logsection "PHASE : FLASH & HANDOFF"
+
+    if [ ! -f "$TWRPIMG" ]; then
+        logerr "TWRP image not found: $TWRPIMG"
+    else
+        for PART in "$PART42" "$PART43"; do
+            if [ -b "$PART" ]; then
+                logi "Flashing $TWRPIMG -> $PART"
+                dd if="$TWRPIMG" of="$PART" bs=4096 conv=fsync 2>>"$LOGFILE" \
+                    && logok "dd -> $PART complete" \
+                    || logerr "dd -> $PART failed"
+            else
+                logerr "Block device missing: $PART"
+            fi
+        done
+        sync
+    fi
+
+    logsection "PHASE : UNMOUNT CHROOT SUPPORT"
+    cleanup_old_mounts
+
+    logsection "HANDOFF TO /system/bin/realrecovery"
+    sync
+    sleep 1
+    exec /system/bin/realrecovery
+}
+
+# MAIN
+
+logsection "FINAL TEST CHAIN"
+
+ueventd_precheck_and_populate_dev
+bind_mounts_with_forced_dev_rebind
+devnode_recheck_and_maybe_rebind_again
+probe_ld_config
+start_daemons
+start_host_udevd
+start_rootfs_dbus
+run_libinput_list_devices
+android_service_managers
+android_hal_services
+start_virgl_server
+launch_miral_app_test
+flash_and_handoff

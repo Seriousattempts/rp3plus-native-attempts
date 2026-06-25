@@ -1,0 +1,68 @@
+#!/bin/sh
+# Usage: /sdcard/run-gl <app> [args...]
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <app> [args...]"
+    exit 1
+fi
+
+SCRIPT_NAME="${0##*/}"
+LOGFILE="/sdcard/${SCRIPT_NAME}.log"
+
+ts_echo() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"; }
+
+ts_echo "=======================================================" >> "$LOGFILE"
+ts_echo "STARTING: $*" >> "$LOGFILE"
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib:/vendor/lib64:/system/lib64
+
+if [ -S "/tmp/runtime-root/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/tmp/runtime-root"
+elif [ -S "/run/user/0/wayland-0" ]; then
+    export XDG_RUNTIME_DIR="/run/user/0"
+else
+    ts_echo "[FATAL] No wayland-0 socket found" >> "$LOGFILE"
+    exit 1
+fi
+export WAYLAND_DISPLAY=wayland-0
+
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+[ -S "/run/user/0/bus" ] && \
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+
+# Confirm virgl socket is reachable before launching
+if [ ! -S "/tmp/.virgl_test" ]; then
+    ts_echo "[WARN] /tmp/.virgl_test not found — virgl may not be running" >> "$LOGFILE"
+fi
+
+# GPU rendering via virpipe — Mesa finds /tmp/.virgl_test on its own
+export GALLIUM_DRIVER=virpipe
+export MESA_GL_VERSION_OVERRIDE=4.0
+export MESA_GLSL_VERSION_OVERRIDE=400
+# No VIRGL_SOCKET needed — Mesa hardcodes /tmp/.virgl_test
+
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
+export GDK_BACKEND=wayland
+
+APP="$1"
+case "$APP" in
+    glxgears|glxinfo|retroarch|attractplus|antimicrox|xterm)
+        export QT_QPA_PLATFORM=xcb
+        export SDL_VIDEODRIVER=x11
+        export GDK_BACKEND=x11
+        export DISPLAY=:0
+        ;;
+esac
+
+ts_echo "--- LAUNCHING: $* ---"       >> "$LOGFILE"
+ts_echo "    GALLIUM_DRIVER=virpipe"  >> "$LOGFILE"
+ts_echo "    WAYLAND=$WAYLAND_DISPLAY QT=$QT_QPA_PLATFORM" >> "$LOGFILE"
+
+"$@" 2>&1 | awk '{ print strftime("[%Y-%m-%d %H:%M:%S] [APP]"), $0; fflush(); }' >> "$LOGFILE"
+APP_EXIT_CODE=$?
+
+ts_echo "--- SESSION ENDED (exit $APP_EXIT_CODE) ---" >> "$LOGFILE"
+exit $APP_EXIT_CODE

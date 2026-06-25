@@ -1,0 +1,75 @@
+#!/bin/sh
+# /sdcard/vir — virpipe test runner with Custom Mesa
+# Usage: /sdcard/vir eglinfo
+#        /sdcard/vir es2_info
+#        /sdcard/vir es2gears_x11
+
+# -------------------------------------------------
+# CONFIG
+# -------------------------------------------------
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir_${APP_NAME}_${TIMESTAMP}_output.log"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    exit 1
+fi
+
+echo "=========================================================="
+echo "[vir] Launching '$*' with custom virpipe..."
+echo "[vir] Application Output: $STDOUT_LOG"
+echo "=========================================================="
+
+# Run the requested application directly. We capture both stdout and stderr.
+(
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    
+    # Prioritize the custom Mesa libraries over Alpine defaults
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/lib
+    
+    # Explicitly point Mesa to your newly compiled Gallium drivers
+    export LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+
+    # Display sockets
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    export WAYLAND_DISPLAY=wayland-0
+    export DISPLAY=:0
+
+    # Virpipe / virglrenderer Configuration
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=virpipe
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+    export MESA_GL_VERSION_OVERRIDE=4.0
+    export MESA_GLSL_VERSION_OVERRIDE=400
+    export MESA_GLES_VERSION_OVERRIDE=3.1
+    export MESA_NO_ERROR=1
+
+    # Verbose Debugging
+    export LIBGL_DEBUG=verbose
+    export EGL_LOG_LEVEL=debug
+    export MESA_DEBUG=1
+
+    echo "----------------------------------------------------------"
+    echo "[vir] Environment Diagnostics:"
+    echo "      DISPLAY=$DISPLAY"
+    echo "      WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+    echo "      GALLIUM_DRIVER=$GALLIUM_DRIVER"
+    echo "      VIRGL_SERVER_PATH=$VIRGL_SERVER_PATH"
+    echo "      LIBGL_DRIVERS_PATH=$LIBGL_DRIVERS_PATH"
+    echo "----------------------------------------------------------"
+
+    "$@"
+    APP_EXIT_CODE=$?
+
+    echo "=========================================================="
+    if [ "$APP_EXIT_CODE" -eq 0 ]; then
+        echo "[vir] SUCCESS: Process closed cleanly (Exit 0)"
+    else
+        echo "[vir] FAILED: Process crashed or aborted (Exit $APP_EXIT_CODE)"
+    fi
+    echo "=========================================================="
+    exit $APP_EXIT_CODE
+
+) 2>&1 | tee "$STDOUT_LOG"

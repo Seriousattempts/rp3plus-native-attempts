@@ -1,0 +1,90 @@
+#!/bin/sh
+# vir-gl — virpipe OpenGL runner for Mir/Wayland
+# Usage: vir-gl <command> [args...]
+
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir-gl_${APP_NAME}_${TIMESTAMP}.log"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    exit 1
+fi
+
+# ---- Diagnostics header ----
+echo "=========================================================="
+echo "[vir-gl] Launching '$*' via virpipe"
+echo "=========================================================="
+echo "[vir-gl] Diagnostics:"
+echo "  GALLIUM_DRIVER     = virpipe"
+echo "  VIRGL_SERVER_PATH  = /tmp/.virgl_test"
+echo "  LIBGL_DRIVERS_PATH = /usr/local/lib/dri"
+echo "  DISPLAY            = ${DISPLAY:-:0}"
+echo "  WAYLAND_DISPLAY    = ${WAYLAND_DISPLAY:-wayland-0}"
+echo "  VK_ICD_FILENAMES   = (cleared)"
+echo "----------------------------------------------------------"
+
+(
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/lib
+    export LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+    export DISPLAY="${DISPLAY:-:0}"
+
+    # Virgl pipe — connect to virgl_test_server running on the Android host
+    export GALLIUM_DRIVER=virpipe
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+    unset LIBGL_ALWAYS_SOFTWARE
+
+    # GPU is Mali-G52 (GLES-native Bifrost v7). Advertise GLES 3.2 only.
+    # Do NOT set MESA_GL_VERSION_OVERRIDE / MESA_GLSL_VERSION_OVERRIDE — those
+    # activate virpipe's desktop-GL compatibility translation layer on every draw
+    # call, adding measurable CPU overhead on a GLES-native GPU.
+    export MESA_GLES_VERSION_OVERRIDE=3.2
+    unset MESA_GL_VERSION_OVERRIDE
+    unset MESA_GLSL_VERSION_OVERRIDE
+    export MESA_NO_ERROR=1
+
+    # sprd-drm-drv: keep modifiers disabled even in client-side KMS paths
+    export MESA_KMS_DISABLE_MODIFIERS=1
+
+    # Disable Vulkan loader (pure GL/virpipe run)
+    export VK_LOADER_DISABLE_INST_EXT_FILTER=1
+    export VK_ICD_FILENAMES=""
+    export VK_LAYER_PATH=""
+    export DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1=1
+    export DISABLE_LAYER_NV_OPTIMUS_1=1
+
+    # Performance
+    export vblank_mode=0
+    export mesa_glthread=true
+
+    # Suppress debug noise
+    unset LIBGL_DEBUG
+    unset EGL_LOG_LEVEL
+    unset MESA_DEBUG
+
+    # Force Wayland-native toolkits (skip X11 path through XWayland)
+    export GDK_BACKEND=wayland
+    export SDL_VIDEODRIVER=wayland
+    export QT_QPA_PLATFORM=wayland
+
+    if [ ! -S "$VIRGL_SERVER_PATH" ]; then
+        echo "[vir-gl] ERROR: virgl socket not found at $VIRGL_SERVER_PATH"
+        exit 1
+    fi
+
+    "$@"
+    APP_EXIT_CODE=$?
+
+    echo "=========================================================="
+    [ "$APP_EXIT_CODE" -eq 0 ] \
+        && echo "[vir-gl] SUCCESS (exit 0)" \
+        || echo "[vir-gl] FAILED (exit $APP_EXIT_CODE)"
+    echo "=========================================================="
+    exit $APP_EXIT_CODE
+
+) 2>&1 | tee "$STDOUT_LOG"

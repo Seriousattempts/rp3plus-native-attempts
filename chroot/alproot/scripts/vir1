@@ -1,0 +1,93 @@
+#!/bin/sh
+# /sdcard/vir — virpipe test runner with Mesa Debugging
+# Usage: /sdcard/vir glxgears
+#        /sdcard/vir glxinfo -B
+#        /sdcard/vir es2gears_wayland
+
+# -------------------------------------------------
+# CONFIG
+# -------------------------------------------------
+ALPINE="/"
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir_${APP_NAME}_${TIMESTAMP}_output.log"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    exit 1
+fi
+
+if [ ! -d "$ALPINE" ]; then
+    echo "ERROR: ALPINE chroot not found at $ALPINE"
+    exit 1
+fi
+
+echo "=========================================================="
+echo "[vir] Launching '$*' with virpipe..."
+echo "[vir] Application Output: $STDOUT_LOG"
+echo "=========================================================="
+
+# We pipe the heredoc through tee, but we use a temporary file inside
+# the chroot to reliably capture the true exit code of the application.
+chroot "$ALPINE" /bin/sh << EOF 2>&1 | tee "$STDOUT_LOG"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib
+
+# Display sockets
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+export WAYLAND_DISPLAY=wayland-0
+export DISPLAY=:0
+
+# Virpipe / virglrenderer Configuration
+export GALLIUM_DRIVER=virpipe
+export VIRGL_SERVER_PATH=/tmp/.virgl_test
+export MESA_GL_VERSION_OVERRIDE=4.0
+export MESA_GLSL_VERSION_OVERRIDE=400
+export MESA_GLES_VERSION_OVERRIDE=3.1
+export MESA_NO_ERROR=1
+
+# -------------------------------------------------
+# MESA / EGL / WAYLAND VERBOSE DEBUGGING
+# -------------------------------------------------
+export LIBGL_DEBUG=verbose
+export EGL_LOG_LEVEL=debug
+export MESA_DEBUG=1
+# export WAYLAND_DEBUG=1 # Uncomment this if Wayland window creation fails
+
+# Ensure X11 apps can find the Xwayland socket
+[ -d /tmp/.X11-unix ] || mkdir -p /tmp/.X11-unix
+
+echo "----------------------------------------------------------"
+echo "[vir] Environment Diagnostics:"
+echo "      DISPLAY=\$DISPLAY"
+echo "      WAYLAND_DISPLAY=\$WAYLAND_DISPLAY"
+echo "      GALLIUM_DRIVER=\$GALLIUM_DRIVER"
+echo "      VIRGL_SERVER_PATH=\$VIRGL_SERVER_PATH"
+echo "----------------------------------------------------------"
+
+# Run the requested application directly (bypassing strace restrictions)
+"$@"
+APP_EXIT_CODE=\$?
+
+# Save the exit code to a temporary file so the outer script can read it
+echo "\$APP_EXIT_CODE" > /tmp/.vir_exit_code
+EOF
+
+# Retrieve the actual exit code of the application
+if [ -f "$ALPINE/tmp/.vir_exit_code" ]; then
+    EXIT_CODE=$(cat "$ALPINE/tmp/.vir_exit_code")
+    rm -f "$ALPINE/tmp/.vir_exit_code"
+else
+    EXIT_CODE=1
+fi
+
+echo "=========================================================="
+if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "[vir] SUCCESS: Process closed cleanly (Exit 0)"
+else
+    echo "[vir] FAILED: Process crashed or aborted (Exit $EXIT_CODE)"
+    echo "[vir] Check $STDOUT_LOG for Mesa/EGL debug errors."
+fi
+echo "=========================================================="
+exit $EXIT_CODE

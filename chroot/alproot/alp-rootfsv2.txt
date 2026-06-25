@@ -1,0 +1,1347 @@
+
+
+
+Step 1
+
+sudo apt-get install -y \
+  qemu-user-static \
+  binfmt-support \
+  e2fsprogs \
+  curl \
+  util-linux
+
+
+
+Step 2
+sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+
+# Restart binfmt-support so all qemu-user-static handlers are registered
+sudo service binfmt-support restart 2>/dev/null || \
+  sudo update-binfmts --enable qemu-aarch64
+
+# Verify registration — must return a non-empty result
+grep -l aarch64 /proc/sys/fs/binfmt_misc/* 2>/dev/null || \
+  echo "WARNING: qemu-aarch64 binfmt not active"
+
+sudo umount -l ~/ums512_kernel/alp/mnt/dev/pts 2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/dev      2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/sys      2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/proc     2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt          2>/dev/null || true
+
+cd ~/ums512_kernel
+
+sudo rm -rf alp
+
+mkdir alp && cd alp
+
+
+
+
+Step 3
+dd if=/dev/zero of=rootfs.img bs=1M count=9001
+
+mkfs.ext4 -L rootfs rootfs.img
+
+mkdir -p mnt
+
+sudo mount -o loop rootfs.img mnt
+
+
+
+
+Step 4
+MIRROR="https://dl-cdn.alpinelinux.org/alpine"
+
+ARCH="aarch64"
+
+APK_STATIC_PKG=$(curl -fsSL "${MIRROR}/edge/main/${ARCH}/" \
+  | grep -o 'apk-tools-static-[0-9][^"]*\.apk' | head -1)
+
+curl -fsSL "${MIRROR}/edge/main/${ARCH}/${APK_STATIC_PKG}" -o /tmp/apk-tools-static.apk
+
+tar -xzf /tmp/apk-tools-static.apk -C /tmp sbin/apk.static
+
+chmod +x /tmp/sbin/apk.static
+
+sudo mkdir -p mnt/etc/apk/keys
+
+tar -tf /tmp/apk-tools-static.apk | grep '\.pub' | while read k; do
+  tar -xzf /tmp/apk-tools-static.apk "$k" -O 2>/dev/null \
+    | sudo tee "mnt/etc/apk/keys/$(basename "$k")" > /dev/null || true
+done
+
+sudo /tmp/sbin/apk.static \
+  --arch "${ARCH}" \
+  -X "${MIRROR}/edge/main" \
+  -X "${MIRROR}/edge/community" \
+  --keys-dir mnt/etc/apk/keys \
+  -U --allow-untrusted \
+  --root mnt \
+  --initdb \
+  add alpine-base
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+sudo tee mnt/etc/resolv.conf > /dev/null <<'EOF'
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+
+
+
+
+
+Step 5a
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/edge/main
+https://dl-cdn.alpinelinux.org/alpine/edge/community
+@testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+apk upgrade --no-cache
+
+echo "============================================================"
+echo "STEP 1 — Installing Build Dependencies for Mesa"
+echo "============================================================"
+# Added libclc-dev, libva-dev, spirv-llvm-translator-dev, and spirv-tools-dev
+apk add --no-cache \
+    build-base meson ninja git bison flex \
+    python3 py3-mako py3-packaging py3-setuptools py3-yaml \
+    zlib-dev zstd-dev expat-dev elfutils-dev \
+    libdrm-dev wayland-dev wayland-protocols \
+    libx11-dev libxext-dev libxfixes-dev libxcb-dev libxshmfence-dev \
+    libxxf86vm-dev libxrandr-dev \
+    vulkan-loader-dev vulkan-headers glslang-dev \
+    llvm-dev libclc-dev libva-dev spirv-llvm-translator-dev spirv-tools-dev
+
+echo "============================================================"
+echo "STEP 2 — Fetching Mesa Source Code"
+echo "============================================================"
+cd /root
+if [ ! -d "mesa" ]; then
+    git clone --depth 1 https://gitlab.freedesktop.org/mesa/mesa.git
+fi
+cd mesa
+
+echo "============================================================"
+echo "STEP 3 — Configuring Mesa with Meson"
+echo "============================================================"
+rm -rf build
+
+# - gallium-drivers=virgl,zink,llvmpipe
+# - vulkan-drivers=swrast,virtio (virtio is required for Venus!)
+meson setup build \
+    -Dbuildtype=release \
+    -Dplatforms=x11,wayland \
+    -Dgallium-drivers=virgl,zink,llvmpipe \
+    -Dvulkan-drivers=swrast,virtio \
+    -Dglx=dri \
+    -Degl=enabled \
+    -Dgles1=disabled \
+    -Dgles2=enabled
+
+echo "============================================================"
+echo "STEP 4 — Compiling Mesa"
+echo "============================================================"
+ninja -C build
+
+echo "============================================================"
+echo "STEP 5 — Installing Mesa into the Chroot"
+echo "============================================================"
+ninja -C build install
+
+echo "============================================================"
+echo "DONE! Mesa compilation and installation complete."
+echo "To use virpipe, remember to set: export GALLIUM_DRIVER=virpipe"
+echo "============================================================"
+EOF
+
+
+
+Step 5b
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+echo "============================================================"
+echo "STEP 1 — Verifying 'virpipe' in Compiled Binaries"
+echo "============================================================"
+echo "Searching /usr/local/lib for virpipe strings..."
+
+# We disable 'set -e' temporarily so grep doesn't halt the script if it finds no matches in a specific file
+set +e
+
+found=0
+# Use find with -L to follow the symlinks Mesa created during install
+for file in $(find -L /usr/local/lib -name "*.so*"); do
+    if strings "$file" | grep -iq "virpipe"; then
+        echo "✅ Found 'virpipe' reference in: $file"
+        found=1
+    fi
+done
+
+if [ $found -eq 0 ]; then
+    echo "⚠️ Could not find 'virpipe' strings in the binaries."
+fi
+
+set -e
+
+echo ""
+echo "============================================================"
+echo "STEP 2 — Cleaning Up Build Directory"
+echo "============================================================"
+echo "Removing /root/mesa/build to free up disk space..."
+rm -rf /root/mesa/build
+echo "✅ Build folder erased."
+
+echo "============================================================"
+echo "DONE! Verification and cleanup complete."
+echo "============================================================"
+EOF
+
+
+
+Step 5
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# ============================================================
+# STEP 1 — Repositories
+# ============================================================
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/edge/main
+https://dl-cdn.alpinelinux.org/alpine/edge/community
+@testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+apk upgrade --no-cache
+
+# ============================================================
+# STEP 2 — Base system + core libs
+# ============================================================
+apk add --no-cache \
+  bash \
+  busybox-extras \
+  busybox-binsh \
+  ca-certificates \
+  openrc \
+  eudev \
+  dbus \
+  seatd \
+  seatd-launch \
+  strace \
+  bubblewrap \
+  xz \
+  zstd-libs \
+  libstdc++ \
+  readline \
+  glib \
+  glib-dev \
+  glib-networking \
+  libsoup3 \
+  libnl3 \
+  libmnl \
+  libnftnl \
+  libblkid \
+  libxml2 \
+  libbsd \
+  lttng-ust \
+  libelf \
+  inotify-tools \
+  inotify-tools-libs \
+  inotify-tools-dev \
+  dbus-glib \
+  dbus-dev \
+  dbus-libs \
+  dbus-x11 \
+  linux-headers \
+  eudev-dev \
+  build-base \
+  git \
+  meson \
+  util-macros \
+  ninja \
+  cmake \
+  libexpat \
+  expat \
+  expat-dev \
+  pkgconf \
+  clinfo \
+  python3 \
+  py3-packaging \
+  py3-parsing
+
+# ============================================================
+# STEP 3 — Networking, VPN & connman
+# ============================================================
+apk add --no-cache \
+  networkmanager \
+  networkmanager-wifi \
+  networkmanager-bluetooth \
+  wpa_supplicant \
+  firewalld \
+  connman \
+  connman-openrc \
+  connman-resolvconf \
+  connman-wireguard \
+  libconnman-qt \
+  wireguard-tools-wg \
+  wireguard-tools-wg-quick \
+  wireguard-tools \
+  wireguard-tools-openrc \
+  openssl \
+  openvpn \
+  openvpn-openrc \
+  networkmanager-openvpn \
+  networkmanager-l2tp
+
+# ============================================================
+# STEP 4 — Audio
+# ============================================================
+apk add --no-cache \
+  alsa-lib \
+  alsa-utils \
+  pipewire \
+  pipewire-pulse \
+  pipewire-jack \
+  pipewire-alsa \
+  wireplumber \
+  jack \
+  pavucontrol
+
+# ============================================================
+# STEP 5 — Display / input / compositor
+# ============================================================
+apk add --no-cache \
+  mesa \
+  mesa-egl \
+  mesa-gbm \
+  mesa-gl \
+  mesa-dri-gallium \
+  libdrm \
+  libxcb \
+  libx11 \
+  libxshmfence \
+  libxshmfence-dev \
+  libxau \
+  libxdmcp \
+  libxrender \
+  libxfixes \
+  libinput \
+  libinput-tools \
+  libinput-dev \
+  libxi \
+  libxtst \
+  xwayland \
+  libepoxy \
+  libdisplay-info \
+  yaml-cpp \
+  boost1.84-iostreams \
+  boost1.84-program_options \
+  spirv-tools \
+  spirv-tools-dev \
+  llvm20 \
+  llvm20-libs \
+  llvm20-linker-tools \
+  elogind \
+  mir@testing \
+  mir-demos@testing \
+  mir-test-tools@testing
+
+# ============================================================
+# STEP 6 — Qt5 stack
+# ============================================================
+apk add --no-cache \
+  qt5-qtbase \
+  qt5-qtbase-x11 \
+  qt5-qtbase-sqlite \
+  qt5-qtmultimedia \
+  qt5-qtdeclarative \
+  qt5-qtgamepad \
+  qt5-qtgamepad-dev \
+  qt5-qtgraphicaleffects \
+  qt5-qtquickcontrols \
+  qt5-qtquickcontrols2 \
+  qt5-qtsvg \
+  qt5-qtsensors \
+  qt5-qtsensors-dev \
+  qt5-qtsystems \
+  qt5-qtwebengine@testing \
+  qt5-qtwebsockets \
+  qt5-qtwayland \
+  gsettings-desktop-schemas \
+  gsettings-qt@testing
+
+# ============================================================
+# STEP 7 — Qt6 stack
+# ============================================================
+apk add --no-cache \
+  qt6-qtbase \
+  qt6-qtbase-x11
+
+# ============================================================
+# STEP 8 — QtMir
+# ============================================================
+apk add --no-cache \
+  qtmir@testing \
+  qtmir-dev@testing
+
+# ============================================================
+# STEP 9 — Lomiri shell + applications
+# ============================================================
+apk add --no-cache \
+  lomiri@testing \
+  lomiri-lang@testing \
+  lomiri-app-launch@testing \
+  lomiri-url-dispatcher@testing \
+  lomiri-notifications@testing \
+  lomiri-schemas@testing \
+  lomiri-settings-components@testing \
+  lomiri-ui-toolkit@testing \
+  lomiri-ui-extras@testing \
+  lomiri-content-hub@testing \
+  lomiri-trust-store@testing \
+  lomiri-indicator-network@testing \
+  lomiri-indicator-network-dev@testing \
+  lomiri-telephony-service@testing \
+  lomiri-terminal-app@testing \
+  lomiri-system-settings@testing \
+  lomiri-system-settings-lang@testing \
+  lomiri-thumbnailer@testing \
+  lomiri-deviceinfo
+
+# ============================================================
+# STEP 10 — Indicators & desktop integration
+# ============================================================
+apk add --no-cache \
+  ayatana-indicator-keyboard@testing \
+  ayatana-indicator-session@testing \
+  suru-icon-theme@testing \
+  openrc-settingsd \
+  libgnome-desktop-3 \
+  gsettings-desktop-schemas
+
+# ============================================================
+# STEP 11 — Sensors, haptics, location
+# ============================================================
+apk add --no-cache \
+  iio-sensor-proxy \
+  feedbackd \
+  hfd-service \
+  lm-sensors \
+  geoclue \
+  geonames@testing
+
+# ============================================================
+# STEP 12 — Telephony & mobile
+# ============================================================
+apk add --no-cache \
+  ofono \
+  bluez \
+  bluez-deprecated \
+  modemmanager \
+  modemmanager-openrc
+
+# ============================================================
+# STEP 13 — NFC
+# ============================================================
+apk add --no-cache \
+  libnfc \
+  libnfc-dev
+
+# ============================================================
+# STEP 14 — USB / MTP / ADB
+# ============================================================
+apk add --no-cache \
+  android-tools \
+  libmtp \
+  usb-modeswitch \
+  usb-modeswitch-udev
+
+# ============================================================
+# STEP 15 — Input debugging + gamepad mapping
+# ============================================================
+apk add --no-cache \
+  evtest \
+  libevdev \
+  antimicrox@testing
+
+# ============================================================
+# STEP 16 — Power management
+# ============================================================
+apk add --no-cache \
+  upower \
+  acpid \
+  power-profiles-daemon \
+  conky
+
+# ============================================================
+# STEP 17 — Media: GStreamer + VLC + codecs
+# ============================================================
+apk add --no-cache \
+  gstreamer \
+  gst-plugins-base \
+  gst-plugins-good \
+  gst-plugins-bad \
+  gst-plugins-ugly \
+  gst-libav \
+  ffmpeg \
+  vlc \
+  vlc-qt \
+  vlc-dev \
+  vlc-libs \
+  pugixml \
+  pugixml-dev
+
+# ============================================================
+# STEP 18 — Gaming
+# ============================================================
+apk add --no-cache \
+  firefox \
+  retroarch \
+  gstreamer \
+  pegasus-frontend@testing \
+  emulationstation@testing \
+  emulationstation-theme-gbz35@testing \
+  lutris@testing \
+  lutris-lang@testing \
+  lutris-pyc@testing \
+  wget \
+  ca-certificates \
+  curl \
+  jq
+
+# ============================================================
+# Gaming Plus*
+# ============================================================
+echo ">>> Fetching latest lutris-gamepad-ui release..."
+
+LATEST_TAG=$(curl -fsSL \
+  "https://api.github.com/repos/andrew-ld/lutris-gamepad-ui/releases/latest" \
+  | jq -r '.tag_name')
+
+echo ">>> Latest release: ${LATEST_TAG}"
+
+APPIMAGE_URL=$(curl -fsSL \
+  "https://api.github.com/repos/andrew-ld/lutris-gamepad-ui/releases/latest" \
+  | jq -r '.assets[].browser_download_url | select(test("arm64.*\\.AppImage$|\\.AppImage.*arm64$"; "i"))')
+
+if [ -z "${APPIMAGE_URL}" ]; then
+  echo "ERROR: Could not find an arm64 AppImage in release ${LATEST_TAG}" >&2
+  exit 1
+fi
+
+echo ">>> Downloading: ${APPIMAGE_URL}"
+wget -q --show-progress -O /usr/local/bin/lutris-gamepad-ui "${APPIMAGE_URL}"
+chmod +x /usr/local/bin/lutris-gamepad-ui
+
+echo ">>> lutris-gamepad-ui ${LATEST_TAG} installed at /usr/local/bin/lutris-gamepad-ui"
+
+# ============================================================
+# STEP 19 — Filesystem utilities
+# ============================================================
+apk add --no-cache \
+  mergerfs@testing
+
+# ============================================================
+# STEP 20 — Fonts
+# Added: font-misc-misc (bitmap X11 fonts for xterm)
+# ============================================================
+apk add --no-cache \
+  xterm \
+  font-alias \
+  fontconfig \
+  freetype \
+  font-noto-all \
+  font-noto-emoji \
+  font-dejavu \
+  encodings \
+  font-droid-nonlatin \
+  mkfontscale \
+  libfontenc \
+  ttf-freefont \
+  xkeyboard-config \
+  font-misc-misc
+
+# ============================================================
+# STEP 20b — Font cache
+# Rebuild fontconfig cache after all fonts are installed
+# ============================================================
+fc-cache -fv
+
+# ============================================================
+# STEP 21 — Accessibility
+# ============================================================
+apk add --no-cache \
+  at-spi2-core
+
+# ============================================================
+# STEP 22 — OpenRC service registration
+# ============================================================
+
+# sysinit
+rc-update add devfs          sysinit
+rc-update add dmesg          sysinit
+rc-update add udev           sysinit
+rc-update add udev-trigger   sysinit
+rc-update add udev-settle    sysinit
+
+# boot
+rc-update add dbus           boot
+rc-update add elogind        boot
+rc-update add seatd          boot
+rc-update add bluetooth      boot
+rc-update add networkmanager boot
+rc-update add wpa_supplicant boot
+rc-update add hostname       boot
+rc-update add networking     boot
+rc-update add upower         boot
+
+# default
+rc-update add udev-postmount   default
+rc-update add openrc-settingsd default
+rc-update add firewalld        default
+rc-update add ofono            default
+rc-update add modemmanager     default
+rc-update add acpid            default
+EOF
+
+
+
+
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+apk add --no-cache git python3
+
+BUILD=/home/gamepad_src
+rm -rf "$BUILD"
+mkdir -p "$BUILD"
+
+git clone \
+    --depth=1 \
+    --filter=blob:none \
+    --sparse \
+    https://github.com/GarlicOS/buildroot.git \
+    "$BUILD"
+
+cd "$BUILD"
+git sparse-checkout set package/gamepad/src
+mv package/gamepad/src/* .
+rm -rf package .git
+
+# ── Patch 1: device path ────────────────────────────────────
+sed -i \
+  's|#define RETROID_INPUT_GAMEPAD "/dev/ttyS0"|#define RETROID_INPUT_GAMEPAD "/dev/rscom"|' \
+  retroid_input.h
+echo "P1 OK: $(grep RETROID_INPUT_GAMEPAD retroid_input.h)"
+
+# ── Patch 2: baud rate ──────────────────────────────────────
+sed -i \
+  's/cfsetispeed(&uart_config, 0x1002)/cfsetispeed(\&uart_config, B115200)/' \
+  retroid_input.c
+sed -i \
+  's/cfsetospeed(&uart_config, 0x1002)/cfsetospeed(\&uart_config, B115200)/' \
+  retroid_input.c
+echo "P2 OK: $(grep B115200 retroid_input.c)"
+
+# ── Patch 3a: enable pocket3plus (sed, no Python needed) ────
+# Find the commented-out line and uncomment it, then remove the
+# "Disabled for now" line that follows it
+sed -i \
+  's|^\t\t// merge_retroid_input_inputs(merged_gamepad);|\t\tmerge_retroid_input_inputs(merged_gamepad);|' \
+  gamepad.c
+sed -i \
+  '/\/\/ Disabled for now until it is tested on RP3+/d' \
+  gamepad.c
+echo "P3a OK: $(grep -A1 'pocket3plus' gamepad.c | tail -2)"
+
+# ── Patch 3b: DEVICE_CODENAME fallback (sed line insert) ────
+# Insert a fallback line immediately after the getenv() call.
+# Use sed's 'a' (append after match) — no newline counting needed.
+sed -i \
+  '/char \* code_name = getenv("DEVICE_CODENAME");/a\\tif (!code_name) code_name = "pocket3plus"; /* RP3+ fallback */' \
+  gamepad.c
+echo "P3b OK: $(grep 'pocket3plus.*fallback' gamepad.c)"
+
+# ── Patch 3c: stub audio pipes (Python — only two replaces) ─
+# These are large multi-line blocks; Python handles them cleanly.
+# We only remove the assert checks that were causing false failures.
+python3 - <<'PYEOF'
+with open('gamepad.c', 'r') as f:
+    src = f.read()
+
+# Stub control pipe while-loop
+old_ctrl = '''	// We haven't created the audio provider control pipe yet
+	while (control_fd < 0)
+	{
+		// Create the named pipe
+		mkfifo(AUDIO_CONTROL_PIPE, 0666);
+
+		// Open the named pipe for writing
+		control_fd = open(AUDIO_CONTROL_PIPE, O_WRONLY | O_NONBLOCK);
+	}'''
+new_ctrl = '\t/* STUB: audio control pipe skipped in Alpine */\n\tcontrol_fd = -1;'
+
+# Stub response pipe while-loop
+old_resp = '''	// We haven't created the audio provider response pipe yet
+	while (response_fd < 0)
+	{
+		// Create the named pipe
+		mkfifo(AUDIO_RESPONSE_PIPE, 0666);
+
+		// Open the named pipe for reading
+		response_fd = open(AUDIO_RESPONSE_PIPE, O_RDONLY | O_NONBLOCK);
+	}'''
+new_resp = '\t/* STUB: audio response pipe skipped in Alpine */\n\tresponse_fd = -1;'
+
+if old_ctrl in src:
+    src = src.replace(old_ctrl, new_ctrl)
+    print("P3c-ctrl OK")
+else:
+    print("P3c-ctrl WARN: pattern not found, skipping (non-fatal)")
+
+if old_resp in src:
+    src = src.replace(old_resp, new_resp)
+    print("P3c-resp OK")
+else:
+    print("P3c-resp WARN: pattern not found, skipping (non-fatal)")
+
+with open('gamepad.c', 'w') as f:
+    f.write(src)
+PYEOF
+
+# ── Compile ─────────────────────────────────────────────────
+gcc -O2 -Wall \
+    -static \
+    -o /home/retroid_gamepad \
+    gamepad.c \
+    retroid_input.c \
+    rg405.c \
+    rg35xxplus.c \
+    -lpthread
+
+echo ""
+echo "=== Build result ==="
+ls -lh /home/retroid_gamepad
+file /home/retroid_gamepad
+sudo rm -rf gamepad_src
+echo "=== Done ==="
+EOF
+
+
+
+
+Step 6
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+# Added eudev-dev to satisfy SFML's UDev requirement
+apk add --no-cache \
+  glu-dev \
+  mesa-gl \
+  mesa-egl \
+  mesa-gles \
+  libx11-dev \
+  libxrandr-dev \
+  libxcursor-dev \
+  libxinerama-dev \
+  libxi-dev \
+  libxext-dev \
+  openal-soft-dev \
+  libogg-dev \
+  libvorbis-dev \
+  flac-dev \
+  freetype-dev \
+  libjpeg-turbo-dev \
+  ffmpeg-dev \
+  fontconfig-dev \
+  libgit2-dev \
+  curl-dev \
+  cmake \
+  eudev-dev
+
+cd /opt
+rm -rf attractplus
+git clone --depth 1 https://github.com/oomek/attractplus.git
+cd attractplus
+
+# Build with GLES (Mali)
+make USE_GLES=1 -j$(nproc)
+make install
+
+rm -rf /opt/attractplus
+echo "Attract-Mode Plus installed:"
+which attract || ls -lh /usr/local/bin/attract*
+EOF
+
+
+
+Step 7
+
+
+
+
+
+EXTRA:
+
+
+Step 7
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# ============================================================
+# STEP 1 — Repositories
+# ============================================================
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/edge/main
+https://dl-cdn.alpinelinux.org/alpine/edge/community
+@testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+apk upgrade --no-cache
+
+# ============================================================
+# STEP 2 — Base system + core libs
+# ============================================================
+apk add --no-cache \
+  vulkan-tools \
+  mesa-demos \
+  glmark2@testing \
+  exo \
+  font-dejavu \
+  garcon \
+  libxfce4ui \
+  libxfce4util \
+  libxfce4windowing \
+  thunar \
+  thunar-volman \
+  tumbler \
+  hicolor-icon-theme \
+  libutempter \
+  skalibs-libs \
+  utmps-libs \
+  vte3 \
+  vte3-profile \
+  vte3-app \
+  vte3-gtk4 \
+  simdutf \
+  adwaita-fonts \
+  libutempter \
+  skalibs-libs \
+  utmps-libs \
+  vte3 \
+  cairo \
+  cairo-gobject \
+  fribidi \
+  graphene \
+  gtk4.0 \
+  libepoxy \
+  gstreamer \
+  gdk-pixbuf \
+  gst-plugins-base \
+  harfbuzz \
+  harfbuzz-subset \
+  tiff \
+  libwebp \
+  libsharpyuv \
+  spirv-tools \
+  tinyxml \
+  libdisplay-info \
+  libxshmfence \
+  mesa-vulkan-swrast \
+  vulkan-loader \
+  wayland-libs-client \
+  wayland-libs-egl \
+  libatk-1.0 \
+  xfce4 \
+  xfce4-terminal \
+  xfconf \
+  libxfce4ui \
+  libxfce4util \
+  libxfce4ui \
+  xfce4-appfinder \
+  xfce4-battery-plugin \
+  xfce4-calculator-plugin \
+  xfce4-clipman-plugin \
+  xfce4-cpufreq-plugin \
+  xfce4-cpugraph-plugin \
+  xfce4-diskperf-plugin \
+  xfce4-docklike-plugin \
+  xfce4-fsguard-plugin \
+  xfce4-genmon-plugin \
+  xfce4-mailwatch-plugin \
+  xfce4-mpc-plugin \
+  xfce4-netload-plugin \
+  xfce4-notes-plugin \
+  xfce4-notifyd \
+  xfce4-panel \
+  xfce4-places-plugin \
+  xfce4-power-manager \
+  xfce4-pulseaudio-plugin \
+  xfce4-screensaver \
+  xfce4-screenshooter \
+  xfce4-sensors-plugin \
+  xfce4-session \
+  xfce4-settings \
+  xfce4-smartbookmark-plugin \
+  xfce4-statusnotifier-plugin \
+  xfce4-systemload-plugin \
+  xfce4-taskmanager \
+  xfce4-terminal \
+  xfce4-timer-plugin \
+  xfce4-verve-plugin \
+  xfce4-wavelan-plugin \
+  xfce4-weather-plugin \
+  xfce4-whiskermenu-plugin \
+  xfce4-xkb-plugin \
+  xfdashboard \
+  xfdesktop \
+  xfwm4
+
+EOF
+
+
+
+
+
+
+
+Need to add the passwd/shadow entries:
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+echo "Installing sudo..."
+apk add --no-cache sudo
+
+echo "Creating user 'plus'..."
+# -D creates the user without triggering an interactive password prompt
+# -s /bin/sh sets the default shell
+adduser -D -s /bin/sh plus
+
+echo "Setting password for 'plus'..."
+# This sets the password to "plus". You can change this later by running 'passwd' 
+echo "plus:three" | chpasswd
+
+echo "Adding 'plus' to common desktop and admin groups..."
+# These groups are essential for XFCE, audio, video, and administrative access
+for g in wheel video audio input netdev plugdev; do
+    addgroup plus $g || true
+done
+
+echo "Enabling sudo rights for the 'wheel' group..."
+# Uncomment the standard %wheel line in /etc/sudoers so 'plus' can use sudo
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+
+echo "========================================"
+echo "User 'plus' has been created successfully!"
+echo "========================================"
+EOF
+
+
+
+Step 8
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+apk add --no-cache \
+  cmake ninja g++ gcc git make pkgconf \
+  sdl2-dev \
+  freetype-dev \
+  harfbuzz-dev \
+  curl-dev \
+  freeimage-dev \
+  vlc-dev \
+  poppler-dev \
+  pugixml-dev \
+  rapidjson-dev \
+  alsa-lib-dev \
+  icu-dev \
+  libgit2-dev \
+  bluez-dev \
+  ffmpeg-dev \
+  mesa-egl mesa-gles mesa-dev \
+  wayland-dev wayland-protocols \
+  libx11-dev libxext-dev libdrm-dev \
+  glib-dev gtk+3.0-dev
+
+cd /tmp
+rm -rf es-de
+git clone --recursive https://gitlab.com/es-de/emulationstation-de.git /tmp/es-de
+cd /tmp/es-de
+mkdir -p build
+cd build
+
+cmake .. \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DGLES=on \
+  -DGLES2=off \
+  -DDEINIT_ON_LAUNCH=on \
+  -DENABLE_WAYLAND=on \
+  -DENABLE_KMS=on
+
+cmake --build . -j$(nproc)
+cmake --install .
+
+echo "=== ES-DE verify ==="
+ES_BIN=$(command -v emulationstation 2>/dev/null || command -v es-de 2>/dev/null || true)
+echo "Binary: ${ES_BIN:-not found}"
+[ -n "$ES_BIN" ] && file "$ES_BIN" || true
+[ -n "$ES_BIN" ] && ldd "$ES_BIN" 2>/dev/null | grep -E 'EGL|GLES|SDL2|vlc|avcodec|wayland' || true
+EOF
+
+
+
+
+Step 9
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+apk add --no-cache \
+  gtk+3.0-dev \
+  gdk-pixbuf-dev \
+  openal-soft-dev \
+  libao-dev \
+  mesa-gl \
+  glu-dev \
+  libx11-dev \
+  libxext-dev \
+  alsa-lib-dev
+
+echo "libGL.so: $(find /usr/lib -name 'libGL.so*' | head -3)"
+echo "libopenal.so: $(find /usr/lib -name 'libopenal.so*' | head -3)"
+echo "OpenAL headers: $(find /usr/include -name 'al.h' | head -3)"
+
+cd /tmp
+rm -rf ares
+git clone --depth 1 https://github.com/ares-emulator/ares /tmp/ares
+cd /tmp/ares
+git submodule update --init --recursive
+
+cmake \
+  -S . -B build \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++ \
+  -DCMAKE_C_FLAGS="-fno-lto" \
+  -DCMAKE_CXX_FLAGS="-fno-lto" \
+  -DINTERPROCEDURAL_OPTIMIZATION=OFF \
+  -DARES_LIBRASHADER=ON \
+  -DOPENGL_opengl_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_gl_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_glx_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_INCLUDE_DIR=/usr/include \
+  -DOpenGL_GL_PREFERENCE=LEGACY \
+  -DOPENAL_LIBRARY=/usr/lib/libopenal.so \
+  -DOPENAL_INCLUDE_DIR=/usr/include/AL \
+  -DARES_ENABLE_OPENAL=ON
+
+cmake --build build -j$(nproc)
+cmake --install build
+
+cd /
+rm -rf /tmp/ares
+
+echo "ares installed:"
+which ares || ls -lh /usr/local/bin/ares*
+echo "Step completed"
+EOF
+
+
+
+
+Cannot use librashaders, cdylib is unsupported;
+
+bash <<'EOF'
+set -e
+
+# --- Rust: use existing install or install fresh ---
+if command -v cargo >/dev/null 2>&1; then
+  echo "Existing Rust found: $(rustc --version)"
+  # Make sure cargo env is sourced in case it's not in PATH yet
+  [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
+else
+  echo "No Rust found — installing via rustup..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+  source "$HOME/.cargo/env"
+  echo "Installed: $(rustc --version)"
+fi
+
+# --- Add aarch64-musl target if not already present ---
+if rustup target list --installed | grep -q "aarch64-unknown-linux-musl"; then
+  echo "aarch64-unknown-linux-musl target already installed — skipping"
+else
+  echo "Adding aarch64-unknown-linux-musl target..."
+  rustup target add aarch64-unknown-linux-musl
+fi
+
+# --- Install cross-linker on WSL host ---
+sudo apt-get install -y gcc-aarch64-linux-gnu
+
+# --- Add linker config only if not already present ---
+mkdir -p ~/.cargo
+if grep -q "aarch64-unknown-linux-musl" ~/.cargo/config.toml 2>/dev/null; then
+  echo "Cargo linker config already present — skipping"
+else
+  cat >> ~/.cargo/config.toml <<'CARGO'
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-gnu-gcc"
+CARGO
+  echo "Linker config written to ~/.cargo/config.toml"
+fi
+
+# --- Clone librashader ---
+cd /tmp
+rm -rf librashader
+git clone --depth 1 https://github.com/SnowflakePowered/librashader /tmp/librashader
+cd /tmp/librashader
+
+# --- Cross-compile for aarch64-musl ---
+echo "Building librashader for aarch64-unknown-linux-musl..."
+cargo build \
+  --release \
+  --target aarch64-unknown-linux-musl \
+  -p librashader-capi
+
+# --- Stage the .so ---
+SO=""
+for candidate in \
+  target/aarch64-unknown-linux-musl/release/liblibrashader.so \
+  target/aarch64-unknown-linux-musl/release/librashader.so; do
+  if [ -f "$candidate" ]; then
+    SO="$candidate"
+    break
+  fi
+done
+
+if [ -z "$SO" ]; then
+  echo "ERROR: Could not find built librashader.so — listing release dir:"
+  ls target/aarch64-unknown-linux-musl/release/*.so 2>/dev/null || echo "(no .so files found)"
+  exit 1
+fi
+
+cp "$SO" /tmp/librashader_aarch64.so
+echo ""
+echo "Staged at: /tmp/librashader_aarch64.so"
+file /tmp/librashader_aarch64.so
+
+# --- Cleanup source ---
+cd /tmp
+rm -rf /tmp/librashader
+echo "It's going to fail for alpine because of glibc."
+EOF
+
+
+
+
+
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# Repos already set to edge — skip if already done
+# apk update
+
+# Install Sxmo (Wayland/sway variant) + PulseAudio backend
+apk add --no-cache \
+  sxmo-utils-common \
+  sxmo-utils-audio-pulseaudio \
+  tinydm \
+  foot \
+  networkmanager \
+  pipewire \
+  wireplumber
+
+# Enable tinydm to launch Sxmo sessions at boot
+rc-update add tinydm default
+rc-update add networkmanager default
+
+EOF
+
+
+# STEP DO WE NEED?
+
+
+
+
+Step 12
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+echo ""
+echo "=== sysinit ==="
+ls /etc/runlevels/sysinit/
+
+echo "=== boot ==="
+ls /etc/runlevels/boot/
+
+echo "=== default ==="
+ls /etc/runlevels/default/
+
+echo ""
+echo "=== Binary checks ==="
+python3 --version
+meson --version
+ls /usr/bin/lomiri                                      && echo "lomiri           OK"
+ls /usr/lib/libmirserver.so* && echo "mir              OK"
+ls /usr/lib/mir/server-platform/graphics-gbm-kms.so* && echo "KMS platform     OK"
+ls /usr/lib/qt5/qml/Lomiri/                             && echo "Lomiri QML       OK"
+ls /usr/bin/pegasus-fe                                  && echo "pegasus-fe       OK"
+ls /usr/bin/emulationstation                            && echo "emulationstation OK"
+ls /usr/bin/vlc                                         && echo "vlc              OK"
+ls /usr/bin/antimicrox                                  && echo "antimicrox       OK"
+ls /usr/bin/mergerfs                                    && echo "mergerfs         OK"
+libnfc-scan-device 2>/dev/null || echo "libnfc OK (no reader attached)"
+
+echo ""
+echo "=== D-Bus activated — no rc-update needed ==="
+echo "  upower                 (battery queries)"
+echo "  geoclue                (location requests)"
+echo "  power-profiles-daemon  (performance/power mode)"
+
+echo ""
+echo "=== User session — launched by elogind on login ==="
+echo "  pipewire + wireplumber (audio)"
+echo "  feedbackd              (haptics + LEDs)"
+echo "  hfd-service            (haptic feedback daemon)"
+
+echo ""
+echo "=== Total packages ==="
+apk info | wc -l
+
+echo ""
+echo "=== INSTALL COMPLETE ==="
+
+EOF
+
+sudo cp ~/ums512_kernel/alp/gl mnt/home/plus
+
+
+
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+# 1. Define the massive list of development packages
+PKGS="llvm22-rc llvm22-lto llvm22-readtapi llvm20-bcanalyzer llvm22-jitlink \
+llvm22-extract llvm20-tblgen llvm22-profgen llvm20-cvtres llvm22-libtool-darwin \
+llvm22-tli-checker llvm20-ranlib llvm22-cas llvm22-undname llvm20-debuginfod-find \
+llvm20-modextract llvm22-strings llvm22-debuginfod-find llvm20-extract llvm22-bcanalyzer \
+llvm20-windres llvm22-lto2 llvm22-as llvm22-cxxfilt llvm20-lipo llvm22-debuginfo-analyzer \
+llvm22-link llvm22-ml64 llvm-config llvm22-cat llvm20-PerfectShuffle llvm20-debuginfo-analyzer \
+llvm22-diff llvm22-offload-binary llvm22-opt-report llvm22-readelf llvm20-stress \
+llvm22-dlltool llvm20-ctxprof-util llvm22-ar llvm20-size llvm20-cov llvm22-cgdata \
+llvm22-readobj llvm22-strip llvm22-windres llvm20-rc llvm20-mt llvm20-lto2 llvm20-ifs \
+llvm20-debuginfod llvm20-xray llvm20-libtool-darwin llvm20-cxxfilt llvm22-jitlink-executor \
+llvm22-ml llvm-config-22 llvm22-tblgen llvm22-ranlib llvm20-sim llvm20-dwp llvm20-split \
+llvm20-strings llvm22-cov llvm20-cgdata llvm20-objdump llvm22-mt llvm22-sim \
+llvm22-install-name-tool llvm20-profgen llvm22-modextract llvm20-cfi-verify llvm20-opt-report \
+llvm20-cat llvm20-dwarfutil llvm20-mca llvm-spirv llvm22-nm llvm20-pdbutil llvm22-rtdyld \
+llvm20-link llvm22-c-test llvm20-ar llvm22-objcopy llvm20-objcopy llvm22-gsymutil \
+llvm20-tli-checker llvm20-lto llvm20-rtdyld llvm20-cxxmap llvm22-bitcode-strip llvm22-stress \
+llvm22-cxxdump llvm22-mca llvm22-otool llvm22-profdata llvm22-symbolizer llvm22-mc \
+llvm22-cxxmap llvm22-split llvm20-profdata llvm22-dis llvm20-nm llvm22-dwp llvm22-cfi-verify \
+llvm20-dlltool llvm20-remarkutil llvm20-readobj llvm22-dwarfdump llvm22-objdump \
+llvm20-gsymutil llvm20-bitcode-strip llvm22-lipo llvm22-config llvm20-symbolizer llvm20-lib \
+llvm22-debuginfod llvm22-xray llvm20-otool llvm22-ctxprof-util llvm22-remarkutil \
+llvm22-offload-wrapper llvm22-test-mustache-spec llvm20-install-name-tool llvm20-jitlink \
+llvm20-reduce llvm22-addr2line llvm22-exegesis llvm20-undname llvm20-ml llvm20-diff \
+llvm22-pdbutil llvm20-mc llvm22-ifs llvm20-c-test llvm22-PerfectShuffle llvm22-dwarfutil \
+llvm20-dis llvm22-lib llvm20-strip llvm22-size llvm22-ir2vec llvm22-cvtres llvm20-dwarfdump \
+llvm20-readelf llvm20-addr2line llvm20-readtapi llvm20-jitlink-executor llvm20-exegesis \
+llvm20-as llvm20-cxxdump llvm22-reduce lto-dump ctest"
+
+# 2. Perform a dry run (-s simulates the action without making changes)
+echo "============================================================"
+echo "SIMULATING REMOVAL..."
+echo "============================================================"
+apk del -s $PKGS
+
+echo ""
+echo "============================================================"
+echo "CHECK THE LIST ABOVE."
+echo "If you DO NOT see 'mesa' or 'xfce4' listed for deletion,"
+echo "you can permanently remove them by running this command:"
+echo "============================================================"
+echo "apk del \$PKGS"
+EOF
+
+
+
+
+Step 12
+# Clean inside chroot
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh -c \
+  "rm -rf /var/cache/apk/* /tmp/* /var/tmp/*"
+
+# Remove qemu binary before packing
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+# Unmount in reverse order
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+# Pack as tarball
+sudo tar -czpf alproot.tar.gz -C mnt .
+
+# Unmount and clean image
+sudo umount mnt
+
+rm rootfs.img
+
+
+
+
+STEP Z
+
+cd ~/ums512_kernel/alp
+
+dd if=/dev/zero of=rootfs.img bs=1M count=9001 status=progress
+
+mkfs.ext4 rootfs.img
+
+mkdir -p mnt
+
+sudo mount -o loop rootfs.img mnt
+
+sudo tar -xzpf alproot.tar.gz -C mnt --numeric-owner
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+
+
+
+
+

@@ -1,0 +1,87 @@
+MESA-EGL: warning: failed to get driver name for fd -1
+MESA-EGL: warning: MESA-LOADER: failed to retrieve device information
+MESA-EGL: warning: failed to get driver name for fd -1
+ATTENTION: default value of option vblank_mode overridden by environment.
+ATTENTION: default value of option mesa_glthread overridden by environment.
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      Mesa
+    GL_RENDERER:    virgl (Mali-G52)
+    GL_VERSION:     4.0 (Compatibility Profile) Mesa 26.2.0-devel (git-304324eb28)
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=32 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[build] use-vbo=false: FPS: 35 FrameTime: 28.923 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[build] use-vbo=true: FPS: 33 FrameTime: 30.468 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[texture] texture-filter=nearest: FPS: 33 FrameTime: 30.377 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[texture] texture-filter=linear: FPS: 33 FrameTime: 30.621 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[texture] texture-filter=mipmap: FPS: 33 FrameTime: 30.809 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[shading] shading=gouraud: FPS: 33 FrameTime: 30.980 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[shading] shading=blinn-phong-inf: FPS: 32 FrameTime: 31.401 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[shading] shading=phong: FPS: 33 FrameTime: 31.081 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[shading] shading=cel: FPS: 33 FrameTime: 30.874 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[bump] bump-render=high-poly: FPS: 31 FrameTime: 33.113 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[bump] bump-render=normals: FPS: 33 FrameTime: 30.409 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[bump] bump-render=height: FPS: 33 FrameTime: 30.850 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[effect2d] kernel=0,1,0;1,-4,1;0,1,0;: FPS: 33 FrameTime: 31.042 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[effect2d] kernel=1,1,1,1,1;1,1,1,1,1;1,1,1,1,1;: FPS: 30 FrameTime: 33.774 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[pulsar] light=false:quads=5:texture=false: FPS: 33 FrameTime: 31.083 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[desktop] blur-radius=5:effect=blur:passes=1:separable=true:windows=4: FPS: 29 FrameTime: 35.422 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[desktop] effect=shadow:windows=4: FPS: 32 FrameTime: 32.001 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 22 FrameTime: 45.511 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=subdata: FPS: 24 FrameTime: 42.379 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[buffer] columns=200:interleave=true:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 25 FrameTime: 40.338 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[ideas] speed=duration: FPS: 27 FrameTime: 37.167 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[jellyfish] <default>: FPS: 32 FrameTime: 31.815 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[terrain] <default>: FPS: 15 FrameTime: 71.409 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[shadow] <default>: FPS: 31 FrameTime: 32.759 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[refract] <default>: FPS: 21 FrameTime: 48.223 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[conditionals] fragment-steps=0:vertex-steps=0: FPS: 33 FrameTime: 31.185 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[conditionals] fragment-steps=5:vertex-steps=0: FPS: 33 FrameTime: 30.921 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[conditionals] fragment-steps=0:vertex-steps=5: FPS: 33 FrameTime: 30.667 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[function] fragment-complexity=low:fragment-steps=5: FPS: 32 FrameTime: 31.478 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[function] fragment-complexity=medium:fragment-steps=5: FPS: 32 FrameTime: 31.403 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[loop] fragment-loop=false:fragment-steps=5:vertex-steps=5: FPS: 35 FrameTime: 28.984 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[loop] fragment-steps=5:fragment-uniform=false:vertex-steps=5: FPS: 34 FrameTime: 30.271 ms
+ATTENTION: default value of option mesa_glthread overridden by environment.
+[loop] fragment-steps=5:fragment-uniform=true:vertex-steps=5: FPS: 33 FrameTime: 30.386 ms
+=======================================================
+                                  glmark2 Score: 29 
+=======================================================
+==========================================================
+[vir-gl] SUCCESS (exit 0)
+==========================================================

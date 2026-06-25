@@ -1,0 +1,1372 @@
+
+
+
+Step 1
+
+sudo apt-get install -y \
+  qemu-user-static \
+  binfmt-support \
+  e2fsprogs \
+  curl \
+  util-linux
+
+
+
+Step 2
+sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+
+# Restart binfmt-support so all qemu-user-static handlers are registered
+sudo service binfmt-support restart 2>/dev/null || \
+  sudo update-binfmts --enable qemu-aarch64
+
+# Verify registration — must return a non-empty result
+grep -l aarch64 /proc/sys/fs/binfmt_misc/* 2>/dev/null || \
+  echo "WARNING: qemu-aarch64 binfmt not active"
+
+sudo umount -l ~/ums512_kernel/alp/mnt/dev/pts 2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/dev      2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/sys      2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt/proc     2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/alp/mnt          2>/dev/null || true
+
+cd ~/ums512_kernel
+
+sudo rm -rf alp
+
+mkdir alp && cd alp
+
+
+
+
+Step 3
+dd if=/dev/zero of=rootfs.img bs=1M count=5120
+
+mkfs.ext4 -L rootfs rootfs.img
+
+mkdir -p mnt
+
+sudo mount -o loop rootfs.img mnt
+
+
+
+
+Step 4
+MIRROR="https://dl-cdn.alpinelinux.org/alpine"
+
+ARCH="aarch64"
+
+APK_STATIC_PKG=$(curl -fsSL "${MIRROR}/edge/main/${ARCH}/" \
+  | grep -o 'apk-tools-static-[0-9][^"]*\.apk' | head -1)
+curl -fsSL "${MIRROR}/edge/main/${ARCH}/${APK_STATIC_PKG}" -o /tmp/apk-tools-static.apk
+tar -xzf /tmp/apk-tools-static.apk -C /tmp sbin/apk.static
+chmod +x /tmp/sbin/apk.static
+
+
+sudo mkdir -p mnt/etc/apk/keys
+tar -tf /tmp/apk-tools-static.apk | grep '\.pub' | while read k; do
+  tar -xzf /tmp/apk-tools-static.apk "$k" -O 2>/dev/null \
+    | sudo tee "mnt/etc/apk/keys/$(basename "$k")" > /dev/null || true
+done
+
+sudo /tmp/sbin/apk.static \
+  --arch "${ARCH}" \
+  -X "${MIRROR}/edge/main" \
+  -X "${MIRROR}/edge/community" \
+  --keys-dir mnt/etc/apk/keys \
+  -U --allow-untrusted \
+  --root mnt \
+  --initdb \
+  add alpine-base
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+sudo tee mnt/etc/resolv.conf > /dev/null <<'EOF'
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+
+
+Step 5
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/edge/main
+https://dl-cdn.alpinelinux.org/alpine/edge/community
+@testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+apk upgrade --no-cache
+
+# === Base system ===
+apk add --no-cache \
+  bash busybox-extras ca-certificates openrc eudev dbus \
+  seatd seatd-launch strace \
+  networkmanager networkmanager-wifi networkmanager-bluetooth \
+  wpa_supplicant firewalld \
+  ofono bluez bluez-deprecated \
+  alsa-lib alsa-utils \
+  pipewire pipewire-pulse pipewire-jack pipewire-alsa \
+  wireplumber pavucontrol \
+  lm-sensors \
+  gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav \
+  ffmpeg iio-sensor-proxy connman \
+  glib libnl3 dbus-glib \
+  build-base git meson ninja cmake pkgconf \
+  glib-dev dbus-dev linux-headers eudev-dev \
+  python3 py3-packaging py3-parsing \
+  feedbackd
+
+# === Display/compositor ===
+apk add --no-cache \
+  ttf-freefont xkeyboard-config \
+  mesa mesa-egl mesa-gbm mesa-gl mesa-dri-gallium \
+  libdrm libinput xwayland \
+  boost1.84-iostreams boost1.84-program_options \
+  libepoxy libdisplay-info yaml-cpp \
+  elogind \
+  mir@testing \
+  mir-demos@testing \
+  mir-test-tools@testing
+
+# === Lomiri shell ===
+apk add --no-cache \
+  lomiri@testing \
+  lomiri-lang@testing \
+  lomiri-app-launch@testing \
+  lomiri-url-dispatcher@testing \
+  lomiri-notifications@testing \
+  lomiri-schemas@testing \
+  lomiri-settings-components@testing \
+  lomiri-telephony-service@testing \
+  lomiri-thumbnailer@testing \
+  lomiri-deviceinfo \
+  ayatana-indicator-keyboard@testing \
+  ayatana-indicator-session@testing \
+  suru-icon-theme@testing \
+  openrc-settingsd \
+  qt5-qtbase-sqlite \
+  qt5-qtgraphicaleffects \
+  gsettings-desktop-schemas
+
+# === OpenRC services ===
+rc-update add devfs         sysinit
+rc-update add dmesg         sysinit
+rc-update add eudev         sysinit
+rc-update add dbus          boot
+rc-update add elogind       boot
+rc-update add seatd         boot
+rc-update add bluetooth     boot
+rc-update add networkmanager boot
+rc-update add wpa_supplicant boot
+rc-update add firewalld     default
+rc-update add ofono         default
+rc-update add hostname      boot
+rc-update add networking    boot
+
+# === Verify ===
+python3 --version
+mir-smoke-test-runner --help 2>&1 | head -2 || true
+ls /usr/bin/lomiri && echo "lomiri binary OK"
+
+echo "=== Full edge install complete ==="
+EOF
+
+
+
+Step 6
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# === Fix eudev service names ===
+# udev-init-scripts provides: udev, udev-trigger, udev-settle, udev-postmount
+# (NOT "eudev" — that's just the package name)
+rc-update add udev          sysinit
+rc-update add udev-trigger  sysinit
+rc-update add udev-settle   sysinit
+rc-update add udev-postmount default
+
+# Fix openrc-settingsd (its post-install told us to)
+rc-update add openrc-settingsd default
+
+# === Verify all runlevels ===
+echo "--- sysinit ---"
+ls /etc/runlevels/sysinit/
+
+echo "--- boot ---"
+ls /etc/runlevels/boot/
+
+echo "--- default ---"
+ls /etc/runlevels/default/
+
+# === Verify key binaries ===
+echo ""
+echo "=== Binary checks ==="
+python3 --version
+meson --version
+mir-smoke-test-runner --help 2>&1 | head -1 || true
+ls /usr/bin/lomiri        && echo "lomiri OK"
+ls /usr/bin/lomiri-session 2>/dev/null && echo "lomiri-session OK" || \
+  find /usr -name 'lomiri*' -type f 2>/dev/null | head -10
+
+echo ""
+echo "=== Mir platform check ==="
+ls /usr/lib/libmir*.so* 2>/dev/null | head -6
+ls /usr/lib/mir/server-platform/ 2>/dev/null || \
+  find /usr/lib -name '*mir*platform*' 2>/dev/null | head -6
+
+echo ""
+echo "=== Qt/QML check ==="
+ls /usr/lib/qt5/qml/Lomiri/ 2>/dev/null && echo "Lomiri QML OK" || \
+  find /usr/lib/qt5/qml -maxdepth 2 -name "*.so" 2>/dev/null | head -8
+
+echo ""
+echo "=== OpenRC services installed ==="
+rc-update show 2>/dev/null | grep -v "^$"
+
+echo ""
+echo "=== Total installed ==="
+apk info | wc -l
+
+echo "=== Verification complete ==="
+EOF
+
+
+
+Step 7
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/v3.22/main
+https://dl-cdn.alpinelinux.org/alpine/v3.22/community
+@testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+apk upgrade --no-cache
+
+echo "alpine-arm64" > /etc/hostname
+cat > /etc/hosts <<'HOSTS'
+127.0.0.1   localhost
+127.0.1.1   alpine-arm64
+HOSTS
+
+apk add --no-cache tzdata
+cp /usr/share/zoneinfo/UTC /etc/localtime
+echo "UTC" > /etc/timezone
+apk del tzdata
+EOF
+
+
+
+Step 8
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# First set up tagged edge repos so you can pull specific edge packages
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/v3.22/main
+https://dl-cdn.alpinelinux.org/alpine/v3.22/community
+@edge-community https://dl-cdn.alpinelinux.org/alpine/edge/community
+@edge-testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+
+apk add --no-cache \
+  bash busybox-extras ca-certificates openrc eudev dbus \
+  seatd seatd-launch strace \
+  networkmanager networkmanager-wifi networkmanager-bluetooth \
+  wpa_supplicant firewalld \
+  ofono bluez bluez-deprecated \
+  alsa-lib alsa-utils \
+  pipewire pipewire-pulse pipewire-jack pipewire-alsa \
+  wireplumber pavucontrol \
+  lm-sensors \
+  android-tools \
+  gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav \
+  ffmpeg \
+  iio-sensor-proxy \
+  connman \
+  glib \
+  libnl3 \
+  dbus-glib \
+  build-base git meson ninja cmake pkgconf \
+  glib-dev dbus-dev linux-headers eudev-dev
+
+# feedbackd from edge-community
+apk add --no-cache feedbackd@edge-community
+
+echo "=== Base packages installed ==="
+EOF
+
+
+
+Step 9
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# First set up tagged edge repos so you can pull specific edge packages
+cat > /etc/apk/repositories <<'REPOS'
+https://dl-cdn.alpinelinux.org/alpine/v3.22/main
+https://dl-cdn.alpinelinux.org/alpine/v3.22/community
+@edge-community https://dl-cdn.alpinelinux.org/alpine/edge/community
+@edge-testing https://dl-cdn.alpinelinux.org/alpine/edge/testing
+REPOS
+
+apk update
+
+apk add --no-cache \
+  bash busybox-extras ca-certificates openrc eudev dbus \
+  seatd seatd-launch strace \
+  networkmanager networkmanager-wifi networkmanager-bluetooth \
+  wpa_supplicant firewalld \
+  ofono bluez bluez-deprecated \
+  alsa-lib alsa-utils \
+  pipewire pipewire-pulse pipewire-jack pipewire-alsa \
+  wireplumber pavucontrol \
+  lm-sensors \
+  android-tools \
+  gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav \
+  ffmpeg \
+  iio-sensor-proxy \
+  connman \
+  glib \
+  libnl3 \
+  dbus-glib \
+  build-base git meson ninja cmake pkgconf \
+  glib-dev dbus-dev linux-headers eudev-dev
+
+# feedbackd from edge-community
+apk add --no-cache feedbackd@edge-community
+
+echo "=== Base packages installed ==="
+EOF
+
+
+
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk update && apk upgrade --no-cache
+
+apk add --no-cache \
+  vulkan-loader \
+  vulkan-loader-dev \
+  vulkan-tools \
+  mesa \
+  mesa-dev \
+  mesa-gbm \
+  mesa-gl \
+  mesa-egl \
+  mesa-gles \
+  libdrm \
+  libdrm-dev \
+  wayland \
+  wayland-dev \
+  wayland-protocols \
+  libxkbcommon \
+  libxkbcommon-dev \
+  libinput \
+  libinput-dev \
+  libseat \
+  libseat-dev \
+  libevdev \
+  libevdev-dev \
+  mtdev-dev \
+  libwacom \
+  libwacom-dev \
+  pixman-dev \
+  cairo-dev \
+  pango-dev \
+  glib-dev \
+  libpng-dev \
+  libjpeg-turbo-dev \
+  lcms2-dev \
+  xwayland \
+  weston \
+  dbus \
+  dbus-dev \
+  eudev \
+  eudev-dev \
+  seatd \
+  seatd-launch
+
+mkdir -p /etc/vulkan/icd.d/disabled
+for f in /usr/share/vulkan/icd.d/*.json; do
+  [ -f "$f" ] && mv "$f" /etc/vulkan/icd.d/disabled/ && echo "Disabled: $f"
+done
+
+echo "Step 7 complete"
+EOF
+
+
+
+Step 8
+
+
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+mkdir -p /etc/vulkan/icd.d
+
+cat > /etc/vulkan/icd.d/mali_icd.aarch64.json <<'JSON'
+{
+    "file_format_version": "1.0.0",
+    "ICD": {
+        "library_path": "/vendor/lib64/hw/vulkan.ums512.so",
+        "api_version": "1.1.0"
+    }
+}
+JSON
+
+echo "Mali ICD registered:"
+cat /etc/vulkan/icd.d/mali_icd.aarch64.json
+EOF
+
+
+Step 9
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache cmake git g++ make linux-headers
+
+cd /opt
+rm -rf vulkan-wsi-layer
+git clone https://github.com/ginkage/vulkan-wsi-layer.git
+cd vulkan-wsi-layer
+mkdir build && cd build
+
+cmake .. \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DVULKAN_CXX_INCLUDE=/usr/include \
+  -DBUILD_WSI_HEADLESS=0 \
+  -DBUILD_WSI_WAYLAND=1 \
+  -DBUILD_WSI_X11=0 \
+  -DSELECT_EXTERNAL_ALLOCATOR=dma_buf_heaps \
+  -DWSIALLOC_MEMORY_HEAP_NAME=system-uncached \
+  -DENABLE_WAYLAND_FIFO_PRESENTATION_THREAD=1
+
+make -j$(nproc)
+make install
+
+echo "WSI layer installed:"
+ls -lh /usr/local/share/vulkan/implicit_layer.d/libVkLayer_window_system_integration.so
+ls -lh /usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json
+EOF
+
+
+
+
+Step 10
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+cat > /usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json <<'JSON'
+{
+    "file_format_version": "1.1.2",
+    "layer": {
+        "name": "VK_LAYER_ARM_window_system_integration",
+        "type": "GLOBAL",
+        "library_path": "/usr/local/share/vulkan/implicit_layer.d/libVkLayer_window_system_integration.so",
+        "api_version": "1.1.299",
+        "implementation_version": "1",
+        "description": "Window System Integration Layer",
+        "disable_environment": {}
+    }
+}
+JSON
+
+rm -f /etc/vulkan/implicit_layer.d/VkLayer_window_system_integration.json
+
+cat > /etc/profile.d/vulkan.sh <<'SH'
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json
+export VK_LAYER_PATH=/usr/local/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d
+SH
+chmod +x /etc/profile.d/vulkan.sh
+
+echo "=== WSI JSON ==="
+cat /usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json
+echo "=== Vulkan env ==="
+cat /etc/profile.d/vulkan.sh
+EOF
+
+
+
+Step 11
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+cat > /etc/udev/rules.d/50-mali.rules <<'RULES'
+KERNEL=="mali0",    MODE="0660", GROUP="video"
+KERNEL=="card*",    MODE="0660", GROUP="video"
+KERNEL=="renderD*", MODE="0660", GROUP="video"
+RULES
+
+addgroup -S video 2>/dev/null || true
+echo "udev rules written."
+EOF
+
+
+
+Step 12
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache \
+  pipewire \
+  pipewire-pulse \
+  pipewire-jack \
+  pipewire-alsa \
+  wireplumber \
+  alsa-lib \
+  alsa-utils \
+  pulseaudio \
+  pulseaudio-bluez \
+  bluez \
+  networkmanager \
+  networkmanager-wifi \
+  openvpn \
+  coreutils \
+  grep \
+  curl \
+  sed \
+  strace \
+  file \
+  binutils \
+  pciutils \
+  usbutils \
+  htop \
+  p7zip \
+  unzip \
+  wget \
+  git \
+  sudo \
+  bash \
+  openssl \
+  ca-certificates
+
+echo "Step 12 complete"
+EOF
+
+
+
+Step 13
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+apk add --no-cache \
+  retroarch@testing \
+  retroarch-assets@testing \
+  gamescope@testing \
+  lutris@testing \
+  antimicrox@testing \
+  wine@testing \
+  wine-staging@testing \
+  vkbasalt@testing \
+  sdl2
+
+echo "Step 13 complete"
+EOF
+
+
+
+Step 14
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+wget -q -O /usr/local/bin/winetricks \
+  https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks
+chmod +x /usr/local/bin/winetricks
+
+echo "winetricks version: $(winetricks --version)"
+EOF
+
+
+
+Step 15
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache \
+  obs-studio \
+  ffmpeg \
+  v4l-utils \
+  gstreamer \
+  gst-plugins-base \
+  gst-plugins-good \
+  gst-plugins-bad \
+  firefox-esr
+
+echo "Step 15 complete"
+EOF
+
+
+
+Step 16
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache \
+  podman \
+  fuse-overlayfs \
+  slirp4netns \
+  distrobox \
+  shadow \
+  xdg-utils \
+  bash
+
+echo "kernel.unprivileged_userns_clone=1" >> /etc/sysctl.conf 2>/dev/null || true
+echo "Step 16 complete"
+EOF
+
+
+
+Step 17
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache \
+  qemu \
+  qemu-system-aarch64 \
+  qemu-system-x86_64 \
+  qemu-vhost-user-gpu \
+  qemu-hw-display-virtio-gpu \
+  qemu-hw-display-virtio-gpu-gl \
+  qemu-audio-alsa \
+  qemu-audio-dbus \
+  qemu-ui-opengl \
+  qemu-ui-sdl \
+  qemu-ui-dbus \
+  qemu-tools \
+  qemu-img \
+  bridge-utils \
+  dnsmasq \
+  iptables
+
+echo "QEMU versions:"
+qemu-system-aarch64 --version
+qemu-system-x86_64  --version
+EOF
+
+
+
+Step 18
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+apk add --no-cache \
+  mir@testing \
+  mir-demos@testing \
+  mir-dev@testing
+
+echo "Mir installed:"
+ls -lh /usr/lib/libmir*.so* 2>/dev/null | head -10
+EOF
+
+
+
+Step 19
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+apk add --no-cache \
+  clang \
+  lld \
+  cmake \
+  ninja \
+  git \
+  fmt-dev \
+  vulkan-loader-dev \
+  vulkan-headers \
+  linux-headers \
+  musl-dev \
+  libc-dev
+
+cd /opt
+rm -rf LSFG-Android
+git clone --recurse-submodules https://github.com/FrankBarretta/LSFG-Android.git
+cd LSFG-Android/lsfg-vk-android
+
+for f in src/config/config.cpp framegen/src/common/exception.cpp; do
+  [ -f "$f" ] && \
+    sed -i 's|<format>|<fmt/format.h>|g' "$f" && \
+    sed -i 's|std::format|fmt::format|g' "$f"
+done
+
+cmake -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_CXX_FLAGS="-Wno-error=narrowing -Wno-error=deprecated-declarations -Wno-error=unused-result" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-lfmt" \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+cmake --build build
+cmake --install build --prefix /usr/local
+
+echo "--- LSFG-vk installed ---"
+find /usr/local -name "*.so" | xargs file 2>/dev/null | grep -i "lsfg\|frame" || true
+ls -lh /usr/local/share/vulkan/implicit_layer.d/ | grep -i "lsfg\|frame" \
+  || echo "Warning: JSON manifest not found"
+EOF
+
+
+
+Step 20
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+rm -rf /opt/LSFG-Android
+
+echo "--- Verifying core layer survived ---"
+ls -lh /usr/local/lib/liblsfg-vk.so
+ls -lh /usr/local/share/vulkan/implicit_layer.d/VkLayer_LS_frame_generation.json
+
+echo "Cleanup complete."
+EOF
+
+
+
+Step 21
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+rc-update add devfs          sysinit 2>/dev/null || true
+rc-update add dmesg          sysinit 2>/dev/null || true
+rc-update add mdev           sysinit 2>/dev/null || true
+rc-update add udev           sysinit 2>/dev/null || true
+rc-update add dbus           boot
+rc-update add seatd          boot
+rc-update add bluetooth      boot
+rc-update add networkmanager boot
+rc-update add wpa_supplicant boot    2>/dev/null || true
+rc-update add podman         default
+
+echo "OpenRC services registered."
+rc-update show
+EOF
+
+
+
+Step 22
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# SDL3 is in Alpine edge/community — no source build needed
+apk add --no-cache \
+  rust cargo \
+  cmake ninja g++ git make \
+  alsa-lib-dev \
+  pulseaudio-dev \
+  libx11-dev libxext-dev libxrender-dev libxrandr-dev \
+  libxi-dev libxcursor-dev libxkbcommon-dev \
+  libdrm-dev mesa-gbm \
+  wayland-dev wayland-protocols \
+  fmt-dev \
+  sdl2-dev \
+  sdl3 sdl3-dev \
+  freetype-dev harfbuzz-dev \
+  curl-dev \
+  pugixml-dev \
+  icu-dev \
+  libgit2-dev \
+  ffmpeg-dev \
+  mesa-egl mesa-gles \
+  fuse fuse-dev \
+  python3 py3-pip
+
+echo "SDL3 installed:"
+ls -lh /usr/lib/libSDL3.so* 2>/dev/null || \
+  pkg-config --modversion sdl3 2>/dev/null || \
+  apk info sdl3 | grep -i version
+echo "Step 22 complete"
+EOF
+
+
+
+Step 23
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+mkdir -p /usr/local/share/reshade
+mkdir -p /etc/vkBasalt
+
+cd /tmp
+rm -rf reshade-shaders
+git clone --depth 1 https://github.com/crosire/reshade-shaders.git
+cp -r reshade-shaders/Shaders  /usr/local/share/reshade/
+cp -r reshade-shaders/Textures /usr/local/share/reshade/
+rm -rf /tmp/reshade-shaders
+
+curl -Lo /usr/local/share/reshade/Shaders/Magnifier.fx \
+  https://raw.githubusercontent.com/mhgar/ReShade-Magnifier/master/Shaders/Magnifier.fx
+
+cat > /etc/vkBasalt/vkBasalt.conf <<'CONFIG'
+# vkBasalt Global Configuration for ARM64 Mali
+reshadeTexturePath = /usr/local/share/reshade/Textures
+reshadeIncludePath = /usr/local/share/reshade/Shaders
+depthCapture = off
+
+# Uncomment to enable effects:
+# effects = cas:smaa
+# cas_sharpness = 0.4
+CONFIG
+
+echo "Shaders installed: $(ls /usr/local/share/reshade/Shaders/ | wc -l)"
+cat /etc/vkBasalt/vkBasalt.conf
+echo "Step 24 complete"
+EOF
+
+
+
+Step 24
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+mkdir -p /opt/sarek/dxvk /opt/sarek/proton /tmp/sarek-dl
+
+curl -L -o /tmp/sarek-dl/dxvk.tar.gz \
+  https://github.com/pythonlover02/DXVK-Sarek/releases/download/v1.12.0/dxvk-sarek-dyasync-v1.12.0.tar.gz
+
+curl -L -o /tmp/sarek-dl/proton.tar.gz \
+  https://github.com/pythonlover02/Proton-Sarek/releases/download/Proton-Sarek10-29/Proton-Sarek10-29-async.tar.gz
+
+tar -xzf /tmp/sarek-dl/dxvk.tar.gz  -C /opt/sarek/dxvk  --strip-components=1
+tar -xzf /tmp/sarek-dl/proton.tar.gz -C /opt/sarek/proton --strip-components=1
+
+rm -rf /tmp/sarek-dl
+
+echo "DXVK:   $(ls /opt/sarek/dxvk  | head -3)"
+echo "Proton: $(ls /opt/sarek/proton | head -3)"
+echo "Step 25 complete"
+EOF
+
+
+
+Step 25
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+apk add --no-cache \
+  cmake ninja g++ gcc git make pkgconf \
+  sdl2-dev \
+  freetype-dev \
+  harfbuzz-dev \
+  curl-dev \
+  freeimage-dev \
+  vlc-dev \
+  poppler-dev \
+  pugixml-dev \
+  rapidjson-dev \
+  alsa-lib-dev \
+  icu-dev \
+  libgit2-dev \
+  bluez-dev \
+  ffmpeg-dev \
+  mesa-egl mesa-gles mesa-dev \
+  wayland-dev wayland-protocols \
+  libx11-dev libxext-dev libdrm-dev \
+  glib-dev gtk+3.0-dev
+
+cd /tmp
+rm -rf es-de
+git clone --recursive https://gitlab.com/es-de/emulationstation-de.git /tmp/es-de
+cd /tmp/es-de
+mkdir -p build
+cd build
+
+cmake .. \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DGLES=on \
+  -DGLES2=off \
+  -DDEINIT_ON_LAUNCH=on \
+  -DENABLE_WAYLAND=on \
+  -DENABLE_KMS=on
+
+cmake --build . -j$(nproc)
+cmake --install .
+
+echo "=== ES-DE verify ==="
+ES_BIN=$(command -v emulationstation 2>/dev/null || command -v es-de 2>/dev/null || true)
+echo "Binary: ${ES_BIN:-not found}"
+[ -n "$ES_BIN" ] && file "$ES_BIN" || true
+[ -n "$ES_BIN" ] && ldd "$ES_BIN" 2>/dev/null | grep -E 'EGL|GLES|SDL2|vlc|avcodec|wayland' || true
+EOF
+
+
+
+Step 26
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# umu-launcher .deb is Debian-only. On Alpine musl, install Python parts via pip.
+apk add --no-cache python3 py3-pip py3-requests py3-tqdm
+
+pip3 install --break-system-packages \
+  "git+https://github.com/Open-Wine-Components/umu-launcher.git@main#subdirectory=." \
+  2>/dev/null || pip3 install --break-system-packages umu-launcher 2>/dev/null || true
+
+# Fallback wrapper if pip build fails (common on musl due to C extensions)
+if ! command -v umu-run >/dev/null 2>&1; then
+  cat > /usr/local/bin/umu-run <<'WRAP'
+#!/bin/sh
+# Fallback: launch via Proton-Sarek directly
+PROTON_DIR=/opt/sarek/proton
+GAME="$1"
+shift
+PROTONPATH="$PROTON_DIR" \
+STEAM_COMPAT_DATA_PATH=/home/plus/.local/share/Steam/steamapps/compatdata/0 \
+  "$PROTON_DIR/proton" run "$GAME" "$@"
+WRAP
+  chmod +x /usr/local/bin/umu-run
+  echo "NOTE: Native umu-launcher unavailable on musl — Proton-Sarek fallback wrapper installed."
+fi
+
+umu-run --version 2>&1 | head -2 || echo "umu-run fallback wrapper ready."
+echo "Step 28 complete"
+EOF
+
+
+
+Step 27
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# Create the plus user now so chown works
+id plus 2>/dev/null || adduser -D -h /home/plus -s /bin/sh plus
+mkdir -p /home/plus/roms /home/plus/ports /home/plus/PortMaster/runtimes \
+         /home/plus/PortMaster/libs /home/plus/PortMaster/harbourmaster \
+         /home/plus/PortMaster/autoinstall
+
+extract_appimage() {
+  local src="$1" dest="$2"
+  echo "Extracting: $(basename $src) -> $dest"
+  chmod +x "$src"
+  rm -rf "$dest"
+  local work; work=$(mktemp -d /tmp/xwork_XXXXXX)
+  cd "$work"
+  /usr/bin/qemu-aarch64-static "$src" --appimage-extract >/dev/null 2>&1 || true
+  local extracted=""
+  [ -d "$work/squashfs-root" ] && extracted="$work/squashfs-root"
+  [ -L "$work/squashfs-root" ] && extracted=$(readlink -f "$work/squashfs-root")
+  [ -z "$extracted" ] && [ -d "$work/AppDir" ] && extracted="$work/AppDir"
+  [ -z "$extracted" ] && extracted=$(find "$work" -maxdepth 1 -mindepth 1 -type d | head -1)
+  if [ -z "$extracted" ] || [ ! -e "$extracted" ]; then
+    echo "  ERROR: extraction failed"; ls "$work"
+    cd /tmp; rm -rf "$work"; return 1
+  fi
+  mkdir -p "$dest"
+  cp -a "$extracted"/. "$dest"/
+  cd /tmp && rm -rf "$work"
+  echo "  OK: $dest ($(find "$dest" -maxdepth 1 -mindepth 1 | wc -l) items)"
+}
+
+echo "=== Downloading AppImages ==="
+[ -d /opt/xemu ]        || curl -fLo /tmp/xemu.AppImage \
+  "https://github.com/xemu-project/xemu/releases/download/v0.8.134/xemu-0.8.134-aarch64.AppImage"
+[ -d /opt/duckstation ] || curl -fLo /tmp/duckstation.AppImage \
+  "https://github.com/stenzek/duckstation/releases/download/latest/DuckStation-arm64.AppImage"
+[ -d /opt/rpcs3 ]       || curl -fLo /tmp/rpcs3.AppImage \
+  "https://github.com/RPCS3/rpcs3-binaries-linux-arm64/releases/download/build-b533a560e6df6f8aa1c271bfffbd1e39f500bd65/rpcs3-v0.0.40-19374-b533a560_linux_aarch64.AppImage"
+[ -d /opt/melonds ]     || curl -fLo /tmp/melonds.zip \
+  "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-appimage-aarch64.zip"
+[ -d /opt/eden ]        || curl -fLo /tmp/eden.AppImage \
+  "https://stable.eden-emu.dev/v0.2.0/Eden-Linux-v0.2.0-aarch64-clang-pgo.AppImage"
+
+echo "=== Extracting AppImages ==="
+[ -d /opt/xemu ]        || extract_appimage /tmp/xemu.AppImage        /opt/xemu
+[ -d /opt/duckstation ] || extract_appimage /tmp/duckstation.AppImage  /opt/duckstation
+[ -d /opt/rpcs3 ]       || extract_appimage /tmp/rpcs3.AppImage        /opt/rpcs3
+[ -d /opt/eden ]        || extract_appimage /tmp/eden.AppImage         /opt/eden
+
+if [ ! -d /opt/melonds ]; then
+  mkdir -p /tmp/melonds_work
+  unzip -o -q /tmp/melonds.zip -d /tmp/melonds_work
+  MELON_AI=$(find /tmp/melonds_work -name "*.AppImage" | head -1)
+  [ -n "$MELON_AI" ] && extract_appimage "$MELON_AI" /opt/melonds \
+    || echo "WARN: melonDS AppImage not found"
+  rm -rf /tmp/melonds_work
+fi
+
+echo "=== Linux Tarballs ==="
+if [ ! -d /opt/ryujinx ] || [ "$(find /opt/ryujinx -maxdepth 1 | wc -l)" -le 1 ]; then
+  curl -fLo /tmp/ryubing.tar.gz \
+    "https://git.ryujinx.app/projects/Ryubing/releases/download/1.3.3/ryujinx-1.3.3-linux_arm64.tar.gz"
+  mkdir -p /opt/ryujinx
+  tar -xzf /tmp/ryubing.tar.gz -C /opt/ryujinx --strip-components=1 2>/dev/null \
+    || tar -xzf /tmp/ryubing.tar.gz -C /opt/ryujinx
+fi
+
+# Ymir v0.1.7 — latest stable (v0.3.2 does not exist)
+if [ ! -d /opt/ymir ] || [ "$(find /opt/ymir -maxdepth 1 | wc -l)" -le 1 ]; then
+  curl -fLo /tmp/ymir.tar.xz \
+    "https://github.com/StrikerX3/Ymir/releases/download/v0.1.7/ymir-linux-AArch64-NEON-v0.1.7.tar.xz"
+  mkdir -p /opt/ymir
+  tar -xJf /tmp/ymir.tar.xz -C /opt/ymir --strip-components=1 2>/dev/null \
+    || tar -xJf /tmp/ymir.tar.xz -C /opt/ymir
+fi
+
+if [ ! -f /opt/gopher64/gopher64 ]; then
+  curl -fLo /tmp/gopher64 \
+    "https://github.com/gopher64/gopher64/releases/download/v1.1.20/gopher64-linux-aarch64"
+  mkdir -p /opt/gopher64
+  cp /tmp/gopher64 /opt/gopher64/
+  chmod +x /opt/gopher64/gopher64
+fi
+
+echo "=== Windows Emulators (Wine-managed) ==="
+mkdir -p /opt/win-emu
+win_extract() {
+  local zip="$1" dest="$2"
+  [ -d "$dest" ] && [ "$(find $dest -maxdepth 1 | wc -l)" -gt 1 ] && \
+    echo "  SKIP: $dest already populated" && return
+  rm -rf "$dest"; mkdir -p "$dest"
+  unzip -o -q "$zip" -d "$dest" || true
+  local subdirs; subdirs=$(find "$dest" -maxdepth 1 -mindepth 1 -type d | wc -l)
+  if [ "$subdirs" -eq 1 ]; then
+    local sub; sub=$(find "$dest" -maxdepth 1 -mindepth 1 -type d)
+    mv "$sub"/* "$dest"/ 2>/dev/null || true; rmdir "$sub" 2>/dev/null || true
+  fi
+  echo "  $dest: $(find $dest -maxdepth 1 | wc -l) items"
+}
+
+curl -fLo /tmp/vbalink.zip "https://www.vbalink.info/downloads/vbalink180b.zip"
+curl -fLo /tmp/nogba.zip   'https://problemkaputt.de/no$gba-w.zip'
+curl -fLo /tmp/desmume.zip "https://github.com/TASEmulators/desmume/releases/download/release_0_9_13/desmume-0.9.13-win64.zip"
+curl -fLo /tmp/bizhawk.zip "https://github.com/TASEmulators/BizHawk-Prereqs/releases/download/2.4.8_1/bizhawk_prereqs_v2.4.8_1.zip"
+curl -fLo /tmp/cemu.zip    "https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-windows-x64.zip"
+
+win_extract /tmp/vbalink.zip  /opt/win-emu/vbalink
+win_extract /tmp/nogba.zip    /opt/win-emu/nogba
+win_extract /tmp/desmume.zip  /opt/win-emu/desmume
+win_extract /tmp/bizhawk.zip  /opt/win-emu/bizhawk
+win_extract /tmp/cemu.zip     /opt/win-emu/cemu
+
+echo "=== Ownership ==="
+chown -R plus:plus /home/plus \
+  /opt/xemu /opt/duckstation /opt/rpcs3 /opt/eden /opt/melonds \
+  /opt/ryujinx /opt/gopher64 /opt/ymir \
+  /opt/win-emu 2>/dev/null || true
+
+echo "=== Cleanup ==="
+cd /tmp
+rm -f *.AppImage *.zip *.tar.gz *.tar.xz gopher64 ryubing.tar.gz
+rm -rf xwork_* melonds_work
+
+echo "Step 27 complete"
+EOF
+
+
+
+Step 28
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+apk add --no-cache \
+  gtk+3.0-dev \
+  gdk-pixbuf-dev \
+  openal-soft-dev \
+  libao-dev \
+  mesa-gl \
+  glu-dev \
+  libx11-dev \
+  libxext-dev
+
+echo "libGL.so: $(find /usr/lib -name 'libGL.so*' | head -3)"
+
+cd /tmp
+rm -rf ares
+git clone --depth 1 https://github.com/ares-emulator/ares /tmp/ares
+cd /tmp/ares
+git submodule update --init --recursive
+
+cmake \
+  -S . -B build \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++ \
+  -DCMAKE_C_FLAGS="-fno-lto" \
+  -DCMAKE_CXX_FLAGS="-fno-lto" \
+  -DINTERPROCEDURAL_OPTIMIZATION=OFF \
+  -DARES_LIBRASHADER=ON \
+  -DOPENGL_opengl_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_gl_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_glx_LIBRARY=/usr/lib/libGL.so \
+  -DOPENGL_INCLUDE_DIR=/usr/include \
+  -DOpenGL_GL_PREFERENCE=LEGACY
+
+cmake --build build -j$(nproc)
+cmake --install build
+
+cd /
+rm -rf /tmp/ares
+
+echo "ares installed:"
+which ares || ls -lh /usr/local/bin/ares*
+echo "Step 28 complete"
+EOF
+
+
+Step 29
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:$PKG_CONFIG_PATH
+
+apk add --no-cache \
+  glu-dev \
+  mesa-gl \
+  mesa-egl \
+  mesa-gles \
+  libx11-dev \
+  libxrandr-dev \
+  libxcursor-dev \
+  libxinerama-dev \
+  openal-soft-dev \
+  libogg-dev \
+  libvorbis-dev \
+  flac-dev \
+  freetype-dev \
+  libjpeg-turbo-dev \
+  ffmpeg-dev \
+  fontconfig-dev \
+  libgit2-dev \
+  curl-dev
+
+cd /opt
+rm -rf attractplus
+git clone --depth 1 https://github.com/oomek/attractplus.git
+cd attractplus
+
+# Build with GLES (Mali)
+make USE_GLES=1 -j$(nproc)
+make install
+
+rm -rf /opt/attractplus
+echo "Attract-Mode Plus installed:"
+which attract || ls -lh /usr/local/bin/attract*
+echo "Step 29 complete"
+EOF
+
+
+
+Step 30
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# Re-own everything for the normal user
+chown -R plus:plus /home/plus /roms 2>/dev/null || true
+
+# Find actual PortMaster location
+PMSH=$(find /home/plus /roms -name "PortMaster.sh" 2>/dev/null | head -1)
+PMDIR=$(dirname "$PMSH")
+
+echo "PortMaster.sh: $PMSH"
+echo "PortMaster dir: $PMDIR"
+
+# Rebuild launcher cleanly
+cat > /usr/local/bin/portmaster <<SCRIPT
+#!/bin/sh
+export HOME=/home/plus
+export USER=plus
+export XDG_RUNTIME_DIR=/run/user/\$(id -u plus)
+export WAYLAND_DISPLAY=\${WAYLAND_DISPLAY:-wayland-1}
+export SDL_VIDEODRIVER=wayland
+export DEVICE_ARCH=aarch64
+export CFW_NAME=generic
+export PORT_DIR=/roms/ports
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json
+export VK_LAYER_PATH=/usr/local/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d
+cd "$PMDIR"
+exec su -s /bin/sh plus -c "./PortMaster.sh"
+SCRIPT
+chmod +x /usr/local/bin/portmaster
+
+# Optional: systemctl shim so future updates do not error
+cat > /usr/local/bin/systemctl <<'SHIM'
+#!/bin/sh
+echo "systemctl shim: ignored on Alpine/OpenRC: $*" >&2
+exit 0
+SHIM
+chmod +x /usr/local/bin/systemctl
+
+echo "=== PortMaster check ==="
+ls -lh "$PMDIR" | head
+echo "=== Runtimes ==="
+find /roms/ports /home/plus -type f -name "*.squashfs" 2>/dev/null | head -20
+echo "=== Launcher ==="
+ls -lh /usr/local/bin/portmaster /usr/local/bin/systemctl
+EOF
+
+
+
+Step 31
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/sh <<'EOF'
+set -e
+
+# Re-own everything for the normal user
+chown -R plus:plus /home/plus /roms 2>/dev/null || true
+
+# Find actual PortMaster location
+PMSH=$(find /home/plus /roms -name "PortMaster.sh" 2>/dev/null | head -1)
+PMDIR=$(dirname "$PMSH")
+
+echo "PortMaster.sh: $PMSH"
+echo "PortMaster dir: $PMDIR"
+
+# Rebuild launcher cleanly
+cat > /usr/local/bin/portmaster <<SCRIPT
+#!/bin/sh
+export HOME=/home/plus
+export USER=plus
+export XDG_RUNTIME_DIR=/run/user/\$(id -u plus)
+export WAYLAND_DISPLAY=\${WAYLAND_DISPLAY:-wayland-1}
+export SDL_VIDEODRIVER=wayland
+export DEVICE_ARCH=aarch64
+export CFW_NAME=generic
+export PORT_DIR=/roms/ports
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json
+export VK_LAYER_PATH=/usr/local/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d
+cd "$PMDIR"
+exec su -s /bin/sh plus -c "./PortMaster.sh"
+SCRIPT
+chmod +x /usr/local/bin/portmaster
+
+# Optional: systemctl shim so future updates do not error
+cat > /usr/local/bin/systemctl <<'SHIM'
+#!/bin/sh
+echo "systemctl shim: ignored on Alpine/OpenRC: $*" >&2
+exit 0
+SHIM
+chmod +x /usr/local/bin/systemctl
+
+echo "=== PortMaster check ==="
+ls -lh "$PMDIR" | head
+echo "=== Runtimes ==="
+find /roms/ports /home/plus -type f -name "*.squashfs" 2>/dev/null | head -20
+echo "=== Launcher ==="
+ls -lh /usr/local/bin/portmaster /usr/local/bin/systemctl
+EOF
+
+
+
+Step 32
+sudo chroot ~/ums512_kernel/alp/mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+set -e
+
+echo "=== 1. Installing MangoHud ==="
+# We only need to install MangoHud, no heavy build dependencies needed
+apk update
+apk add --no-cache mangohud curl bash
+
+echo "=== 2. Configuring Default MangoHud ==="
+# Goverlay just writes this file. We can create a great default profile manually.
+mkdir -p /home/plus/.config/MangoHud
+cat > /home/plus/.config/MangoHud/MangoHud.conf <<'MANGO'
+# Default MangoHud Config
+fps=1
+frametime=1
+cpu_stats=1
+cpu_temp=1
+gpu_stats=1
+gpu_temp=1
+ram=1
+vram=1
+battery=1
+hud_no_margin=1
+table_columns=3
+frame_timing=1
+# Toggle the HUD with Right Shift + F12
+toggle_hud=Shift_R+F12
+MANGO
+
+chown -R plus:plus /home/plus/.config
+
+echo "=== 3. ReShade for Steam/Proton Script Setup ==="
+cd /home/plus
+curl -LO https://github.com/kevinlekiller/reshade-steam-proton/raw/main/reshade-linux.sh
+chmod +x reshade-linux.sh
+chown plus:plus reshade-linux.sh
+
+echo "=== Verification ==="
+which mangohud || ls -lh /usr/bin/mangohud
+echo "MangoHud configured at /home/plus/.config/MangoHud/MangoHud.conf"
+echo "ReShade script ready at: /home/plus/reshade-linux.sh"
+echo "Phase 6 Complete."
+EOF
+
+
+
+# Clean inside chroot
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh -c \
+  "rm -rf /var/cache/apk/* /tmp/* /var/tmp/*"
+
+# Remove qemu binary before packing
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+sudo rm -f mnt/usr/bin/qemu-arm
+
+# Unmount in reverse order
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+# Pack as tarball
+sudo tar -czpf alpine.tar.gz -C mnt .
+
+# Unmount and clean image
+sudo umount mnt
+
+rm rootfs.img
+
+
+
+
+STEP Z
+
+cd ~/ums512_kernel/alp
+
+dd if=/dev/zero of=rootfs.img bs=1M count=25000 status=progress
+
+mkfs.ext4 rootfs.img
+
+mkdir -p mnt
+
+sudo mount -o loop rootfs.img mnt
+
+sudo tar -xzpf alpine.tar.gz -C mnt --numeric-owner
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+
+
+
+
+

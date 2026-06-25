@@ -1,0 +1,486 @@
+I have no VT. No GBM. This is a script I used to test with debian weston in the past:
+"
+#!/system/bin/sh
+# =====================================================
+# SPREADTRUM/MALI WAYLAND LAUNCHER (TTY OPTION FIX)
+# =====================================================
+
+DEBIAN_ROOT="/mnt/debian"
+BUSYBOX="/system/bin/busybox"
+LOGFILE="/sdcard/wayland_drm.log"
+
+# Clean log
+echo "=== WAYLAND DRM LAUNCHER ===" > "$LOGFILE"
+echo "Started: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOGFILE" 2>/dev/null
+sync
+
+if [ ! -w "$LOGFILE" ]; then
+    LOGFILE="/tmp/wayland_drm.log"
+    echo "=== WAYLAND DRM LAUNCHER ===" > "$LOGFILE"
+    echo "Started: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOGFILE"
+fi
+
+log() {
+    local msg="[$(date '+%H:%M:%S')] $*"
+    echo "$msg" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    echo "" | tee -a "$LOGFILE"
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_info() { log "  ℹ $*"; }
+log_success() { log "  ✓ $*"; }
+
+# === INITIAL WAIT ===
+log_section "INITIALIZATION"
+log_info "Waiting 30 seconds for system to stabilize..."
+COUNT=0
+while [ $COUNT -lt 30 ]; do
+    $BUSYBOX sleep 1
+    COUNT=$((COUNT + 1))
+    if [ $((COUNT % 5)) -eq 0 ]; then
+        log_info "  $COUNT/30 seconds..."
+    fi
+done
+log_success "System ready"
+log ""
+
+# === 1. POWER MANAGEMENT ===
+log "--- Waking up Display Pipeline ---"
+if [ -e /sys/class/graphics/fb0/blank ]; then
+    log "Unblanking fb0..."
+    echo 0 > /sys/class/graphics/fb0/blank
+fi
+for bl in /sys/class/backlight/*; do
+    if [ -e "$bl/brightness" ]; then
+        max=$(cat "$bl/max_brightness")
+        log "Setting $bl to $max"
+        echo "$max" > "$bl/brightness"
+    fi
+done
+
+# === 2. MOUNT & PERMISSIONS ===
+# Ensure /dev/input is mounted so Weston sees touch/buttons
+if [ ! -c "$DEBIAN_ROOT/dev/input/event0" ]; then
+    log "Mounting /dev..."
+    mount -o bind /dev "$DEBIAN_ROOT/dev"
+    mount -o bind /sys "$DEBIAN_ROOT/sys"
+    mount -o bind /proc "$DEBIAN_ROOT/proc"
+    mount -t tmpfs tmpfs "$DEBIAN_ROOT/run"
+fi
+
+# Fix permissions for ALL input devices and card0 and mali0
+chmod 666 "$DEBIAN_ROOT/dev/dri/card0"
+chmod 666 "$DEBIAN_ROOT/dev/mali0" 2>/dev/null
+chmod 666 "$DEBIAN_ROOT/dev/ion" 2>/dev/null
+chmod -R 666 "$DEBIAN_ROOT/dev/input/" 2>/dev/null
+
+# === 3. LAUNCH WESTON ===
+log "--- Starting Weston ---"
+
+chroot "$DEBIAN_ROOT" /bin/bash <<'EOF_CHROOT' 2>&1 | tee -a "$LOGFILE"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/usr/lib:/lib
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+
+mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
+rm -f "$XDG_RUNTIME_DIR"/*
+
+export LIBSEAT_BACKEND=builtin
+export SEATD_VTBOUND=0
+export LIBGL_ALWAYS_SOFTWARE=1
+export EGL_PLATFORM=surfaceless
+
+# Create config file
+mkdir -p /root/.config
+cat > /root/.config/weston.ini <<INI
+[core]
+backend=drm-backend.so
+shell=kiosk-shell.so
+use-pixman=true
+idle-time=0
+require-input=false
+
+[shell]
+background-color=0xff0000ff
+panel-position=none
+locking=false
+
+[output]
+name=DSI-1
+mode=current
+transform=rotate-90
+INI
+
+export WESTON_DRM_DEBUG=1
+
+# Run Weston WITHOUT --tty option
+# We also use 'timeout' to stop it after 15 seconds if it hangs successfully (so you get logs)
+# or remove 'timeout 15s' if you want it to run forever until you reboot.
+echo "Launching Weston..."
+weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug &
+PID=$!
+
+sleep 10
+if ps -p $PID > /dev/null; then
+   echo "Weston is still running (SUCCESS!)"
+   kill $PID
+else
+   echo "Weston crashed/exited"
+fi
+wait $PID
+EXIT_CODE=$?
+
+echo ""
+echo "--- WESTON LOG (/tmp/weston.log) ---"
+if [ -f /tmp/weston.log ]; then
+    cat /tmp/weston.log
+else
+    echo "ERROR: Log file not found!"
+fi
+echo "--- END WESTON LOG ---"
+echo ""
+
+echo "Weston exit: $EXIT_CODE"
+EOF_CHROOT
+
+log "--- DONE ---"
+
+exec /system/bin/realrecovery "$@"
+"
+
+Here's the Logs:
+"
+=== WAYLAND DRM LAUNCHER ===
+Started: 2025-12-08 20:57:52
+
+[20:57:52] =========================================
+[20:57:52] === INITIALIZATION ===
+[20:57:52] =========================================
+[20:57:52]   ℹ Waiting 30 seconds for system to stabilize...
+[20:57:57]   ℹ   5/30 seconds...
+[20:58:02]   ℹ   10/30 seconds...
+[20:58:07]   ℹ   15/30 seconds...
+[20:58:13]   ℹ   20/30 seconds...
+[20:58:18]   ℹ   25/30 seconds...
+[20:58:23]   ℹ   30/30 seconds...
+[20:58:23]   ✓ System ready
+[20:58:23] 
+[20:58:23] --- Waking up Display Pipeline ---
+[20:58:23] Setting /sys/class/backlight/sprd_backlight to 255
+[20:58:23] --- Starting Weston ---
+Launching Weston...
+WARNING: debug protocol has been enabled. This is a potential denial-of-service attack vector and information leak.
+Weston is still running (SUCCESS!)
+
+--- WESTON LOG (/tmp/weston.log) ---
+Date: 2025-12-08 UTC
+[18:55:36.596] weston 14.0.2
+               [https://wayland.freedesktop.org](https://wayland.freedesktop.org)
+               Bug reports to: [https://gitlab.freedesktop.org/wayland/weston/issues/](https://gitlab.freedesktop.org/wayland/weston/issues/)
+               Build: 14.0.2
+[18:55:36.598] Command line: weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug
+[18:55:36.598] OS: Linux, 4.14.193, #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023, aarch64
+[18:55:36.598] Flight recorder: enabled
+[18:55:36.598] Using config file '/root/.config/weston.ini'
+[18:55:36.600] Output repaint window is 7 ms maximum.
+[18:55:36.602] Loading module '/usr/lib/aarch64-linux-gnu/libweston-14/drm-backend.so'
+[18:55:36.618] initializing drm backend
+[18:55:36.619] Trying libseat launcher...
+[18:55:36.620] [seatd/seat.c:50] Created seat seat0
+[18:55:36.620] [seatd/server.c:145] New client connected (pid: 1905, uid: 0, gid: 0)
+[18:55:36.620] [libseat/backend/seatd.c:673] Started embedded seatd
+[18:55:36.620] [seatd/seat.c:239] Added client 0 to seat0
+[18:55:36.620] [seatd/seat.c:563] Opened client 0 on seat0
+[18:55:36.620] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[18:55:36.620] [libseat/backend/seatd.c:212] Enabling seat
+[18:55:36.620] libseat: session control granted
+[18:55:36.623] using /dev/dri/card0
+[18:55:36.623] DRM: supports atomic modesetting
+[18:55:36.623] DRM: supports GBM modifiers
+[18:55:36.623] DRM: does not support Atomic async page flip
+[18:55:36.623] DRM: does not support picture aspect ratio
+[18:55:36.623] Using Pixman renderer
+[18:55:36.624] WARNING: Unable to use hardware underlay planes as the output format is opaque. In order to make use of hardware overlay planes adjust the output format.
+[18:55:36.657] warning: no input devices found, but none required as per configuration.
+[18:55:36.657] DRM: head 'DSI-1' found, connector 84 is connected, EDID make 'unknown', model 'unknown', serial ''
+               Supported EOTF modes: SDR
+               Supported colorimetry modes: default
+[18:55:36.658] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[18:55:36.658] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[18:55:36.658] Color manager: no-op
+                 protocol support: no
+[18:55:36.658] Output 'DSI-1' attempts EOTF mode SDR and colorimetry mode default.
+[18:55:36.658] Output 'DSI-1' using color profile: stock sRGB color profile
+[18:55:36.661] DRM: output DSI-1 uses shadow framebuffer.
+[18:55:36.661] Output DSI-1 (crtc 79) video modes:
+               752x1336@60.0, preferred, current, 64.0 MHz
+[18:55:36.661] Output 'DSI-1' enabled with head(s) DSI-1
+[18:55:36.661] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[18:55:36.662] Loading module '/usr/lib/aarch64-linux-gnu/weston/kiosk-shell.so'
+[18:55:36.670] Warning: computed repaint delay for output [DSI-1] is abnormal: -35823 msec
+[18:55:46.568] caught signal 15
+[18:55:46.569] [seatd/seat.c:158] No clients on seat0 to activate
+[18:55:46.570] [seatd/seat.c:290] Removed client 0 from seat0
+[18:55:46.570] [seatd/client.c:496] Client disconnected
+[18:55:46.570] [libseat/backend/seatd.c:685] Stopped embedded seatd
+Date: 2025-12-08 UTC
+[18:56:18.398] weston 14.0.2
+               [https://wayland.freedesktop.org](https://wayland.freedesktop.org)
+               Bug reports to: [https://gitlab.freedesktop.org/wayland/weston/issues/](https://gitlab.freedesktop.org/wayland/weston/issues/)
+               Build: 14.0.2
+[18:56:18.398] Command line: weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug
+[18:56:18.398] OS: Linux, 4.14.193, #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023, aarch64
+[18:56:18.398] Flight recorder: enabled
+[18:56:18.398] Using config file '/root/.config/weston.ini'
+[18:56:18.399] Output repaint window is 7 ms maximum.
+[18:56:18.399] Loading module '/usr/lib/aarch64-linux-gnu/libweston-14/drm-backend.so'
+[18:56:18.403] initializing drm backend
+[18:56:18.403] Trying libseat launcher...
+[18:56:18.404] [seatd/seat.c:50] Created seat seat0
+[18:56:18.404] [seatd/server.c:145] New client connected (pid: 4459, uid: 0, gid: 0)
+[18:56:18.404] [libseat/backend/seatd.c:673] Started embedded seatd
+[18:56:18.404] [seatd/seat.c:239] Added client 0 to seat0
+[18:56:18.405] [seatd/seat.c:563] Opened client 0 on seat0
+[18:56:18.405] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[18:56:18.405] [libseat/backend/seatd.c:212] Enabling seat
+[18:56:18.405] libseat: session control granted
+[18:56:18.408] using /dev/dri/card0
+[18:56:18.408] DRM: supports atomic modesetting
+[18:56:18.408] DRM: supports GBM modifiers
+[18:56:18.408] DRM: does not support Atomic async page flip
+[18:56:18.408] DRM: does not support picture aspect ratio
+[18:56:18.408] Using Pixman renderer
+[18:56:18.408] WARNING: Unable to use hardware underlay planes as the output format is opaque. In order to make use of hardware overlay planes adjust the output format.
+[18:56:18.418] warning: no input devices found, but none required as per configuration.
+[18:56:18.418] DRM: head 'DSI-1' found, connector 84 is connected, EDID make 'unknown', model 'unknown', serial ''
+               Supported EOTF modes: SDR
+               Supported colorimetry modes: default
+[18:56:18.419] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[18:56:18.419] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[18:56:18.419] Color manager: no-op
+                 protocol support: no
+[18:56:18.419] Output 'DSI-1' attempts EOTF mode SDR and colorimetry mode default.
+[18:56:18.419] Output 'DSI-1' using color profile: stock sRGB color profile
+[18:56:18.422] DRM: output DSI-1 uses shadow framebuffer.
+[18:56:18.422] Output DSI-1 (crtc 79) video modes:
+               752x1336@60.0, preferred, current, 64.0 MHz
+[18:56:18.422] Output 'DSI-1' enabled with head(s) DSI-1
+[18:56:18.422] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[18:56:18.422] Loading module '/usr/lib/aarch64-linux-gnu/weston/kiosk-shell.so'
+[18:56:18.438] Warning: computed repaint delay for output [DSI-1] is abnormal: -77591 msec
+[18:56:28.424] caught signal 15
+[18:56:28.426] [seatd/seat.c:158] No clients on seat0 to activate
+[18:56:28.426] [seatd/seat.c:290] Removed client 0 from seat0
+[18:56:28.426] [seatd/client.c:496] Client disconnected
+[18:56:28.427] [libseat/backend/seatd.c:685] Stopped embedded seatd
+Date: 2025-12-08 UTC
+[18:57:00.251] weston 14.0.2
+               [https://wayland.freedesktop.org](https://wayland.freedesktop.org)
+               Bug reports to: [https://gitlab.freedesktop.org/wayland/weston/issues/](https://gitlab.freedesktop.org/wayland/weston/issues/)
+               Build: 14.0.2
+[18:57:00.251] Command line: weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug
+[18:57:00.251] OS: Linux, 4.14.193, #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023, aarch64
+[18:57:00.251] Flight recorder: enabled
+[18:57:00.251] Using config file '/root/.config/weston.ini'
+[18:57:00.252] Output repaint window is 7 ms maximum.
+[18:57:00.252] Loading module '/usr/lib/aarch64-linux-gnu/libweston-14/drm-backend.so'
+[18:57:00.256] initializing drm backend
+[18:57:00.256] Trying libseat launcher...
+[18:57:00.257] [seatd/seat.c:50] Created seat seat0
+[18:57:00.257] [seatd/server.c:145] New client connected (pid: 4703, uid: 0, gid: 0)
+[18:57:00.257] [libseat/backend/seatd.c:673] Started embedded seatd
+[18:57:00.257] [seatd/seat.c:239] Added client 0 to seat0
+[18:57:00.257] [seatd/seat.c:563] Opened client 0 on seat0
+[18:57:00.257] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[18:57:00.258] [libseat/backend/seatd.c:212] Enabling seat
+[18:57:00.258] libseat: session control granted
+[18:57:00.261] using /dev/dri/card0
+[18:57:00.261] DRM: supports atomic modesetting
+[18:57:00.261] DRM: supports GBM modifiers
+[18:57:00.261] DRM: does not support Atomic async page flip
+[18:57:00.261] DRM: does not support picture aspect ratio
+[18:57:00.261] Using Pixman renderer
+[18:57:00.262] WARNING: Unable to use hardware underlay planes as the output format is opaque. In order to make use of hardware overlay planes adjust the output format.
+[18:57:00.270] warning: no input devices found, but none required as per configuration.
+[18:57:00.270] DRM: head 'DSI-1' found, connector 84 is connected, EDID make 'unknown', model 'unknown', serial ''
+               Supported EOTF modes: SDR
+               Supported colorimetry modes: default
+[18:57:00.271] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[18:57:00.271] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[18:57:00.271] Color manager: no-op
+                 protocol support: no
+[18:57:00.271] Output 'DSI-1' attempts EOTF mode SDR and colorimetry mode default.
+[18:57:00.271] Output 'DSI-1' using color profile: stock sRGB color profile
+[18:57:00.273] DRM: output DSI-1 uses shadow framebuffer.
+[18:57:00.273] Output DSI-1 (crtc 79) video modes:
+               752x1336@60.0, preferred, current, 64.0 MHz
+[18:57:00.273] Output 'DSI-1' enabled with head(s) DSI-1
+[18:57:00.273] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[18:57:00.274] Loading module '/usr/lib/aarch64-linux-gnu/weston/kiosk-shell.so'
+[18:57:00.288] Warning: computed repaint delay for output [DSI-1] is abnormal: -119441 msec
+[18:57:10.273] caught signal 15
+[18:57:10.275] [seatd/seat.c:158] No clients on seat0 to activate
+[18:57:10.275] [seatd/seat.c:290] Removed client 0 from seat0
+[18:57:10.275] [seatd/client.c:496] Client disconnected
+[18:57:10.275] [libseat/backend/seatd.c:685] Stopped embedded seatd
+Date: 2025-12-08 UTC
+[18:57:42.092] weston 14.0.2
+               [https://wayland.freedesktop.org](https://wayland.freedesktop.org)
+               Bug reports to: [https://gitlab.freedesktop.org/wayland/weston/issues/](https://gitlab.freedesktop.org/wayland/weston/issues/)
+               Build: 14.0.2
+[18:57:42.092] Command line: weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug
+[18:57:42.092] OS: Linux, 4.14.193, #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023, aarch64
+[18:57:42.092] Flight recorder: enabled
+[18:57:42.092] Using config file '/root/.config/weston.ini'
+[18:57:42.093] Output repaint window is 7 ms maximum.
+[18:57:42.093] Loading module '/usr/lib/aarch64-linux-gnu/libweston-14/drm-backend.so'
+[18:57:42.097] initializing drm backend
+[18:57:42.097] Trying libseat launcher...
+[18:57:42.098] [seatd/seat.c:50] Created seat seat0
+[18:57:42.098] [seatd/server.c:145] New client connected (pid: 4826, uid: 0, gid: 0)
+[18:57:42.098] [libseat/backend/seatd.c:673] Started embedded seatd
+[18:57:42.098] [seatd/seat.c:239] Added client 0 to seat0
+[18:57:42.098] [seatd/seat.c:563] Opened client 0 on seat0
+[18:57:42.098] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[18:57:42.098] [libseat/backend/seatd.c:212] Enabling seat
+[18:57:42.098] libseat: session control granted
+[18:57:42.102] using /dev/dri/card0
+[18:57:42.102] DRM: supports atomic modesetting
+[18:57:42.102] DRM: supports GBM modifiers
+[18:57:42.102] DRM: does not support Atomic async page flip
+[18:57:42.102] DRM: does not support picture aspect ratio
+[18:57:42.102] Using Pixman renderer
+[18:57:42.102] WARNING: Unable to use hardware underlay planes as the output format is opaque. In order to make use of hardware overlay planes adjust the output format.
+[18:57:42.112] warning: no input devices found, but none required as per configuration.
+[18:57:42.113] DRM: head 'DSI-1' found, connector 84 is connected, EDID make 'unknown', model 'unknown', serial ''
+               Supported EOTF modes: SDR
+               Supported colorimetry modes: default
+[18:57:42.113] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[18:57:42.113] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[18:57:42.113] Color manager: no-op
+                 protocol support: no
+[18:57:42.114] Output 'DSI-1' attempts EOTF mode SDR and colorimetry mode default.
+[18:57:42.114] Output 'DSI-1' using color profile: stock sRGB color profile
+[18:57:42.116] DRM: output DSI-1 uses shadow framebuffer.
+[18:57:42.116] Output DSI-1 (crtc 79) video modes:
+               752x1336@60.0, preferred, current, 64.0 MHz
+[18:57:42.116] Output 'DSI-1' enabled with head(s) DSI-1
+[18:57:42.116] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[18:57:42.117] Loading module '/usr/lib/aarch64-linux-gnu/weston/kiosk-shell.so'
+[18:57:42.137] Warning: computed repaint delay for output [DSI-1] is abnormal: -161290 msec
+[18:57:52.113] caught signal 15
+[18:57:52.114] [seatd/seat.c:158] No clients on seat0 to activate
+[18:57:52.115] [seatd/seat.c:290] Removed client 0 from seat0
+[18:57:52.115] [seatd/client.c:496] Client disconnected
+[18:57:52.115] [libseat/backend/seatd.c:685] Stopped embedded seatd
+Date: 2025-12-08 UTC
+[18:58:23.927] weston 14.0.2
+               [https://wayland.freedesktop.org](https://wayland.freedesktop.org)
+               Bug reports to: [https://gitlab.freedesktop.org/wayland/weston/issues/](https://gitlab.freedesktop.org/wayland/weston/issues/)
+               Build: 14.0.2
+[18:58:23.927] Command line: weston --config=/root/.config/weston.ini --log=/tmp/weston.log --debug
+[18:58:23.928] OS: Linux, 4.14.193, #1 SMP PREEMPT Tue Jul 4 17:03:59 HKT 2023, aarch64
+[18:58:23.928] Flight recorder: enabled
+[18:58:23.928] Using config file '/root/.config/weston.ini'
+[18:58:23.928] Output repaint window is 7 ms maximum.
+[18:58:23.928] Loading module '/usr/lib/aarch64-linux-gnu/libweston-14/drm-backend.so'
+[18:58:23.932] initializing drm backend
+[18:58:23.932] Trying libseat launcher...
+[18:58:23.933] [seatd/seat.c:50] Created seat seat0
+[18:58:23.934] [seatd/server.c:145] New client connected (pid: 4949, uid: 0, gid: 0)
+[18:58:23.934] [libseat/backend/seatd.c:673] Started embedded seatd
+[18:58:23.934] [seatd/seat.c:239] Added client 0 to seat0
+[18:58:23.934] [seatd/seat.c:563] Opened client 0 on seat0
+[18:58:23.934] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[18:58:23.934] [libseat/backend/seatd.c:212] Enabling seat
+[18:58:23.934] libseat: session control granted
+[18:58:23.937] using /dev/dri/card0
+[18:58:23.937] DRM: supports atomic modesetting
+[18:58:23.937] DRM: supports GBM modifiers
+[18:58:23.937] DRM: does not support Atomic async page flip
+[18:58:23.937] DRM: does not support picture aspect ratio
+[18:58:23.938] Using Pixman renderer
+[18:58:23.938] WARNING: Unable to use hardware underlay planes as the output format is opaque. In order to make use of hardware overlay planes adjust the output format.
+[18:58:23.946] warning: no input devices found, but none required as per configuration.
+[18:58:23.946] DRM: head 'DSI-1' found, connector 84 is connected, EDID make 'unknown', model 'unknown', serial ''
+               Supported EOTF modes: SDR
+               Supported colorimetry modes: default
+[18:58:23.946] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[18:58:23.946] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[18:58:23.946] Color manager: no-op
+                 protocol support: no
+[18:58:23.947] Output 'DSI-1' attempts EOTF mode SDR and colorimetry mode default.
+[18:58:23.947] Output 'DSI-1' using color profile: stock sRGB color profile
+[18:58:23.949] DRM: output DSI-1 uses shadow framebuffer.
+[18:58:23.949] Output DSI-1 (crtc 79) video modes:
+               752x1336@60.0, preferred, current, 64.0 MHz
+[18:58:23.949] Output 'DSI-1' enabled with head(s) DSI-1
+[18:58:23.949] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[18:58:23.949] Loading module '/usr/lib/aarch64-linux-gnu/weston/kiosk-shell.so'
+[18:58:23.970] Warning: computed repaint delay for output [DSI-1] is abnormal: -203123 msec
+[18:58:33.950] caught signal 15
+[18:58:33.951] [seatd/seat.c:158] No clients on seat0 to activate
+[18:58:33.951] [seatd/seat.c:290] Removed client 0 from seat0
+[18:58:33.951] [seatd/client.c:496] Client disconnected
+[18:58:33.951] [libseat/backend/seatd.c:685] Stopped embedded seatd
+--- END WESTON LOG ---
+
+Weston exit: 0
+[20:58:33] --- DONE ---
+
+"
+
+The logo disappeared but no blue screen appeared. It only showed a backlight screen.
+
+Assume I have alpine mounted at /mnt/alpine, how can we load lomiri and mir?

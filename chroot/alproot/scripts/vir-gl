@@ -1,0 +1,97 @@
+#!/bin/sh
+# vir-gl — virpipe OpenGL runner (ANGLE GL backend via virgl_test_server)
+# Usage: vir-gl eglinfo
+#        vir-gl es2_info
+#        vir-gl es2gears_x11
+#        vir-gl glxinfo
+
+APP_NAME="${1##*/}"
+TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+LOG_DIR="/sdcard"
+STDOUT_LOG="${LOG_DIR}/vir-gl_${APP_NAME}_${TIMESTAMP}.log"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <command> [args...]"
+    echo ""
+    echo "GL path:   virpipe → virgl_test_server → ANGLE (gl backend) → Mali Vulkan"
+    exit 1
+fi
+
+echo "=========================================================="
+echo "[vir-gl] Launching '$*' via virpipe (ANGLE GL backend)"
+echo "[vir-gl] Log: $STDOUT_LOG"
+echo "=========================================================="
+
+(
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+    # Mesa libraries — custom build first, Alpine fallback
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/usr/lib:/lib
+
+    # DRI drivers from custom Mesa build
+    export LIBGL_DRIVERS_PATH=/usr/local/lib/dri
+
+    # Display
+    export XDG_RUNTIME_DIR=/tmp/runtime-root
+    export WAYLAND_DISPLAY=wayland-0
+    export DISPLAY=:0
+
+    # virpipe — talks to virgl_test_server over the vtest socket
+    export GALLIUM_DRIVER=virpipe
+    export VIRGL_SERVER_PATH=/tmp/.virgl_test
+
+    # Tell Mesa to use virpipe for GL; do NOT set LIBGL_ALWAYS_SOFTWARE here
+    # because virpipe is not software — it proxies to the server.
+    # LIBGL_ALWAYS_SOFTWARE=1 was needed for miral-app (Mir KMS path) but
+    # would force llvmpipe instead of virpipe for these GL apps.
+    unset LIBGL_ALWAYS_SOFTWARE
+
+    # GL version overrides — virpipe exposes what virglrenderer negotiates;
+    # override to match the max the server actually advertises.
+    export MESA_GL_VERSION_OVERRIDE=4.0
+    export MESA_GLSL_VERSION_OVERRIDE=400
+    export MESA_GLES_VERSION_OVERRIDE=3.1
+    export MESA_NO_ERROR=1
+
+    # Vulkan loader: suppress it entirely for GL-only runs.
+    # Prevents the loader from scanning /vendor/lib64 and printing
+    # liblog.so / liblsfg-vk.so errors into the log.
+    export VK_LOADER_DISABLE_INST_EXT_FILTER=1
+    export VK_ICD_FILENAMES=""
+    export VK_LAYER_PATH=""
+    export DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1=1
+    export DISABLE_LAYER_NV_OPTIMUS_1=1
+
+    # Debug
+    export LIBGL_DEBUG=verbose
+    export EGL_LOG_LEVEL=debug
+    export MESA_DEBUG=1
+
+    echo "----------------------------------------------------------"
+    echo "[vir-gl] Diagnostics:"
+    echo "  GALLIUM_DRIVER     = $GALLIUM_DRIVER"
+    echo "  VIRGL_SERVER_PATH  = $VIRGL_SERVER_PATH"
+    echo "  LIBGL_DRIVERS_PATH = $LIBGL_DRIVERS_PATH"
+    echo "  DISPLAY            = $DISPLAY"
+    echo "  WAYLAND_DISPLAY    = $WAYLAND_DISPLAY"
+    echo "  VK_ICD_FILENAMES   = (cleared)"
+    echo "----------------------------------------------------------"
+
+    # Confirm socket is live before launching
+    if [ ! -S "$VIRGL_SERVER_PATH" ]; then
+        echo "[vir-gl] ERROR: virgl socket not found at $VIRGL_SERVER_PATH"
+        echo "         Start virgl_test_server from the Android host first."
+        exit 1
+    fi
+
+    "$@"
+    APP_EXIT_CODE=$?
+
+    echo "=========================================================="
+    [ "$APP_EXIT_CODE" -eq 0 ] \
+        && echo "[vir-gl] SUCCESS (exit 0)" \
+        || echo "[vir-gl] FAILED (exit $APP_EXIT_CODE)"
+    echo "=========================================================="
+    exit $APP_EXIT_CODE
+
+) 2>&1 | tee "$STDOUT_LOG"

@@ -1,0 +1,60 @@
+#!/bin/sh
+# Usage: sh /sdcard/flash_handoff.sh
+
+ALPINE="${ALPINE:-/mnt/alpine}"
+SD_MOUNT="${SD_MOUNT:-/sdcard}"
+LOGFILE="/sdcard/flash_handoff.log"
+
+TWRPIMG="${TWRPIMG:-$SD_MOUNT/twrp-customv2.img}"
+PART42="${PART42:-/dev/block/mmcblk0p42}"
+PART43="${PART43:-/dev/block/mmcblk0p43}"
+
+# --- Minimal Logging Helpers ---
+ts()         { date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "1970-01-01 00:00:00"; }
+log()        { echo "[$(ts)] $*" | tee -a "$LOGFILE"; }
+logsection() { log "========================================="; log "=== $* ==="; log "========================================="; }
+logi()       { log "  i $*"; }
+logok()      { log "  + $*"; }
+logw()       { log "  ! $*"; }
+logerr()     { log "  X $*"; }
+
+cleanup_old_mounts() {
+    for d in \
+        "$ALPINE/tmp/strace_logs" "$ALPINE/linkerconfig" "$ALPINE/run" \
+        "$ALPINE/dev/pts" "$ALPINE/dev/shm" "$ALPINE/dev" \
+        "$ALPINE/proc" "$ALPINE/sys" "$ALPINE/sdcard" \
+        "$ALPINE/apex" "$ALPINE/vendor" "$ALPINE/system_ext" \
+        "$ALPINE/product" "$ALPINE/system"; do
+        umount -l "$d" 2>/dev/null || true
+    done
+}
+
+flash_and_handoff() {
+    logsection "PHASE : FLASH & HANDOFF"
+
+    if [ ! -f "$TWRPIMG" ]; then
+        logerr "TWRP image not found: $TWRPIMG"
+    else
+        for PART in "$PART42" "$PART43"; do
+            if [ -b "$PART" ]; then
+                logi "Flashing $TWRPIMG -> $PART"
+                dd if="$TWRPIMG" of="$PART" bs=4096 conv=fsync 2>>"$LOGFILE" \
+                    && logok "dd -> $PART complete" \
+                    || logerr "dd -> $PART failed"
+            else
+                logerr "Block device missing: $PART"
+            fi
+        done
+        sync
+    fi
+
+    logsection "PHASE : UNMOUNT CHROOT SUPPORT"
+    cleanup_old_mounts
+
+    logsection "HANDOFF TO /system/bin/recovery"
+    sync
+    sleep 1
+    exec /system/bin/recovery
+}
+
+flash_and_handoff
