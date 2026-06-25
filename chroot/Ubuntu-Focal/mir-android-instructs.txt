@@ -1,0 +1,136 @@
+
+
+# Building `mir-android-platform` for arm64 on WSL x86
+
+## 0. Host Prerequisites
+
+sudo apt-get install -y \
+  qemu-user-static binfmt-support debootstrap \
+  curl wget python3 util-linux e2fsprogs fuse3 debian-archive-keyring
+
+
+
+## 1. Register QEMU binfmt for arm64
+
+sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+
+sudo update-binfmts --enable qemu-aarch64 2>/dev/null || \
+  echo ':qemu-aarch64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:F' \
+  | sudo tee /proc/sys/fs/binfmt_misc/register
+
+
+
+## 2. Clone Source
+
+cd ~
+git clone https://gitlab.com/ubports/development/core/hybris-support/mir-android-platform.git
+cd mir-android-platform
+
+
+
+## 3. Fix `debian/install` Paths Before Building
+
+# From ~/mir-android-platform on the host:
+sed -i 's|/mir1/|/mir/|g' debian/*.install
+
+
+
+## 4. Clearn arm64 Chroot
+
+export CHROOT=/opt/ubports-arm64
+
+for d in dev/pts dev sys proc; do sudo umount $CHROOT/$d 2>/dev/null || true; done
+
+sudo umount $CHROOT/build/mir-android-platform 2>/dev/null || true
+
+sudo rm -rf $CHROOT
+
+
+
+export CHROOT=/opt/ubports-arm64
+# Stage 1 — unpacks arm64 filesystem on x86, runs no arm64 code
+sudo debootstrap \
+  --arch=arm64 \
+  --foreign \
+  --include=ca-certificates,gnupg,wget \
+  focal \
+  $CHROOT \
+  http://ports.ubuntu.com/ubuntu-ports/
+
+# Give the chroot its arm64 interpreter
+sudo cp /usr/bin/qemu-aarch64-static $CHROOT/usr/bin/
+
+# Stage 2 — configures all packages via QEMU (a few minutes)
+# Ends with: "I: Base system installed successfully."
+sudo chroot $CHROOT /debootstrap/debootstrap --second-stage
+
+
+
+## 5. Mount Kernel Filesystems
+
+for d in proc sys dev dev/pts; do
+  sudo mount --bind /$d $CHROOT/$d
+done
+
+
+
+## 6. Configure Package Sources
+
+sudo tee $CHROOT/etc/apt/sources.list <<'EOF'
+deb http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+EOF
+
+# Write UBports keyring from host (avoids chicken-and-egg wget issue)
+sudo wget -qO $CHROOT/usr/share/keyrings/ubports-keyring.gpg \
+  http://repo.ubports.com/keyring.gpg
+
+sudo tee $CHROOT/etc/apt/sources.list.d/ubports.list <<'EOF'
+deb [signed-by=/usr/share/keyrings/ubports-keyring.gpg] http://repo.ubports.com focal main
+EOF
+
+sudo chroot $CHROOT apt-get update
+
+
+
+## 7. Install Build Dependencies
+
+sudo chroot $CHROOT apt-get install -y \
+  cmake cmake-extras debhelper doxygen xsltproc graphviz fakeroot \
+  libegl1-mesa-dev libgles2-mesa-dev libglm-dev \
+  libprotobuf-dev pkg-config libgoogle-glog-dev \
+  android-headers-24 android-headers-24-caf android-headers \
+  libhardware-dev libandroid-properties-dev \
+  libgtest-dev googletest valgrind abi-compliance-checker python3 \
+  libmircommon-dev libmirplatform-dev libmircore-dev \
+  libmirrenderer-dev libmirserver-dev libmirclient-dev \
+  libmiral-dev mir-renderer-gl-dev mirtest-dev \
+  libcapnp-dev liblttng-ust-dev libudev-dev \
+  libglib2.0-dev libumockdev-dev umockdev libwayland-dev
+
+
+
+## 8. Build
+
+sudo mkdir -p $CHROOT/build/mir-android-platform
+sudo mount --bind ~/mir-android-platform $CHROOT/build/mir-android-platform
+
+# -d skips the broken libmir1* dependency check in debian/control
+sudo chroot $CHROOT bash -c "
+  cd /build/mir-android-platform
+  dpkg-buildpackage -rfakeroot -b -uc -us -d -j\$(nproc)
+"
+# Output `.deb` files land in `/opt/ubports-arm64/build/`.
+
+
+
+## 9. Teardown
+
+sudo umount $CHROOT/build/mir-android-platform
+for d in dev/pts dev sys proc; do sudo umount $CHROOT/$d; done
+
+## Quick Resume After WSL Restart
+export CHROOT=/opt/ubports-arm64
+for d in proc sys dev dev/pts; do sudo mount --bind /$d $CHROOT/$d; done
+sudo mount --bind ~/mir-android-platform $CHROOT/build/mir-android-platform
+

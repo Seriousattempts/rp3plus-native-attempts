@@ -1,0 +1,76 @@
+
+1.
+sudo umount /vendor/lib64 2>/dev/null; true
+sudo umount /vendor       2>/dev/null; true
+
+2.
+sudo apt install -y \
+  gcc-aarch64-linux-gnu \
+  g++-aarch64-linux-gnu \
+  pkg-config \
+  patchelf \
+  git \
+  autoconf \
+  automake \
+  libtool
+
+3.
+sudo dpkg --add-architecture arm64
+sudo apt-get update
+sudo apt install -y \
+  libwayland-dev:arm64 \
+  libwayland-egl-backend-dev:arm64 \
+  libglvnd-dev:arm64
+
+4.
+rm -rf ~/android-headers   # remove any incomplete previous clone
+git clone \
+  --branch herrie/halium-11.0 \
+  --depth=1 \
+  https://github.com/Halium/android-headers.git \
+  ~/android-headers
+Verify the critical headers are present:
+
+ls ~/android-headers/system/graphics.h
+ls ~/android-headers/hardware/hwcomposer2.h
+ls ~/android-headers/hardware/gralloc1.h
+
+5.
+sudo apt install -y libvulkan-dev
+mkdir -p ~/android-headers/vulkan
+cp /usr/include/vulkan/vulkan.h ~/android-headers/vulkan/
+ls ~/android-headers/vulkan/vulkan.h
+
+6.
+export ANDROID_HEADERS=~/android-headers
+7.
+cd ~/ums512_kernel/super/libhybris/hybris
+
+make distclean 2>/dev/null; true   # clean any previous failed state
+
+./configure \
+  --host=aarch64-linux-gnu \
+  --enable-arch=arm64 \
+  --with-android-headers=$ANDROID_HEADERS \
+  --enable-wayland \
+  --enable-mali-quirks \
+  --enable-experimental \
+  --enable-glvnd \
+  --with-default-egl-platform=wayland \
+  --with-default-hybris-ld-library-path=/vendor/lib64/egl:/vendor/lib64:/vendor/lib64/hw \
+  --prefix=/opt/libhybris \
+  CC=aarch64-linux-gnu-gcc \
+  CXX=aarch64-linux-gnu-g++ \
+  CFLAGS="-I$ANDROID_HEADERS" \
+  CXXFLAGS="-I$ANDROID_HEADERS"
+
+8.
+make -j$(nproc) 2>&1 | tee /tmp/make.log
+sudo make install
+
+9.
+ls /opt/libhybris/lib/
+# Should show: libEGL.so, libGLESv1_CM.so, libGLESv2.so, libhardware.so, etc.
+
+cat /opt/libhybris/share/glvnd/egl_vendor.d/10_libhybris.json
+# Should show a valid GLVND vendor JSON pointing to libEGL.so

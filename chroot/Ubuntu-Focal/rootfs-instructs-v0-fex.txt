@@ -1,0 +1,1230 @@
+
+
+
+
+# Step 0
+sudo apt-get install -y \
+  debootstrap \
+  qemu-user-static \
+  binfmt-support \
+  e2fsprogs \
+  curl \
+  python3 \
+  util-linux \
+  fuse3 \
+  debian-archive-keyring
+
+
+
+# Step 1
+sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+
+sudo update-binfmts --enable qemu-aarch64
+
+sudo update-binfmts --enable qemu-arm
+
+sudo umount -l ~/ums512_kernel/deb/mnt/dev/pts 2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/deb/mnt/dev     2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/deb/mnt/sys     2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/deb/mnt/proc    2>/dev/null || true
+
+sudo umount -l ~/ums512_kernel/deb/mnt         2>/dev/null || true
+
+cd ~/ums512_kernel
+sudo rm -rf deb
+mkdir deb && cd deb
+
+
+
+# Step 2
+dd if=/dev/zero of=rootfs.img bs=1M count=12288
+
+mkfs.ext4 -L rootfs rootfs.img
+
+mkdir -p mnt
+
+sudo mount -o loop rootfs.img mnt
+
+
+
+# Step 3
+sudo debootstrap --arch=arm64 --foreign \
+  --include=ca-certificates,gnupg,wget \
+  focal mnt http://ports.ubuntu.com/ubuntu-ports/
+
+
+
+# Step 4
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+sudo cp /usr/bin/qemu-arm-static mnt/usr/bin/
+
+
+
+# Step 5
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/sh \
+  /debootstrap/debootstrap --second-stage
+
+
+
+# Step 6
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+
+
+# Step 7
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+echo "3plus" > /etc/hostname
+
+cat > /etc/hosts <<'HOSTS'
+127.0.0.1   localhost
+127.0.1.1   3plus
+HOSTS
+
+# Standard Ubuntu Focal Repos
+cat > /etc/apt/sources.list <<'SOURCES'
+deb http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
+SOURCES
+
+apt-get update
+apt-get install -y locales tzdata curl wget gnupg ca-certificates software-properties-common
+
+# Add UBports Keyring and Repo for custom Mir plugins
+wget -qO - http://repo.ubports.com/keyring.gpg | tee /etc/apt/trusted.gpg.d/ubports.gpg > /dev/null
+echo "deb http://repo.ubports.com focal main" > /etc/apt/sources.list.d/ubports.list
+
+# Add PPA for Qt6 (Focal natively uses Qt5)
+add-apt-repository -y ppa:ok2c/qt6-backports
+
+apt-get update
+
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+echo "UTC" > /etc/timezone
+EOF
+
+
+
+# Step 8
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+cat > /usr/local/bin/systemctl <<'STUB'
+#!/bin/sh
+exit 0
+STUB
+chmod +x /usr/local/bin/systemctl
+ln -sf /usr/local/bin/systemctl /usr/bin/systemctl
+
+echo '#!/bin/sh
+exit 101' > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d
+
+EOF
+
+
+
+# Step 9
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+dpkg --add-architecture armhf
+apt-get update
+EOF
+
+
+
+# Step 10
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+wget -qO- "https://pi-apps-coders.github.io/box64-debs/KEY.gpg" \
+  | gpg --dearmor -o /usr/share/keyrings/box64-archive-keyring.gpg
+
+cat > /etc/apt/sources.list.d/box64.sources <<'SOURCES'
+Types: deb
+URIs: https://Pi-Apps-Coders.github.io/box64-debs/debian
+Suites: ./
+Signed-By: /usr/share/keyrings/box64-archive-keyring.gpg
+SOURCES
+
+apt-get update
+EOF
+
+
+
+
+# Step 11
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get install -y \
+  libsfml-dev libopenal-dev libfreetype-dev zlib1g-dev libjpeg-dev \
+  libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+  libarchive-dev libcurl4-openssl-dev libfontconfig1-dev \
+  libxinerama-dev libxrandr-dev libxi-dev libxcursor-dev \
+  libgles-dev libegl-dev \
+  libsdl2-dev libgtk-3-dev libasound2-dev libpulse-dev libao-dev libudev-dev \
+  libgl1-mesa-dri libgl1 libgles2 mesa-utils \
+  extra-cmake-modules itstool gettext \
+  mesa-va-drivers mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+apt-get install -y openssl libssl-dev cryptsetup proot
+apt-get install -y coreutils htop zstd zram-tools upower sudo git curl wget unzip
+apt-get install -y cpufrequtils lm-sensors i2c-tools iio-sensor-proxy
+
+apt-get install -y \
+  x11-xserver-utils libts-bin libts-dev \
+  libinput-tools libevdev2 libevdev-dev evtest joystick udev wpasupplicant
+
+apt-get install -y \
+  libwayland-client0 libwayland-server0 libwayland-egl1 \
+  wayland-protocols libwayland-dev libglvnd0 libegl1 libgles2
+
+apt-get install -y \
+  pulseaudio pulseaudio-utils pulseaudio-module-bluetooth \
+  libasound2-plugins alsa-utils
+
+apt-get install -y \
+  ffmpeg libavcodec-extra \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  vainfo v4l-utils
+
+apt-get install -y retroarch conky-all wine wine64 cabextract winetricks
+apt-get install -y openvpn bubblewrap python3 python3-pip
+apt-get install -y flatpak p7zip-full
+
+apt-get install -y \
+  cmake git build-essential pkg-config \
+  gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+  clang lld ninja-build libvulkan-dev
+
+apt-get install -y obs-studio firefox
+apt-get install -y box64-generic-arm
+apt-get install -y android-sdk-platform-tools scrcpy sqlite3
+apt-get install -y nftables dnsmasq wl-clipboard xdg-desktop-portal
+
+apt-get install -y python3-dbus libfuse2 mergerfs
+
+# ES-DE and Mir Dependencies
+apt-get install -y \
+  geoclue-2.0 libxcb-cursor0 libgcc-s1 qtwayland5 \
+  libfreetype6-dev libfreeimage-dev libvlc-dev libvlccore-dev \
+  libpoppler-cpp-dev libpugixml-dev rapidjson-dev libicu-dev \
+  libgit2-dev libbluetooth-dev libavfilter-dev
+EOF
+
+
+
+# Step 12
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+git clone --depth 1 https://github.com/ptitSeb/box86 /tmp/box86
+mkdir /tmp/box86/build && cd /tmp/box86/build
+
+cmake .. \
+  -DARM64=1 \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc
+
+make -j$(nproc)
+make install
+rm -rf /tmp/box86
+EOF
+
+
+
+# Step 13
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# Protect QEMU from running out of memory
+export MAKEFLAGS="-j2"
+
+# ── 1. Install Modern CMake (Kitware PPA) & Dependencies ──────────────
+apt-get update
+apt-get install -y apt-transport-https ca-certificates gnupg software-properties-common wget
+
+# Add the official Kitware repo to get CMake 3.22+ on Ubuntu 20.04
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - > /etc/apt/trusted.gpg.d/kitware.gpg
+apt-add-repository -y "deb https://apt.kitware.com/ubuntu/ focal main"
+apt-get update
+
+apt-get install -y \
+    build-essential git unzip \
+    libsfml-dev libopenal-dev libflac-dev \
+    libvorbis-dev libjpeg-dev libfreetype6-dev \
+    libudev-dev libfontconfig1-dev libpng-dev \
+    xwayland cmake
+
+# ── 2. Download and Extract Christian Haitian's ARM64 Cores ───────────
+echo "Fetching Christian Haitian's aarch64 Libretro cores..."
+rm -rf /opt/cores_temp
+mkdir -p /opt/cores_temp
+
+# Standard shallow clone (Compatible with Git 2.25)
+git clone --depth 1 https://github.com/christianhaitian/retroarch-cores.git /opt/cores_temp/retroarch-cores
+
+# Create the RetroArch core directory
+mkdir -p /root/.config/retroarch/cores
+mkdir -p /root/.config/retroarch/cores/info
+
+# Unzip all the cores into the RetroArch directory
+echo "Extracting cores..."
+for zip_file in /opt/cores_temp/retroarch-cores/aarch64/*.zip; do
+    unzip -q -o "$zip_file" -d /root/.config/retroarch/cores/
+done
+
+# Cleanup the massive git repo
+cd /
+rm -rf /opt/cores_temp
+echo "Libretro cores successfully staged."
+
+# ── 3. Build AttractMode Plus (v3.2.3) ────────────────────────────────
+echo "Building AttractMode Plus..."
+cd /opt
+rm -rf attractplus
+# Clone exactly tag 3.2.3
+git clone --depth 1 --branch 3.2.3 https://github.com/oomek/attractplus.git
+cd attractplus
+
+# Compile using GLES (OpenGL ES) to match the Mali GPU, bypassing GBM/DRM
+make USE_GLES=1 -j2
+make install
+
+# ── 4. Create the Mir -> AttractMode Launcher ─────────────────────────
+cat > /usr/local/bin/mir-gpu <<'LAUNCH'
+#!/bin/bash
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 0700 "$XDG_RUNTIME_DIR"
+
+mkdir -p /run/dbus
+if [ ! -e /run/dbus/system_bus_socket ]; then
+    dbus-daemon --system --fork
+fi
+
+# Load Android GPU drivers
+source /etc/profile.d/mir-hybris.sh 2>/dev/null || true
+export WAYLAND_DISPLAY=wayland-0
+
+echo "Launching AttractMode Plus via Mir Compositor..."
+# Mir will automatically spin up Xwayland for AttractMode
+exec miral-kiosk "attract" "$@"
+LAUNCH
+chmod 755 /usr/local/bin/mir-gpu
+
+# ── 5. Cleanup ────────────────────────────────────────────────────────
+apt-get clean
+rm -rf /var/cache/apt/archives/*
+
+echo "════ AttractMode Plus & Libretro Cores Installed ════"
+EOF
+
+
+
+# Step 14
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y qtbase5-dev qttools5-dev qttools5-dev-tools
+
+rm -rf /tmp/antimicrox
+
+git clone --depth 1 https://github.com/AntiMicroX/antimicrox /tmp/antimicrox
+mkdir -p /tmp/antimicrox/build
+cd /tmp/antimicrox/build
+
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DWITH_TESTS=OFF
+
+cmake --build . -j$(nproc)
+cmake --install .
+
+cd /
+rm -rf /tmp/antimicrox
+EOF
+
+
+
+# Step 15
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y proot wget tar
+
+mkdir -p /opt/modern-os
+cd /opt/modern-os
+
+# 1. Download an official Ubuntu 24.04 ARM64 Base Rootfs (Contains modern GLIBC and SDL2)
+echo "Downloading modern Ubuntu 24.04 sandbox..."
+wget -qO noble-base.tar.gz http://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04-base-arm64.tar.gz
+
+# 2. Extract it
+tar -xf noble-base.tar.gz
+rm noble-base.tar.gz
+
+# 3. Copy DNS resolution so the container has internet
+cp /etc/resolv.conf etc/resolv.conf
+
+# 4. Install Pipewire, modern SDL2, and Wayland clients INSIDE the sandbox
+echo "Installing modern dependencies inside the sandbox..."
+proot -R /opt/modern-os -0 -b /dev -b /sys -b /proc /bin/bash -c "
+  apt-get update && \
+  apt-get install -y libpipewire-0.3-0 libsdl2-2.0-0 libwayland-client0 libvulkan1 \
+                     libx11-6 libxrandr2 libxcb1 libxcursor1 libpulse0 fuse
+"
+
+# 5. Create a Universal Proot Wrapper Script
+# This script tricks any AppImage into thinking it's running on Ubuntu 24.04
+cat > /usr/local/bin/run-modern <<'WRAPPER'
+#!/bin/bash
+APP_PATH="$1"
+shift
+
+# Bind mount the host's Wayland socket, GPU nodes, and Home directory into the container,
+# then execute the app using the container's modern GLIBC.
+exec proot -R /opt/modern-os \
+  -b /dev:/dev \
+  -b /sys:/sys \
+  -b /proc:/proc \
+  -b /tmp:/tmp \
+  -b /run/user:/run/user \
+  -b "$HOME:$HOME" \
+  -w "$HOME" \
+  "$APP_PATH" "$@"
+WRAPPER
+chmod +x /usr/local/bin/run-modern
+
+echo "════ Modern OS Sandbox Created ════"
+EOF
+
+
+
+# Step 16
+cd ~/ums512_kernel/deb
+sudo cp /opt/ubports-arm64/build/mir1-*.deb mnt/tmp/
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# ── 1. Remove conflicting system libhybris ────────────────────────────
+# Purge APT-managed copies that would shadow /opt/libhybris at runtime
+apt-get remove --purge -y \
+  libhybris \
+  libhybris-common1 \
+  libhybris-dev \
+  libhardware2 \
+  libandroid-properties1 \
+  2>/dev/null || true
+
+# Remove any stray .so files not caught by apt
+rm -f \
+  /usr/lib/aarch64-linux-gnu/libhybris-common.so* \
+  /usr/lib/aarch64-linux-gnu/libhardware.so* \
+  /usr/lib/aarch64-linux-gnu/libandroid-properties.so* \
+  /usr/lib/aarch64-linux-gnu/libEGL_libhybris* \
+  /usr/lib/aarch64-linux-gnu/libGLESv1_CM_libhybris* \
+  /usr/lib/aarch64-linux-gnu/libGLESv2_libhybris*
+
+# ── 2. Register /opt/libhybris with the dynamic linker ────────────────
+echo "/opt/libhybris/lib" > /etc/ld.so.conf.d/libhybris.conf
+ldconfig
+
+# ── 3. Register GLVND EGL ICD for libhybris ───────────────────────────
+mkdir -p /usr/share/glvnd/egl_vendor.d
+ln -sf /opt/libhybris/share/glvnd/egl_vendor.d/10_libhybris.json \
+       /usr/share/glvnd/egl_vendor.d/10_libhybris.json
+
+# ── 4. Add UBports Repository ─────────────────────────────────────────
+# Required for libmirplatform18 instead of Ubuntu's older v17
+echo "deb [trusted=yes] http://repo.ubports.com focal main" \
+  > /etc/apt/sources.list.d/ubports.list
+apt-get update -qq
+
+# ── 5. Install Base Mir Dependencies ──────────────────────────────────
+apt-get install -y \
+  libmirclient-dev \
+  libmiral-dev \
+  libmirplatform18 \
+  libmirplatform-dev \
+  libmircommon7 \
+  mir-platform-input-evdev7 \
+  mir-platform-graphics-mesa-kms16 \
+  mir-platform-graphics-mesa-x16 \
+  mir-demos
+
+# ── 6. Install Custom Android Graphics Modules ────────────────────────
+# dpkg may fail on missing deps first; apt-get -f resolves them
+dpkg -i /tmp/mir1-client-platform-android5_0.31.2_arm64.deb \
+        /tmp/mir1-platform-graphics-android16_0.31.2_arm64.deb \
+  || apt-get install -f -y
+rm -f /tmp/mir1-*.deb
+
+# ── 7. Symlink /lib entries back to /opt/libhybris ────────────────────
+# apt-get -f above reinstalls UBports libhybris debs into /lib/aarch64-linux-gnu/.
+# Override them with symlinks so the custom /opt/libhybris build always wins.
+for lib in \
+  libhybris-common.so.1.0.0 \
+  libhybris-common.so.1 \
+  libhardware.so.2.0.0 \
+  libhardware.so.2 \
+  libandroid-properties.so.1.0.0 \
+  libandroid-properties.so.1 \
+  libEGL_libhybris.so.0.0.0 \
+  libEGL_libhybris.so.0; do
+    [ -f "/opt/libhybris/lib/$lib" ] && \
+      ln -sf "/opt/libhybris/lib/$lib" "/lib/aarch64-linux-gnu/$lib" && \
+      echo "Linked $lib"
+done
+ldconfig
+
+# ── 8. Set Up Hardware Access Groups ──────────────────────────────────
+groupadd -f seat
+groupadd -f fuse
+for U in user phablet; do
+  id "$U" &>/dev/null && usermod -aG video,render,input,seat,tty,fuse,audio "$U" || true
+done
+
+apt-get clean
+rm -rf /var/cache/apt/archives/*
+
+echo "════ Mir + libhybris Stack Successfully Installed & Configured ════"
+EOF
+
+
+
+# Step 17
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+set -e
+
+# ── 1. The Vulkan 1.3 Header Bypass ──
+# Focal's libvulkan-dev is too old. We need modern headers to compile this.
+rm -rf /tmp/Vulkan-Headers
+git clone --depth 1 --branch main https://github.com/KhronosGroup/Vulkan-Headers.git /tmp/Vulkan-Headers
+
+# Overwrite the system's ancient headers with the modern ones
+cp -r /tmp/Vulkan-Headers/include/vulkan/* /usr/include/vulkan/
+mkdir -p /usr/include/vk_video
+cp -r /tmp/Vulkan-Headers/include/vk_video/* /usr/include/vk_video/ 2>/dev/null || true
+rm -rf /tmp/Vulkan-Headers
+
+# ── 2. Prepare lsfg-vk ──
+rm -rf /tmp/lsfg-vk
+git init /tmp/lsfg-vk
+cd /tmp/lsfg-vk
+git remote add origin https://github.com/PancakeTAS/lsfg-vk
+git fetch --depth 1 origin ff1a0f72a7d6d08b84d58b7b4dc5f05c9f904f98
+git checkout FETCH_HEAD
+git submodule update --init --recursive
+
+sed -i '1s|^|#include <optional>\n|' include/config/config.hpp
+
+# Proactively strip the GUI tool from CMake
+sed -i '/add_subdirectory(.*ui.*)/Id' CMakeLists.txt 2>/dev/null || true
+sed -i '/find_package(.*GTK4.*)/Id' CMakeLists.txt 2>/dev/null || true
+
+# ── 3. Compile the core Vulkan layer headless ──
+cmake -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang-16 \
+  -DCMAKE_CXX_COMPILER=clang++-16 \
+  -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fexperimental-library" \
+  -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -lc++abi" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++ -lc++abi" \
+  -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+  -DBUILD_UI=OFF \
+  -DENABLE_GUI=OFF
+
+cmake --build build
+cmake --install build --prefix /usr/local
+
+cd /
+rm -rf /tmp/lsfg-vk
+EOF
+
+
+
+# Step 19
+curl -sLo /tmp/PortMaster.zip "https://github.com/PortsMaster/PortMaster-GUI/releases/download/2026.04.01-1426/PortMaster.zip"
+
+sudo cp /tmp/PortMaster.zip mnt/tmp/
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+set -e
+apt-get install -y python3-sdl2
+
+if ! id plus &>/dev/null; then
+    useradd -m -s /bin/bash -G sudo,audio,video,input,render plus
+    echo 'plus:123' | chpasswd
+fi
+
+mkdir -p /opt/PortMaster
+unzip /tmp/PortMaster.zip -d /opt/PortMaster/
+
+INNER=$(find /opt/PortMaster -maxdepth 2 -name "PortMaster.sh" | head -1)
+INNER_DIR=$(dirname "$INNER")
+if [ "$INNER_DIR" != "/opt/PortMaster" ]; then
+    mv "$INNER_DIR"/* /opt/PortMaster/
+    rmdir "$INNER_DIR" 2>/dev/null || true
+fi
+chmod +x /opt/PortMaster/PortMaster.sh
+
+# Install extra PortMaster UI tools
+curl -sLo /usr/local/bin/getcontrols "https://github.com/PortsMaster/PortMaster-GUI/raw/main/tools/getcontrols/getcontrols.aarch64"
+chmod +x /usr/local/bin/getcontrols
+
+curl -sLo /opt/PortMaster/pugwash "https://github.com/PortsMaster/PortMaster-GUI/raw/main/tools/pugwash/pugwash.aarch64"
+chmod +x /opt/PortMaster/pugwash
+
+cat > /usr/local/bin/portmaster <<'SCRIPT'
+#!/bin/bash
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export SDL_VIDEODRIVER=wayland
+export DEVICE_ARCH=aarch64
+cd /opt/PortMaster
+exec bash PortMaster.sh "$@"
+SCRIPT
+chmod +x /usr/local/bin/portmaster
+
+mkdir -p /home/plus/PortMaster/logs
+mkdir -p /home/plus/PortMaster/runtimes
+mkdir -p /home/plus/ports
+chown -R plus:plus /home/plus
+
+rm /tmp/PortMaster.zip
+EOF
+
+
+
+# Step 20
+curl -sLo /tmp/umu-py.deb "https://github.com/Open-Wine-Components/umu-launcher/releases/download/1.4.0/python3-umu-launcher_1.4.0-1_arm64_debian-12.deb"
+
+curl -sLo /tmp/umu-all.deb "https://github.com/Open-Wine-Components/umu-launcher/releases/download/1.4.0/umu-launcher_1.4.0-1_all_debian-12.deb"
+
+sudo cp /tmp/umu-py.deb /tmp/umu-all.deb mnt/tmp/
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+dpkg -i /tmp/umu-py.deb /tmp/umu-all.deb || apt-get install -f -y
+rm /tmp/umu-py.deb /tmp/umu-all.deb
+EOF
+
+
+
+# Step 21
+curl -sLo /tmp/dxvk-sarek.tar.gz "https://github.com/pythonlover02/DXVK-Sarek/releases/download/v1.12.0/dxvk-sarek-dyasync-v1.12.0.tar.gz"
+
+sudo cp /tmp/dxvk-sarek.tar.gz mnt/tmp/
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+mkdir -p /opt/dxvk-sarek
+tar -xf /tmp/dxvk-sarek.tar.gz -C /opt/dxvk-sarek --strip-components=1
+chmod +x /opt/dxvk-sarek/setup_dxvk.sh 2>/dev/null || true
+ln -sf /opt/dxvk-sarek/setup_dxvk.sh /usr/local/bin/setup_dxvk
+rm /tmp/dxvk-sarek.tar.gz
+EOF
+
+
+
+# Step 22
+curl -sLo /tmp/xemu.AppImage "https://github.com/xemu-project/xemu/releases/download/v0.8.134/xemu-0.8.134-dbg-aarch64.AppImage"
+
+curl -sLo /tmp/duckstation.AppImage "https://github.com/stenzek/duckstation/releases/download/latest/DuckStation-arm64.AppImage"
+
+curl -sLo /tmp/ryubing.AppImage "https://git.greemdev.net/projects/Ryubing/releases/download/1.3.3/ryujinx-1.3.3-arm64.AppImage"
+
+curl -sLo /tmp/eden.AppImage "https://git.eden-emu.dev/eden-emu/eden/releases/download/v0.2.0-rc2/Eden-Linux-v0.2.0-rc2-aarch64-clang-pgo.AppImage"
+
+curl -sLo /tmp/rpcs3.AppImage "https://github.com/RPCS3/rpcs3-binaries-linux-arm64/releases/download/build-7a8c88056ac4123f0c7d1316fffe5e74ad699f0b/rpcs3-v0.0.40-19232-7a8c8805_linux_aarch64.AppImage"
+
+curl -sLo /tmp/melonds.zip "https://github.com/melonDS-emu/melonDS/releases/download/1.1/melonDS-1.1-appimage-aarch64.zip"
+
+curl -sLo /tmp/ymir.tar.xz "https://github.com/StrikerX3/Ymir/releases/download/v0.2.1/ymir-linux-AArch64-NEON-v0.2.1.tar.xz"
+
+curl -sLo /tmp/gopher64 "https://github.com/gopher64/gopher64/releases/download/v1.1.19/gopher64-linux-aarch64"
+
+curl -sLo /tmp/vbalink.zip "https://www.vbalink.info/downloads/vbalink180b.zip"
+
+curl -sLo /tmp/nogba.zip 'https://problemkaputt.de/no$gba-w.zip'
+
+curl -sLo /tmp/desmume.zip "https://github.com/TASEmulators/desmume/releases/download/release_0_9_13/desmume-0.9.13-win64.zip"
+
+curl -sLo /tmp/bizhawk-prereqs.zip "https://github.com/TASEmulators/BizHawk-Prereqs/releases/download/2.4.8_1/bizhawk_prereqs_v2.4.8_1.zip"
+
+curl -sLo /tmp/cemu.zip "https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-windows-x64.zip"
+
+sudo cp \
+  /tmp/xemu.AppImage /tmp/duckstation.AppImage /tmp/ryubing.AppImage \
+  /tmp/eden.AppImage /tmp/rpcs3.AppImage \
+  /tmp/melonds.zip /tmp/ymir.tar.xz /tmp/gopher64 \
+  /tmp/vbalink.zip /tmp/nogba.zip \
+  /tmp/desmume.zip /tmp/bizhawk-prereqs.zip /tmp/cemu.zip \
+  mnt/tmp/
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# Ensure tools are present
+apt-get update
+apt-get install -y squashfs-tools unzip
+
+mkdir -p /opt/emulators /opt/windows-apps
+
+# ── 1. Extract Standard AppImages via Offset Bypass ──
+for name in xemu duckstation ryubing eden rpcs3; do
+    cd /tmp
+    echo "Extracting ${name}..."
+    # Find the exact byte offset where the SquashFS payload begins
+    OFFSET=$(grep -b -a -m 1 -o 'hsqs' "${name}.AppImage" | cut -d: -f1)
+    
+    if [ -n "$OFFSET" ]; then
+        unsquashfs -f -o $OFFSET -d /opt/emulators/${name} "${name}.AppImage"
+        ln -sf /opt/emulators/${name}/AppRun /usr/local/bin/${name}
+    else
+        echo "Error: Could not find SquashFS header in ${name}.AppImage"
+    fi
+    rm -f ${name}.AppImage
+done
+
+# ── 2. Extract melonDS (Zipped AppImage) ──
+echo "Extracting melonDS..."
+unzip -o /tmp/melonds.zip -d /tmp/melonds-extract/
+MELONDS_BIN=$(find /tmp/melonds-extract -type f \( -name "*.AppImage" -o -name "melonDS*" \) | head -1)
+cd /tmp
+OFFSET=$(grep -b -a -m 1 -o 'hsqs' "$MELONDS_BIN" | cut -d: -f1)
+if [ -n "$OFFSET" ]; then
+    unsquashfs -f -o $OFFSET -d /opt/emulators/melonds "$MELONDS_BIN"
+    ln -sf /opt/emulators/melonds/AppRun /usr/local/bin/melonds
+fi
+rm -rf /tmp/melonds-extract /tmp/melonds.zip
+
+# ── 3. Install Ymir and Gopher64 ──
+mkdir -p /opt/emulators/ymir
+tar -xf /tmp/ymir.tar.xz -C /opt/emulators/ymir --strip-components=1
+YMIR_BIN=$(find /opt/emulators/ymir -maxdepth 2 -type f -executable | head -1)
+[ -n "$YMIR_BIN" ] && ln -sf "$YMIR_BIN" /usr/local/bin/ymir
+rm -f /tmp/ymir.tar.xz
+
+mv /tmp/gopher64 /usr/local/bin/gopher64
+chmod +x /usr/local/bin/gopher64
+
+# ── 4. BINFMT_MISC BYPASS (Added -o to forcefully overwrite) ──
+mkdir -p /opt/windows-apps/vbalink
+unzip -o /tmp/vbalink.zip -d /opt/windows-apps/vbalink/
+VBALINK_EXE=$(find /opt/windows-apps/vbalink -iname "*.exe" | head -1)
+cat > /usr/local/bin/vbalink <<SCRIPT
+#!/bin/sh
+export WINEPREFIX="\$HOME/.wine-vbalink"
+export WINEARCH=win32
+export BOX86_NOBANNER=1
+[ ! -d "\$WINEPREFIX" ] && box86 wineboot --init
+exec box86 wine "$VBALINK_EXE" "\$@"
+SCRIPT
+chmod +x /usr/local/bin/vbalink
+rm -f /tmp/vbalink.zip
+
+mkdir -p /opt/windows-apps/nogba
+unzip -o /tmp/nogba.zip -d /opt/windows-apps/nogba/
+NOGBA_EXE=$(find /opt/windows-apps/nogba -iname "*.exe" | head -1)
+cat > /usr/local/bin/nogba <<SCRIPT
+#!/bin/sh
+export WINEPREFIX="\$HOME/.wine-nogba"
+export WINEARCH=win32
+export BOX86_NOBANNER=1
+[ ! -d "\$WINEPREFIX" ] && box86 wineboot --init
+exec box86 wine "$NOGBA_EXE" "\$@"
+SCRIPT
+chmod +x /usr/local/bin/nogba
+rm -f /tmp/nogba.zip
+
+mkdir -p /opt/windows-apps/desmume /opt/windows-apps/bizhawk-prereqs
+unzip -o /tmp/desmume.zip -d /opt/windows-apps/desmume/
+unzip -o /tmp/bizhawk-prereqs.zip -d /opt/windows-apps/bizhawk-prereqs/
+DESMUME_EXE=$(find /opt/windows-apps/desmume -iname "*.exe" | head -1)
+PREREQS_EXE=$(find /opt/windows-apps/bizhawk-prereqs -iname "*.exe" | head -1)
+cat > /usr/local/bin/desmume-win <<SCRIPT
+#!/bin/sh
+export WINEPREFIX="\$HOME/.wine-desmume"
+export WINEARCH=win64
+export BOX64_NOBANNER=1
+if [ ! -d "\$WINEPREFIX" ]; then
+    box64 wineboot --init
+    box64 wine "$PREREQS_EXE" /SILENT 2>/dev/null || \
+    WINEPREFIX="\$HOME/.wine-desmume" box64 winetricks -q vcrun2022
+fi
+exec box64 wine64 "$DESMUME_EXE" "\$@"
+SCRIPT
+chmod +x /usr/local/bin/desmume-win
+rm -f /tmp/desmume.zip /tmp/bizhawk-prereqs.zip
+
+mkdir -p /opt/windows-apps/cemu
+unzip -o /tmp/cemu.zip -d /opt/windows-apps/cemu/
+CEMU_EXE=$(find /opt/windows-apps/cemu -iname "Cemu.exe" | head -1)
+cat > /usr/local/bin/cemu <<SCRIPT
+#!/bin/sh
+export WINEPREFIX="\$HOME/.wine-cemu"
+export WINEARCH=win64
+export BOX64_NOBANNER=1
+[ ! -d "\$WINEPREFIX" ] && box64 wineboot --init
+exec box64 wine64 "$CEMU_EXE" "\$@"
+SCRIPT
+chmod +x /usr/local/bin/cemu
+rm -f /tmp/cemu.zip
+EOF
+
+
+
+# Step 23
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Bypass the QEMU/Python SSL hang by manually injecting the Flatpak PPA
+echo "deb [trusted=yes] http://ppa.launchpad.net/flatpak/stable/ubuntu focal main" > /etc/apt/sources.list.d/flatpak-stable.list
+
+apt-get update
+apt-get install -y --allow-unauthenticated flatpak
+
+# 2. Create the manual installation script
+cat > /usr/local/bin/install-flatpaks <<'SCRIPT'
+#!/bin/bash
+echo "Installing Flatpak applications..."
+
+# Add repositories
+flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --system --if-not-exists dolphin https://flatpak.dolphin-emu.org/releases.flatpakrepo
+
+# Install emulators
+flatpak install --system --noninteractive flathub org.pegasus_frontend.Pegasus
+flatpak install --system --noninteractive flathub org.flycast.Flycast
+flatpak install --system --noninteractive flathub org.azahar_emu.Azahar
+flatpak install --system --noninteractive dolphin org.DolphinEmu.dolphin-emu
+
+echo "Flatpak installation complete!"
+SCRIPT
+
+chmod +x /usr/local/bin/install-flatpaks
+EOF
+
+
+
+# Step 24
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash -c \
+  "apt-get autoremove -y; apt-get clean; rm -rf /var/cache/apt/archives/* /tmp/* /var/tmp/*"
+
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+# -c (create), -z (gzip compress), -p (preserve permissions), -f (file)
+# -C mnt . means "change into the mnt directory and tar everything inside it"
+sudo tar -czpf focaltu-arm64.tar.gz -C mnt .
+
+sudo umount mnt
+
+rm rootfs.img
+
+
+
+
+
+FOR FEX:
+
+
+
+STEP A
+cd ~/ums512_kernel/deb
+
+mkdir -p mnt
+
+sudo tar -xzpf focaltu-arm64.tar.gz -C mnt
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+
+
+STEP B
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Ensure Python 3.9 and dependencies are present
+apt-get update
+apt-get install -y \
+  git ninja-build pkg-config \
+  clang-16 lld-16 llvm-16 \
+  libssl-dev python3-setuptools \
+  squashfs-tools squashfuse \
+  python3.9 python3.9-venv python3.9-dev
+
+# 2. Clone FEX
+rm -rf /tmp/FEX
+git clone --recurse-submodules https://github.com/FEX-Emu/FEX.git /tmp/FEX
+cd /tmp/FEX
+mkdir Build && cd Build
+
+# 3. The Path Override: Trick FEX into using Python 3.9 natively
+mkdir -p /tmp/py39
+ln -sf /usr/bin/python3.9 /tmp/py39/python3
+export PATH="/tmp/py39:$PATH"
+
+# 4. Force CMake to use Python 3.9 and the modern LLVM 16 toolchain
+CC=clang-16 CXX=clang++-16 cmake \
+  -DPython_EXECUTABLE=/usr/bin/python3.9 \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_LINKER=lld-16 \
+  -DENABLE_LTO=True \
+  -DBUILD_TESTING=False \
+  -DENABLE_ASSERTIONS=False \
+  -DBUILD_FEXCONFIG=False \
+  -G Ninja ..
+
+ninja
+ninja install
+
+# 5. Cleanup
+cd /
+rm -rf /tmp/FEX /tmp/py39
+echo "════ FEX Build Complete ════"
+EOF
+
+
+
+STEP C
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash -c \
+  "apt-get autoremove -y; apt-get clean; rm -rf /var/cache/apt/archives/* /tmp/* /var/tmp/*"
+
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+sudo tar -czpf focaltu-arm64-fex.tar.gz -C mnt .
+
+sudo umount mnt
+
+sudo rm -rf mnt
+
+
+
+FOR NEXUS
+
+
+
+STEP A
+cd ~/ums512_kernel/deb
+
+mkdir -p mnt
+
+sudo tar -xzpf focaltu-arm64.tar.gz -C mnt
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+
+
+STEP B
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Fetch the latest NMM release link dynamically from GitHub
+NMM_URL=$(curl -s https://api.github.com/repos/Nexus-Mods/Nexus-Mod-Manager/releases/latest | grep "browser_download_url.*\.exe" | cut -d '"' -f 4)
+curl -sLo /tmp/nmm_setup.exe "$NMM_URL"
+
+# 2. Create the Launcher and Installation Script
+cat > /usr/local/bin/nmm <<'SCRIPT'
+#!/bin/sh
+export WINEPREFIX="$HOME/.wine-nmm"
+export WINEARCH=win64
+export BOX64_NOBANNER=1
+
+# If the prefix doesn't exist, initialize it and install .NET 4.7.2
+if [ ! -d "$WINEPREFIX" ]; then
+    echo "Initializing Wine prefix and installing .NET (this will take a while)..."
+    box64 wineboot --init
+    # NMM requires .NET 4.5.2+, 4.7.2 is the safest bet for Wine
+    box64 winetricks -q dotnet472
+fi
+
+# Run NMM
+exec box64 wine64 "C:\Program Files\Nexus Mod Manager\NexusClient.exe" "$@"
+SCRIPT
+chmod +x /usr/local/bin/nmm
+
+# 3. Run the installer silently inside the chroot
+export WINEPREFIX="/root/.wine-nmm"
+export WINEARCH=win64
+box64 wineboot --init
+# (Note: We skip dotnet installation during the chroot build to save time; 
+# it will install on your actual device the first time you run 'nmm')
+box64 wine64 /tmp/nmm_setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+
+rm /tmp/nmm_setup.exe
+echo "════ NMM Installed ════"
+EOF
+
+
+
+STEP C
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Fetch the latest Vortex release
+VORTEX_URL=$(curl -s https://api.github.com/repos/Nexus-Mods/Vortex/releases/latest | grep "browser_download_url.*vortex-setup-.*\.exe" | head -1 | cut -d '"' -f 4)
+curl -sLo /tmp/vortex_setup.exe "$VORTEX_URL"
+
+# 2. Create the Launcher with aggressive Electron-compatibility flags
+cat > /usr/local/bin/vortex <<'SCRIPT'
+#!/bin/sh
+export WINEPREFIX="$HOME/.wine-vortex"
+export WINEARCH=win64
+export BOX64_NOBANNER=1
+export WINEFSYNC=1
+
+[ ! -d "$WINEPREFIX" ] && box64 wineboot --init
+
+# We MUST disable GPU acceleration and sandbox for Electron apps running under Box64/Wine
+exec box64 wine64 "C:\Program Files\Black Tree Gaming Ltd\Vortex\Vortex.exe" \
+  --disable-gpu \
+  --disable-software-rasterizer \
+  --no-sandbox \
+  "$@"
+SCRIPT
+chmod +x /usr/local/bin/vortex
+
+# 3. Install Vortex
+export WINEPREFIX="/root/.wine-vortex"
+export WINEARCH=win64
+box64 wineboot --init
+box64 wine64 /tmp/vortex_setup.exe /S
+
+rm /tmp/vortex_setup.exe
+echo "════ Vortex Installed ════"
+EOF
+
+
+
+STEP D
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash -c \
+  "apt-get autoremove -y; apt-get clean; rm -rf /var/cache/apt/archives/* /tmp/* /var/tmp/*"
+
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+sudo tar -czpf focaltu-arm64-nexus.tar.gz -C mnt .
+
+sudo umount mnt
+
+sudo rm -rf mnt
+
+
+
+
+KODI
+
+cd ~/ums512_kernel/deb
+
+mkdir -p mnt
+
+sudo tar -xzpf focaltu-arm64.tar.gz -C mnt
+
+sudo mount -t proc   proc   mnt/proc
+
+sudo mount -t sysfs  sysfs  mnt/sys
+
+sudo mount --bind    /dev   mnt/dev
+
+sudo mount -t devpts devpts mnt/dev/pts
+
+sudo cp /usr/bin/qemu-aarch64-static mnt/usr/bin/
+
+
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash <<'EOF'
+export DEBIAN_FRONTEND=noninteractive
+
+# Proactively limit all background compilation threads to prevent QEMU RAM crashes
+export MAKEFLAGS="-j2"
+
+# ── 1. Install Massive Build Dependency Tree ──────────────────────────
+# Enable source repos to quickly pull baseline dependencies
+echo "deb-src http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse" >> /etc/apt/sources.list
+echo "deb-src http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse" >> /etc/apt/sources.list
+apt-get update
+
+# Pull standard Kodi build dependencies
+apt-get build-dep -y kodi
+
+# Force install Wayland, GBM, GLES, modern GCC 10, and Retroplayer dependencies
+apt-get install -y \
+    build-essential git cmake curl \
+    libwayland-dev wayland-protocols \
+    libegl1-mesa-dev libgles2-mesa-dev libgbm-dev \
+    libxkbcommon-dev libinput-dev libudev-dev \
+    flatbuffers-compiler libflatbuffers-dev \
+    rapidjson-dev swig python3-dev \
+    libfmt-dev libspdlog-dev retroarch \
+    gcc-10 g++-10
+
+# ── 2. Set GCC 10 as the Global Default (Required for C++20 Addons) ───
+update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 100
+update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 100
+update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 100
+
+# ── 3. Clone garbear's RetroPlayer fork ───────────────────────────────
+cd /opt
+rm -rf kodi-retroplayer
+git clone --depth=1 https://github.com/garbear/xbmc.git kodi-retroplayer
+cd kodi-retroplayer
+
+# ── 4. Bootstrap and configure Kodi for ARM64 / Wayland / GLES ────────
+./bootstrap
+mkdir -p build && cd build
+
+# These flags are strictly required for your Mir/Hybris environment
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCORE_PLATFORM_NAME=wayland \
+    -DAPP_RENDER_SYSTEM=gles \
+    -DENABLE_X11=OFF \
+    -DENABLE_WAYLAND=ON \
+    -DENABLE_OPENGL=OFF \
+    -DENABLE_OPENGLES=ON \
+    -DENABLE_INTERNAL_FLATBUFFERS=ON
+
+make -j2
+make install
+
+# ── 5. Build ALL game addons in one pass ──────────────────────────────
+cd /opt/kodi-retroplayer
+cmake -DADDONS_TO_BUILD="game.*" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DPACKAGE_ZIP=1 \
+      cmake/addons
+make -j2
+
+# ── 6. Build peripheral (joystick/gamepad) addons ─────────────────────
+rm -f CMakeCache.txt
+rm -rf CMakeFiles/
+
+cmake -DADDONS_TO_BUILD="peripheral.*" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DPACKAGE_ZIP=1 \
+      cmake/addons
+make -j2
+
+# ── 7. Stage the ChaiLove Launcher for RetroArch ──────────────────────
+mkdir -p /root/.config/retroarch/system
+cd /opt
+rm -rf ChaiLove-Launcher
+git clone https://github.com/RobLoach/ChaiLove-Launcher.git
+
+cat > /opt/ChaiLove-Launcher/chailove-launcher.json <<'JSON'
+{
+    "Kodi":       "/usr/local/bin/mir-gpu",
+    "RetroArch":  "retroarch",
+    "File Manager": "pcmanfm"
+}
+JSON
+
+cp /opt/ChaiLove-Launcher/chailove-launcher.json \
+   /root/.config/retroarch/system/chailove-launcher.json
+
+# ── 8. Configure GPU Launcher to use the compiled Kodi ────────────────
+cat > /usr/local/bin/mir-gpu <<'LAUNCH'
+#!/bin/bash
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 0700 "$XDG_RUNTIME_DIR"
+
+mkdir -p /run/dbus
+if [ ! -e /run/dbus/system_bus_socket ]; then
+    dbus-daemon --system --fork
+fi
+
+source /etc/profile.d/mir-hybris.sh 2>/dev/null || true
+export WAYLAND_DISPLAY=wayland-0
+
+exec miral-kiosk "kodi --windowing=wayland" "$@"
+LAUNCH
+chmod 755 /usr/local/bin/mir-gpu
+
+# ── 9. Clean up ───────────────────────────────────────────────────────
+apt-get clean
+rm -rf /var/cache/apt/archives/*
+
+echo "════ RetroPlayer Compilation and Setup Complete ════"
+EOF
+
+
+sudo chroot mnt /usr/bin/qemu-aarch64-static /bin/bash -c \
+  "apt-get autoremove -y; apt-get clean; rm -rf /var/cache/apt/archives/* /tmp/* /var/tmp/*"
+
+sudo rm -f mnt/usr/bin/qemu-aarch64-static
+
+sudo umount -l mnt/dev/pts
+
+sudo umount -l mnt/dev
+
+sudo umount -l mnt/sys
+
+sudo umount -l mnt/proc
+
+sudo tar -czpf focaltu-arm64-kodi.tar.gz -C mnt .
+
+sudo umount mnt
+
+sudo rm -rf mnt
+
+
+
+
+
