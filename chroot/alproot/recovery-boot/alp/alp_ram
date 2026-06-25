@@ -1,0 +1,107 @@
+#!/system/bin/sh
+
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+LOGFILE="/tmp/alpine_ram.log"
+ALPINE="/mnt/alpine"
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_subsection() {
+    log ""
+    log "--- $* ---"
+}
+
+log_info()    { log "  ℹ $*"; }
+log_warning() { log "  ⚠ $*"; }
+log_success() { log "  ✓ $*"; }
+log_error()   { log "  ✗ ERROR: $*"; }
+
+set_perm_if_exists() {
+    local dev="$1"
+    local mode="$2"
+    local owner="$3"
+    local group="$4"
+
+    if [ -e "$dev" ]; then
+        chmod "$mode" "$dev" 2>/dev/null
+        chown "$owner:$group" "$dev" 2>/dev/null
+        log_success "Configured $dev ($mode $owner:$group)"
+        return 0
+    else
+        log_warning "Device node missing: $dev"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------
+# Basic logging and BOOT mount
+# ------------------------------------------------------------
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log_section "ALP_RAM START"
+log_info "Log file: $LOGFILE"
+
+# ------------------------------------------------------------
+# ZRAM Swap Activation
+# ------------------------------------------------------------
+log_subsection "Activating ZRAM Swap"
+
+log_info "Formatting ZRAM as swap..."
+# Redirecting output to logfile in case mkswap throws warnings/info
+${ALPINE}/bin/busybox mkswap /dev/block/zram0 >> "$LOGFILE" 2>&1
+if [ $? -eq 0 ]; then
+    log_success "mkswap executed successfully."
+else
+    log_error "mkswap encountered an issue (check log above)."
+fi
+
+log_info "Turning on ZRAM swap..."
+${ALPINE}/bin/busybox swapon /dev/block/zram0 >> "$LOGFILE" 2>&1
+if [ $? -eq 0 ]; then
+    log_success "swapon executed successfully."
+else
+    log_error "swapon encountered an issue (check log above)."
+fi
+
+# ------------------------------------------------------------
+# Verification & Logging Results
+# ------------------------------------------------------------
+log_section "System Verification Results"
+
+log_subsection "Active Swaps (/proc/swaps)"
+cat /proc/swaps >> "$LOGFILE" 2>&1
+
+log_subsection "Memory Usage (free -m)"
+# Using alpine busybox to ensure it executes in recovery
+${ALPINE}/bin/busybox free -m >> "$LOGFILE" 2>&1
+
+log_subsection "ZRAM Configuration States"
+log_info "Backing Device:      $(cat /sys/block/zram0/backing_dev 2>/dev/null)"
+log_info "Comp Algorithm:      $(cat /sys/block/zram0/comp_algorithm 2>/dev/null)"
+log_info "Max Comp Streams:    $(cat /sys/block/zram0/max_comp_streams 2>/dev/null)"
+
+log_subsection "Virtual Memory (VM) Tweaks"
+log_info "Swappiness:          $(cat /proc/sys/vm/swappiness 2>/dev/null)"
+log_info "Watermark Scale:     $(cat /proc/sys/vm/watermark_scale_factor 2>/dev/null)"
+log_info "Process Reclaim:     $(cat /sys/module/process_reclaim/parameters/enable_process_reclaim 2>/dev/null)"
+
+log_section "ALP_MOD COMPLETE"

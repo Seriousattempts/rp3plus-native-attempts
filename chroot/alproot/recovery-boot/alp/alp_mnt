@@ -1,0 +1,363 @@
+#!/system/bin/sh
+
+# Alpine Linux Mount Service - Stage 0 + Stage 1 only
+# Stage 0: Mount partitions from super (mmcblk0p50) via losetup
+# Stage 1: Extract and mount APEX modules from /system/apex
+
+# === CONFIGURATION ===
+SUPER_PARTITION="/dev/block/mmcblk0p50"
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+ALPINE="/mnt/alpine"
+
+# Super partition offsets/sizes (lpdump slot 0)
+SYSTEM_A_OFF_B=1048576;      SYSTEM_A_SZ_B=1378447360
+SYSTEM_EXT_OFF_B=1379926016; SYSTEM_EXT_SZ_B=379461632
+VENDOR_OFF_B=1759510528;     VENDOR_SZ_B=1894899712
+PRODUCT_OFF_B=3655335936;    PRODUCT_SZ_B=609284096
+
+# Mount points — vendor/system_ext/product land directly in their canonical roots
+SYSTEM_A_TMP="${ALPINE}/system_a"
+SYSTEM_SOURCE="${SYSTEM_A_TMP}/system"
+VENDOR_MNT="/vendor"
+SYSTEM_EXT_MNT="/system_ext"
+PRODUCT_MNT="/product"
+
+# === BOOT PARTITION MOUNT ===
+_sd_mounted=0
+for _i in 1 2 3 4 5; do
+    if mount | grep -q "$BOOT_PARTITION"; then _sd_mounted=1; break; fi
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    sleep 1
+done
+
+# === LOGGING SETUP ===
+LOGFILE="/sdcard/alpine_mounted.log"
+if [ $_sd_mounted -eq 1 ] && touch "$SD_MOUNT/.test_write" 2>/dev/null; then
+    rm -f "$SD_MOUNT/.test_write"
+    > "$LOGFILE"
+else
+    LOGFILE="/data/local/tmp/alp_mounted.log"
+    mkdir -p "$(dirname "$LOGFILE")"
+    > "$LOGFILE"
+fi
+
+log()         { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE"; sync; }
+log_section() { log "========================================="; log "=== $* ==="; log "========================================="; }
+log_info()    { log "  i $*"; }
+log_warn()    { log "  w $*"; }
+log_ok()      { log "  + $*"; }
+log_err()     { log "  ! ERROR: $*"; }
+
+log_section "ALPINE STAGE 0+1 START"
+log_info "Log: $LOGFILE  |  Mode: Super partition mounts + live APEX extraction"
+
+# === VERIFY SUPER PARTITION ===
+if [ ! -b "$SUPER_PARTITION" ]; then
+    log_err "Super partition $SUPER_PARTITION not found"; exit 1
+fi
+log_ok "Super partition: $SUPER_PARTITION"
+
+# ============================================================
+# LOOP CLEANUP
+# ============================================================
+cleanup_loops() {
+    local _n dev
+    for _n in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        dev="/dev/loop${_n}"
+        if losetup "$dev" >/dev/null 2>&1; then
+            losetup -d "$dev" 2>/dev/null
+        fi
+        dev="/dev/block/loop${_n}"
+        if losetup "$dev" >/dev/null 2>&1; then
+            losetup -d "$dev" 2>/dev/null
+        fi
+    done
+}
+
+log_info "Cleaning orphaned loop devices..."
+cleanup_loops
+
+log_info "Wiping contents of ${ALPINE}/tmp..."
+rm -rf "${ALPINE}/tmp"
+mkdir -p "${ALPINE}/tmp"
+
+# ============================================================
+# HELPERS
+# ============================================================
+find_free_loop() {
+    local loop dev n
+    loop=$(losetup -f 2>/dev/null)
+    [ -n "$loop" ] && echo "$loop" && return 0
+    for n in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        dev="/dev/block/loop${n}"
+        [ ! -e "$dev" ] && mknod "$dev" b 7 "$n" 2>/dev/null
+        if [ -b "$dev" ] && ! timeout 3 losetup "$dev" >/dev/null 2>&1; then
+            echo "$dev"; return 0
+        fi
+    done
+    return 1
+}
+
+release_loop_for() {
+    local file=$1 dev
+    losetup -j "$file" 2>/dev/null | while IFS=: read dev rest; do
+        losetup -d "$dev" 2>/dev/null
+    done
+}
+
+mount_via_losetup() {
+    local name=$1 mnt=$2 off=$3
+    local loop attached=0
+
+    cleanup_loops
+
+    loop=$(find_free_loop)
+    [ -z "$loop" ] && { log_err "$name: no free loop device"; return 1; }
+    log_info "$name: loop=$loop"
+
+    timeout 10 losetup -o "$off" -r "$loop" "$SUPER_PARTITION" 2>/dev/null || \
+    timeout 10 losetup -o "$off" "$loop" "$SUPER_PARTITION" 2>/dev/null || \
+    timeout 10 losetup --offset "$off" "$loop" "$SUPER_PARTITION" 2>/dev/null \
+        && attached=1
+    [ $attached -eq 0 ] && { log_err "$name: losetup failed"; return 1; }
+
+    mount -o remount,rw / 2>/dev/null
+    mkdir -p "$mnt" 2>/dev/null
+    mount | grep -q " $mnt " && { umount -l "$mnt" 2>/dev/null || umount "$mnt" 2>/dev/null; }
+    if timeout 15 mount -t ext4 -o ro,noatime "$loop" "$mnt" 2>/dev/null; then
+        log_ok "$name -> $mnt"
+        return 0
+    else
+        log_err "$name mount failed -- detaching $loop"
+        losetup -d "$loop" 2>/dev/null
+        return 1
+    fi
+}
+
+do_bind() {
+    local src=$1 dst=$2 label=$3
+    mount | grep -q " $dst " && { log_ok "$label already mounted"; return 0; }
+    mount -o remount,rw / 2>/dev/null
+    mkdir -p "$dst" 2>/dev/null
+    if mount --bind "$src" "$dst" 2>/dev/null; then
+        log_ok "$label: $src -> $dst"
+    else
+        log_err "$label bind failed: $src -> $dst"
+    fi
+}
+
+# ============================================================
+# PRE-MOUNT: RELOCATE
+# ============================================================
+log_section "PRE-MOUNT: LD.CONFIG.TXT RELOCATION"
+LD_CONFIG_SRC="/system/arm/ld.config.txt"
+LD_CONFIG_DST="${ALPINE}/home"
+if [ -f "$LD_CONFIG_SRC" ]; then
+    mkdir -p "$LD_CONFIG_DST" 2>/dev/null
+    if mv "$LD_CONFIG_SRC" "${LD_CONFIG_DST}/ld.config.txt" 2>/dev/null; then
+        log_ok "Moved $LD_CONFIG_SRC -> ${LD_CONFIG_DST}/ld.config.txt"
+    else
+        log_err "Failed to move $LD_CONFIG_SRC -> ${LD_CONFIG_DST}/ld.config.txt"
+    fi
+else
+    log_warn "$LD_CONFIG_SRC not found -- skipping relocation"
+fi
+
+log_section "PRE-MOUNT: LIBRSINPUT.SO RELOCATION"
+RSINPUT_SRC="/system/arm/librsinput.so"
+RSINPUT_DST="${ALPINE}/home"
+if [ -f "$RSINPUT_SRC" ]; then
+    mkdir -p "$RSINPUT_DST" 2>/dev/null
+    if mv "$RSINPUT_SRC" "${RSINPUT_DST}/librsinput.so" 2>/dev/null; then
+        log_ok "Moved $RSINPUT_SRC -> ${RSINPUT_DST}/librsinput.so"
+    else
+        log_err "Failed to move $RSINPUT_SRC -> ${RSINPUT_DST}/librsinput.so"
+    fi
+else
+    log_warn "$RSINPUT_SRC not found -- skipping relocation"
+fi
+
+log_section "PRE-MOUNT: GAMEPAD RELOCATION"
+GAMEPAD_SRC="/system/arm/retroid_gamepad"
+GAMEPAD_DST="${ALPINE}/home"
+if [ -f "$GAMEPAD_SRC" ]; then
+    mkdir -p "$GAMEPAD_DST" 2>/dev/null
+    if mv "$GAMEPAD_SRC" "${GAMEPAD_DST}/retroid_gamepad" 2>/dev/null; then
+        log_ok "Moved $GAMEPAD_SRC -> ${GAMEPAD_DST}/retroid_gamepad"
+    else
+        log_err "Failed to move $GAMEPAD_SRC -> ${GAMEPAD_DST}/retroid_gamepad"
+    fi
+else
+    log_warn "$GAMEPAD_SRC not found -- skipping relocation"
+fi
+
+# ============================================================
+# STAGE 0: MOUNT PARTITIONS FROM SUPER (mmcblk0p50)
+# ============================================================
+log_section "STAGE 0: MOUNTING PARTITIONS FROM SUPER"
+
+mount_via_losetup "system_a"     "$SYSTEM_A_TMP"   "$SYSTEM_A_OFF_B"    || { log_err "system_a failed -- aborting"; exit 1; }
+mount_via_losetup "vendor_a"     "$VENDOR_MNT"     "$VENDOR_OFF_B"      || log_warn "vendor_a failed -- continuing"
+mount_via_losetup "system_ext_a" "$SYSTEM_EXT_MNT" "$SYSTEM_EXT_OFF_B"  || log_warn "system_ext_a failed -- continuing"
+mount_via_losetup "product_a"    "$PRODUCT_MNT"    "$PRODUCT_OFF_B"     || log_warn "product_a failed -- continuing"
+
+[ -d "$SYSTEM_SOURCE" ] || { log_err "No /system dir in system_a -- aborting"; exit 1; }
+SYS_FILES=$(find "$SYSTEM_SOURCE" -type f 2>/dev/null | wc -l)
+log_ok "system_a/system: $SYS_FILES files"
+
+mount -o remount,rw / 2>/dev/null
+mkdir -p /system/vendor /system/product /system/system_ext 2>/dev/null
+mkdir -p "${SYSTEM_A_TMP}/vendor" "${SYSTEM_A_TMP}/product" "${SYSTEM_A_TMP}/system_ext" 2>/dev/null
+
+[ -d "$VENDOR_MNT" ]     && do_bind "$VENDOR_MNT"     "/system/vendor"             "host /system/vendor"
+[ -d "$PRODUCT_MNT" ]    && do_bind "$PRODUCT_MNT"    "/system/product"            "host /system/product"
+[ -d "$SYSTEM_EXT_MNT" ] && do_bind "$SYSTEM_EXT_MNT" "/system/system_ext"         "host /system/system_ext"
+[ -d "$VENDOR_MNT" ]     && do_bind "$VENDOR_MNT"     "${SYSTEM_A_TMP}/vendor"     "system_a/vendor"
+[ -d "$PRODUCT_MNT" ]    && do_bind "$PRODUCT_MNT"    "${SYSTEM_A_TMP}/product"    "system_a/product"
+[ -d "$SYSTEM_EXT_MNT" ] && do_bind "$SYSTEM_EXT_MNT" "${SYSTEM_A_TMP}/system_ext" "system_a/system_ext"
+
+# ============================================================
+# STAGE 1: EXTRACT AND MOUNT APEX MODULES FROM system/apex
+# ============================================================
+log_section "STAGE 1: APEX EXTRACTION AND MOUNTING"
+
+APEX_SRC="$SYSTEM_SOURCE/apex"
+if [ ! -d "$APEX_SRC" ]; then
+    log_warn "No apex dir at $APEX_SRC -- skipping"
+else
+    APEX_COUNT=$(find "$APEX_SRC" -maxdepth 1 -name "*.apex" -type f 2>/dev/null | wc -l)
+    log_info "Found $APEX_COUNT .apex files"
+
+    UNZIP_BIN=""
+    for _t in "$SYSTEM_SOURCE/bin/ziptool" "$SYSTEM_SOURCE/bin/busybox" \
+              "$SYSTEM_SOURCE/bin/toybox"  "$SYSTEM_SOURCE/bin/toolbox" \
+              "/system/bin/ziptool"        "/system/bin/busybox" \
+              "/system/bin/toybox"         "/usr/bin/unzip" "unzip"; do
+        if [ -x "$_t" ] 2>/dev/null || command -v "$_t" >/dev/null 2>&1; then
+            UNZIP_BIN="$_t"; break
+        fi
+    done
+
+    [ -z "$UNZIP_BIN" ] && log_warn "No unzip tool found -- APEX skipped" \
+                        || log_info "Extraction tool: $UNZIP_BIN"
+
+    [ -L "/apex" ] && rm -f "/apex" 2>/dev/null
+    mount | grep -q " /apex " && umount /apex 2>/dev/null
+    mkdir -p /apex 2>/dev/null
+    if mount -t tmpfs tmpfs /apex 2>/dev/null; then
+        log_ok "tmpfs on /apex"
+    else
+        log_err "Failed to mount tmpfs on /apex"; UNZIP_BIN=""
+    fi
+
+    APEX_WORKDIR="${ALPINE}/apex_work"
+    APEX_MOUNT_TOTAL=0
+    APEX_MOUNT_OK=0
+
+    if [ -n "$UNZIP_BIN" ]; then
+        mkdir -p "$APEX_WORKDIR" 2>/dev/null
+        log_info "Processing .apex files..."
+
+        for apex_file in "$APEX_SRC"/*.apex; do
+            [ -f "$apex_file" ] || continue
+            apex_name=$(basename "$apex_file" .apex)
+            apex_work="${APEX_WORKDIR}/${apex_name}"
+            apex_dest="/apex/${apex_name}"
+            APEX_MOUNT_TOTAL=$((APEX_MOUNT_TOTAL + 1))
+            mkdir -p "$apex_work" "$apex_dest" 2>/dev/null
+
+            PAYLOAD_EXTRACTED=0
+            case "$UNZIP_BIN" in
+                *ziptool*|*busybox*|*toybox*|*toolbox*)
+                    "$UNZIP_BIN" unzip -o "$apex_file" apex_payload.img -d "$apex_work" 2>/dev/null \
+                        && PAYLOAD_EXTRACTED=1 ;;
+                *)
+                    "$UNZIP_BIN" -o "$apex_file" apex_payload.img -d "$apex_work" 2>/dev/null \
+                        && PAYLOAD_EXTRACTED=1 ;;
+            esac
+
+            if [ $PAYLOAD_EXTRACTED -eq 0 ] || [ ! -f "${apex_work}/apex_payload.img" ]; then
+                log_warn "  $apex_name: payload extraction failed"; continue
+            fi
+
+            payload="${apex_work}/apex_payload.img"
+            MOUNTED=0
+            release_loop_for "$payload"
+            loop=$(find_free_loop)
+            if [ -n "$loop" ]; then
+                losetup -d "$loop" 2>/dev/null
+                if timeout 10 losetup -r "$loop" "$payload" 2>/dev/null || \
+                   timeout 10 losetup "$loop" "$payload" 2>/dev/null; then
+                    if timeout 10 mount -t ext4  -o ro,noatime "$loop" "$apex_dest" 2>/dev/null || \
+                       timeout 10 mount -t erofs -o ro,noatime "$loop" "$apex_dest" 2>/dev/null; then
+                        if mount | grep -q " $apex_dest "; then
+                            MOUNTED=1
+                        else
+                            losetup -d "$loop" 2>/dev/null
+                        fi
+                    else
+                        log_warn "  $apex_name: ext4/erofs mount via loop failed -- trying direct mount"
+                        losetup -d "$loop" 2>/dev/null
+                    fi
+                else
+                    log_warn "  $apex_name: losetup failed -- trying direct mount"
+                    losetup -d "$loop" 2>/dev/null
+                fi
+            else
+                log_warn "  $apex_name: no free loop -- trying direct mount"
+            fi
+
+            if [ $MOUNTED -eq 0 ]; then
+                if timeout 15 mount -t ext4  -o ro,noatime,loop "$payload" "$apex_dest" 2>/dev/null || \
+                   timeout 15 mount -t erofs -o ro,noatime,loop "$payload" "$apex_dest" 2>/dev/null; then
+                    if mount | grep -q " $apex_dest "; then
+                        MOUNTED=1
+                        log_info "  $apex_name: mounted via direct -o loop fallback"
+                    fi
+                fi
+            fi
+
+            if [ $MOUNTED -eq 0 ]; then
+                log_warn "  $apex_name: loop mount failed -- attempting flat extraction fallback"
+                flat_dir="${apex_work}/flat"
+                mkdir -p "$flat_dir" 2>/dev/null
+                FLAT_OK=0
+                case "$UNZIP_BIN" in
+                    *ziptool*|*busybox*|*toybox*|*toolbox*)
+                        "$UNZIP_BIN" unzip -o "$apex_file" -d "$flat_dir" 2>/dev/null && FLAT_OK=1 ;;
+                    *)
+                        "$UNZIP_BIN" -o "$apex_file" -d "$flat_dir" 2>/dev/null && FLAT_OK=1 ;;
+                esac
+                if [ $FLAT_OK -eq 1 ] && [ -d "$flat_dir" ]; then
+                    if mount --bind "$flat_dir" "$apex_dest" 2>/dev/null; then
+                        if mount | grep -q " $apex_dest "; then
+                            MOUNTED=1
+                            log_info "  $apex_name: mounted via flat extraction bind fallback"
+                        fi
+                    fi
+                fi
+                [ $FLAT_OK -eq 0 ] && log_warn "  $apex_name: flat extraction also failed"
+            fi
+
+            if [ $MOUNTED -eq 1 ]; then
+                fc=$(find "$apex_dest" -type f 2>/dev/null | wc -l)
+                if [ $fc -gt 0 ]; then
+                    log_ok "  $apex_name ($fc files)"
+                    APEX_MOUNT_OK=$((APEX_MOUNT_OK + 1))
+                else
+                    log_warn "  $apex_name: mounted but empty"
+                fi
+            else
+                log_err "  $apex_name: all mount strategies failed"
+            fi
+        done
+    fi
+
+    log_info "APEX: $APEX_MOUNT_OK/$APEX_MOUNT_TOTAL modules mounted"
+fi
+
+log_section "ALPINE STAGE 0+1 COMPLETE"
+sleep 2
+exit 0

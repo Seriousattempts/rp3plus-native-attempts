@@ -1,0 +1,1231 @@
+#!/system/bin/sh
+# =============================================================================
+# alp_gpu.sh — Alpine GPU / Vulkan / Compositor / App Compatibility Matrix
+# Target rootfs : /mnt/alpine
+# Strace        : /usr/bin/strace (from inside chroot)
+# No Debian paths, no Android linker shim
+# =============================================================================
+set +e
+umask 022
+export PATH=/usr/bin:/bin:/sbin:/usr/sbin:/system/bin:/system/xbin:/vendor/bin
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+BOOTPARTITION=/dev/block/mmcblk1p1
+SDMOUNT=/sdcard
+ROOTFS=/mnt/alpine
+CHROOTBIN=/usr/bin/chroot
+
+LOGFILE="$SDMOUNT/alp_gpu.log"
+SERVICESLOG="$SDMOUNT/alp_gpu_services.log"
+HALLOG="$SDMOUNT/alp_gpu_hal.log"
+INPUTLOG="$SDMOUNT/alp_gpu_input.log"
+TOOLSLOG="$SDMOUNT/alp_gpu_tools.log"
+SEATDLOG="$SDMOUNT/alp_gpu_seatd.log"
+DBUSLOG="$SDMOUNT/alp_gpu_dbus.log"
+VULKANLOG="$SDMOUNT/alp_gpu_vulkan.log"
+STRACEDIR="$SDMOUNT/alp_gpu_strace"
+TWRPIMAGE="$SDMOUNT/twrp-customv2.img"
+
+ROOTFSENVFILE=/tmp/alp_gpu_rootfsenv.sh
+ROOTFSDBUSENV=/tmp/alp_gpu_dbus_session.env
+WESTON_LOG=/tmp/alp_gpu_weston.log
+WESTON_PID=/tmp/alp_gpu_weston.pid
+WESTON_SOCK=wayland-1
+WINEPREFIX=/root/.wine
+
+MOUNTWAIT=75
+SMWAIT=8
+HALSTARTUPWAIT=15
+EARLYDAEMONWAIT=3
+
+STARTTIME="$(date +%s)"
+
+# ---------------------------------------------------------------------------
+# Bootstrap SD mount and log files
+# ---------------------------------------------------------------------------
+if ! mount | grep -q "$BOOTPARTITION"; then
+    mkdir -p "$SDMOUNT"
+    mount -t exfat "$BOOTPARTITION" "$SDMOUNT" 2>/dev/null || \
+    mount -t vfat  "$BOOTPARTITION" "$SDMOUNT" 2>/dev/null || true
+fi
+
+mkdir -p "$STRACEDIR"
+for f in "$LOGFILE" "$SERVICESLOG" "$HALLOG" "$INPUTLOG" "$TOOLSLOG" \
+          "$SEATDLOG" "$DBUSLOG" "$VULKANLOG"; do
+    : > "$f"
+done
+exec >> "$LOGFILE" 2>&1
+
+# ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
+_ts() { date '+%H:%M:%S'; }
+log()      { printf '[%s] %s\n'         "$(_ts)" "$*"; sync; }
+logsection(){ printf '\n[%s] =====================================\n[%s] === %s ===\n[%s] =====================================\n' "$(_ts)" "$(_ts)" "$*" "$(_ts)"; sync; }
+logsub()   { printf '\n[%s] --- %s ---\n' "$(_ts)" "$*"; sync; }
+logi()     { printf '[%s]     %s\n'     "$(_ts)" "$*"; sync; }
+logw()     { printf '[%s] [!] %s\n'     "$(_ts)" "$*"; sync; }
+logok()    { printf '[%s] [+] %s\n'     "$(_ts)" "$*"; sync; }
+logerr()   { printf '[%s] [x] ERROR: %s\n' "$(_ts)" "$*"; sync; }
+logvk()    { printf '[%s] %s\n' "$(_ts)" "$*" | tee -a "$VULKANLOG"; sync; }
+logtools() { printf '[%s] %s\n' "$(_ts)" "$*" | tee -a "$TOOLSLOG"; sync; }
+logseatd() { printf '[%s] %s\n' "$(_ts)" "$*" | tee -a "$SEATDLOG"; sync; }
+logdbus()  { printf '[%s] %s\n' "$(_ts)" "$*" | tee -a "$DBUSLOG"; sync; }
+loghal()   { printf '[%s] %s\n' "$(_ts)" "$*" | tee -a "$HALLOG"; sync; }
+
+readfile() { [ -f "$1" ] && cat "$1" 2>/dev/null || echo NA; }
+
+# ---------------------------------------------------------------------------
+# chroot exec — Alpine /bin/sh, no shim
+# ---------------------------------------------------------------------------
+chrootexec() {
+    local logfn="$1"; shift
+    "$CHROOTBIN" "$ROOTFS" \
+        /usr/bin/env -i \
+            HOME=/root USER=root LOGNAME=root \
+            SHELL=/bin/sh TERM=xterm-256color \
+            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games \
+        /bin/sh -lc "$*" 2>&1 | while IFS= read -r l; do "$logfn" "$l"; done
+    return "${PIPESTATUS[0]:-$?}"
+}
+
+# chroot exec with strace (uses Alpine's /usr/bin/strace inside chroot)
+chrootstrace() {
+    local label="$1" outbase="$2"; shift 2
+    local stout="$STRACEDIR/${outbase}.strace"
+    "$CHROOTBIN" "$ROOTFS" \
+        /usr/bin/env -i \
+            HOME=/root USER=root LOGNAME=root \
+            SHELL=/bin/sh TERM=xterm-256color \
+            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games \
+        /bin/sh -lc "/usr/bin/strace -ff -tt -s 256 -o '$stout' $* 2>&1" \
+        2>&1 | while IFS= read -r l; do logtools "$l"; done
+    logtools "strace[$label] output: $stout"
+}
+
+# ---------------------------------------------------------------------------
+# Write rootfs environment (no shim, Alpine-native paths)
+# ---------------------------------------------------------------------------
+write_rootfs_env() {
+    mkdir -p "$ROOTFS/tmp" 2>/dev/null || true
+    cat > "$ROOTFS$ROOTFSENVFILE" << 'ENVEOF'
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/vendor/lib64:/vendor/lib64/egl:/vendor/lib64/hw:/system/lib64:/system/system/lib64
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json
+export VK_LAYER_PATH=/usr/local/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d
+export EGL_VENDOR_LIBRARY_DIRS=/usr/local/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d
+export XDG_RUNTIME_DIR=/run/user/0
+export WAYLAND_DISPLAY=wayland-1
+export WINEPREFIX=/root/.wine
+mkdir -p /run /run/dbus /run/user/0 /tmp 2>/dev/null || true
+chmod 700 /run/user/0 2>/dev/null || true
+[ -f /tmp/alp_gpu_dbus_session.env ] && . /tmp/alp_gpu_dbus_session.env 2>/dev/null || true
+ENVEOF
+}
+
+# ---------------------------------------------------------------------------
+# Hardware status
+# ---------------------------------------------------------------------------
+hardware_status() {
+    logsub "Hardware Status"
+    # Use /proc/meminfo so we are independent of toybox vs GNU free layout
+    if [ -r /proc/meminfo ]; then
+        MEMTOTAL_KB=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
+        MEMFREE_KB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+        [ -z "$MEMFREE_KB" ] && MEMFREE_KB=$(awk '/MemFree:/ {print $2}' /proc/meminfo)
+        USED_KB=$((MEMTOTAL_KB - MEMFREE_KB))
+        TOTAL_GB=$(printf '%.2f' "$(echo "$MEMTOTAL_KB / 1048576" | bc -l)")
+        USED_GB=$(printf '%.2f' "$(echo "$USED_KB / 1048576" | bc -l)")
+        FREE_GB=$(printf '%.2f' "$(echo "$MEMFREE_KB / 1048576" | bc -l)")
+        PCT=$(printf '%.1f' "$(echo "100 * $USED_KB / $MEMTOTAL_KB" | bc -l)")
+        logi "  RAM: Total ${TOTAL_GB}GB  Used ${USED_GB}GB  Free ${FREE_GB}GB  (${PCT}%)"
+    fi
+    UPTIMES=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
+    logi "Uptime: $((UPTIMES/86400))d $((UPTIMES%86400/3600))h $((UPTIMES%3600/60))m"
+    logi "Load:   $(awk '{print $1,$2,$3}' /proc/loadavg 2>/dev/null)"
+    BATTCAP="$(readfile /sys/class/power_supply/battery/capacity)"
+    BATTSTAT="$(readfile /sys/class/power_supply/battery/status)"
+    logi "Battery: $BATTCAP% ($BATTSTAT)"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Device node checks
+# ---------------------------------------------------------------------------
+dev_checks() {
+    logsection "BASIC DEVICE NODE CHECKS"
+    [ -e /dev/ptmx ] || { mknod -m 666 /dev/ptmx c 5 2 2>/dev/null && logok "created /dev/ptmx" || logw "could not create /dev/ptmx"; }
+    [ -e /dev/ptmx ] && logi "/dev/ptmx exists: $(ls -l /dev/ptmx 2>/dev/null)"
+    [ -e /dev/tty  ] && logi "/dev/tty:  $(ls -l /dev/tty 2>/dev/null)"   || logw "/dev/tty absent"
+    ls /dev/tty[0-9]* 2>/dev/null | head -5 | while read -r t; do logi "  $t"; done
+    if [ -d /dev/dri ]; then
+        ls -la /dev/dri 2>/dev/null | while read -r l; do logi "  $l"; done
+    else
+        logw "/dev/dri not present"
+    fi
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Early seatd + dbus (host side)
+# ---------------------------------------------------------------------------
+start_daemons() {
+    logsection "EARLY SEATD + DBUS STARTUP"
+    mkdir -p /run /run/dbus /run/seatd /run/user/0 2>/dev/null || true
+    chmod 755 /run /run/dbus /run/seatd 2>/dev/null || true
+    chmod 700 /run/user/0 2>/dev/null || true
+
+    # seatd
+    if pgrep -x seatd >/dev/null 2>&1; then
+        logseatd "seatd already running"
+    else
+        SEATDBIN=""
+        ALPINE="${ROOTFS:-/mnt/alpine}"
+        for p in /usr/sbin/seatd /usr/bin/seatd /sbin/seatd "${ALPINE}/usr/sbin/seatd" "${ALPINE}/usr/bin/seatd"; do
+            [ -x "$p" ] && { SEATDBIN="$p"; break; }
+        done
+        if [ -n "$SEATDBIN" ]; then
+            logseatd "Starting: $SEATDBIN -g video"
+            "$SEATDBIN" -g video > "$SDMOUNT/alp_gpu_seatd.raw.log" 2>&1 &
+            sleep "$EARLYDAEMONWAIT"
+            pgrep -x seatd >/dev/null 2>&1                 && logseatd "seatd running PID $(pgrep -x seatd | head -1)"                 || logseatd "seatd failed — check $SDMOUNT/alp_gpu_seatd.raw.log"
+        else
+            logseatd "seatd binary not found (searched host + $ALPINE)"
+        fi
+    fi
+
+    # host dbus
+    if [ -S /run/dbus/system_bus_socket ]; then
+        logdbus "system dbus socket already present"
+    else
+        DBUSBIN=""
+        for p in /usr/bin/dbus-daemon /bin/dbus-daemon; do
+            [ -x "$p" ] && ! echo "$p" | grep -q "$ROOTFS" && { DBUSBIN="$p"; break; }
+        done
+        if [ -n "$DBUSBIN" ]; then
+            logdbus "Starting host dbus: $DBUSBIN --system --fork --nopidfile"
+            "$DBUSBIN" --system --fork --nopidfile > "$SDMOUNT/alp_gpu_dbus_system.raw.log" 2>&1
+            sleep "$EARLYDAEMONWAIT"
+            [ -S /run/dbus/system_bus_socket ] \
+                && logdbus "host dbus system socket ready" \
+                || logdbus "host dbus did not create system socket"
+        else
+            logdbus "host dbus-daemon not available; will start inside chroot"
+        fi
+    fi
+
+    export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+    logdbus "DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SYSTEM_BUS_ADDRESS"
+
+    DBUSLAUNCH=""
+    for p in /usr/bin/dbus-launch /bin/dbus-launch; do
+        [ -x "$p" ] && ! echo "$p" | grep -q "$ROOTFS" && { DBUSLAUNCH="$p"; break; }
+    done
+    if [ -n "$DBUSLAUNCH" ]; then
+        eval "$("$DBUSLAUNCH" 2>"$SDMOUNT/alp_gpu_dbuslaunch.raw.log")" 2>/dev/null || true
+        export DBUS_SESSION_BUS_ADDRESS
+        logdbus "host session bus: ${DBUS_SESSION_BUS_ADDRESS:-(unset)}"
+    else
+        logdbus "host dbus-launch not available; session bus will start in chroot"
+    fi
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Input device enumeration
+# ---------------------------------------------------------------------------
+input_devices() {
+    logsection "INPUT DEVICE ENUMERATION"
+    for dev in /dev/input/event*; do
+        [ -e "$dev" ] || continue
+        name="$(basename "$dev")"
+        sp="/sys/class/input/${name}/device"
+        logw "Device: $dev"
+        logi "  Name: $(cat "${sp}/name" 2>/dev/null || echo unknown)"
+        [ -r "$dev" ] && logi "  readable: yes" || logw "  readable: NO"
+    done
+    logok "Input enumeration complete"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Android service managers
+# ---------------------------------------------------------------------------
+android_service_managers() {
+    logsection "ANDROID SERVICE MANAGERS"
+    GREP="$(command -v grep || echo grep)"
+    for mgr in servicemanager hwservicemanager; do
+        logsub "$mgr"
+        if ps -A 2>/dev/null | "$GREP" -v grep | "$GREP" -q "$mgr"; then
+            logok "$mgr already running"
+        else
+            BIN=""
+            for p in /bin/$mgr /system/bin/$mgr; do
+                [ -x "$p" ] && { BIN="$p"; break; }
+            done
+            if [ -n "$BIN" ]; then
+                logi "Starting $BIN"
+                "$BIN" >/dev/null 2>&1 &
+                sleep "$SMWAIT"
+                ps -A 2>/dev/null | "$GREP" -v grep | "$GREP" -q "$mgr" \
+                    && logok "$mgr running PID $(pgrep "$mgr" 2>/dev/null | head -1)" \
+                    || logw "$mgr not detected after start"
+            else
+                logw "$mgr binary not found"
+            fi
+        fi
+        log ""
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Android HAL services
+# ---------------------------------------------------------------------------
+android_hal_services() {
+    logsection "ANDROID HAL SERVICES"
+
+    cat << 'HALEND' | while IFS='|' read -r NAME BIN; do
+HIDLMemoryAllocator|/system/bin/hw/android.hidl.allocator@1.0-service
+AudioHAL|/vendor/bin/hw/android.hardware.audio.service
+BluetoothHAL|/vendor/bin/hw/android.hardware.bluetooth@1.1-service.unisoc
+WiFiHAL|/vendor/bin/hw/android.hardware.wifi@1.0-service
+GraphicsAllocator|/vendor/bin/hw/android.hardware.graphics.allocator@4.0-service
+GraphicsComposer|/vendor/bin/hw/android.hardware.graphics.composer@2.1-service
+HealthHAL|/vendor/bin/hw/android.hardware.health@2.1-service
+ThermalHAL|/vendor/bin/hw/vendor.sprd.hardware.thermal@2.0-service
+HALEND
+        [ -z "$NAME" ] && continue
+        logsub "$NAME"
+        if [ -x "$BIN" ]; then
+            "$BIN" >/dev/null 2>&1 &
+            PID=$!
+            sleep "$HALSTARTUPWAIT"
+            ps -p "$PID" >/dev/null 2>&1                 && loghal "$NAME running PID $PID"                 || loghal "$NAME failed or already handled by Android init"
+        else
+            loghal "$NAME binary not found: $BIN"
+        fi
+        log ""
+    done
+
+    logsection "HAL REGISTRATION CHECK"
+    if command -v lshal >/dev/null 2>&1; then
+        lshal 2>/dev/null | tee -a "$HALLOG" | while read -r l; do log "$l"; done
+        logok "HAL services registered: $(lshal 2>/dev/null | grep -c 'android.hardware' || echo 0)"
+    else
+        logw "lshal not found"
+    fi
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Bind mounts into chroot
+# ---------------------------------------------------------------------------
+bind_mounts() {
+    logsection "CHROOT BIND MOUNTS"
+    logvk "Binding into $ROOTFS"
+
+    # Mandatory pseudo-filesystems
+    for d in proc sys dev dev/pts; do
+        mkdir -p "$ROOTFS/$d"
+        if grep -q " $ROOTFS/$d " /proc/mounts 2>/dev/null; then
+            logvk "  [·] already bound: $d"
+        else
+            mount --bind "/$d" "$ROOTFS/$d" 2>/dev/null \
+                && logvk "  [+] bound: $d" \
+                || logw  "  [!] failed bind: $d"
+        fi
+    done
+
+    # Optional Android partitions
+    for d in vendor system linkerconfig sdcard apex odm product system_ext; do
+        [ -d "/$d" ] || continue
+        mkdir -p "$ROOTFS/$d"
+        grep -q " $ROOTFS/$d " /proc/mounts 2>/dev/null && continue
+        mount --bind "/$d" "$ROOTFS/$d" 2>/dev/null \
+            && logvk "  [+] bound: $d" \
+            || logvk "  [·] skipped (may not exist): $d"
+    done
+
+    # Recovery assets kept read-only
+    for d in twrp realrecovery; do
+        [ -d "/$d" ] || continue
+        mkdir -p "$ROOTFS/$d"
+        grep -q " $ROOTFS/$d " /proc/mounts 2>/dev/null && continue
+        mount --bind "/$d" "$ROOTFS/$d" 2>/dev/null \
+            && logvk "  [+] bound: $d (recovery)" \
+            || logvk "  [·] $d not found on host"
+    done
+    log ""
+}
+
+unbind_mounts() {
+    logsection "CHROOT UNBIND"
+    for d in realrecovery twrp odm product system_ext apex sdcard dev/pts dev proc sys vendor system linkerconfig; do
+        umount "$ROOTFS/$d" 2>/dev/null && logvk "  unbound: $ROOTFS/$d" || true
+    done
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# ld.config.txt
+# ---------------------------------------------------------------------------
+probe_ld_config() {
+    logsection "LD.CONFIG.TXT VERIFICATION"
+    LDCONFIGSRC=""
+    for src in "$ROOTFS/home/ld.config.txt" "$ROOTFS/root/ld.config.txt" "$ROOTFS/etc/ld.config.txt"; do
+        [ -f "$src" ] && { LDCONFIGSRC="$src"; break; }
+    done
+
+    if [ -n "$LDCONFIGSRC" ]; then
+        cp -f "$LDCONFIGSRC" /linkerconfig/ld.config.txt 2>/dev/null \
+            && logok "Copied $LDCONFIGSRC -> /linkerconfig/ld.config.txt" \
+            || logerr "Copy failed"
+    else
+        logerr "ld.config.txt not found in rootfs"
+    fi
+
+    if [ -f /linkerconfig/ld.config.txt ] && [ ! -L /linkerconfig/ld.config.txt ]; then
+        logok "/linkerconfig/ld.config.txt is a regular file"
+        head -30 /linkerconfig/ld.config.txt | while read -r l; do logi "  $l"; done
+    fi
+
+    if [ -f "$ROOTFS/linkerconfig/ld.config.txt" ]; then
+        logok "ld.config.txt reachable inside chroot"
+    else
+        logw "ld.config.txt NOT visible inside chroot"
+    fi
+
+    chrootexec logvk "ldconfig >/tmp/alp_gpu_ldconfig.log 2>&1 && echo 'ldconfig OK' || { echo 'ldconfig FAILED'; tail -20 /tmp/alp_gpu_ldconfig.log; }"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Rootfs dbus startup (inside chroot)
+# ---------------------------------------------------------------------------
+start_rootfs_dbus() {
+    logsection "ROOTFS DBUS STARTUP"
+    write_rootfs_env
+    chrootexec logdbus ". $ROOTFSENVFILE
+        mkdir -p /run /run/dbus /run/user/0 /var/lib/dbus /etc 2>/dev/null || true
+        chmod 755 /run /run/dbus 2>/dev/null || true
+        chmod 700 /run/user/0 2>/dev/null || true
+        command -v dbus-uuidgen >/dev/null 2>&1 && {
+            dbus-uuidgen --ensure=/etc/machine-id >/dev/null 2>&1 || true
+            dbus-uuidgen --ensure=/var/lib/dbus/machine-id >/dev/null 2>&1 || true
+        }
+        if [ -S /run/dbus/system_bus_socket ]; then
+            echo 'rootfs system dbus socket already present'
+        elif [ -x /etc/init.d/dbus ]; then
+            /etc/init.d/dbus start >/tmp/alp_gpu_dbus_init.log 2>&1 || true; sleep 2
+        elif command -v dbus-daemon >/dev/null 2>&1; then
+            dbus-daemon --system --fork --nopidfile >/tmp/alp_gpu_dbus_system.log 2>&1 || true; sleep 2
+        fi
+        [ -S /run/dbus/system_bus_socket ] && echo 'rootfs system dbus is up' || echo 'rootfs system dbus is NOT up'
+        if command -v dbus-launch >/dev/null 2>&1; then
+            dbus-launch --sh-syntax > $ROOTFSDBUSENV 2>/tmp/alp_gpu_dbus_launch.err || true
+            sed -n '1,10p' $ROOTFSDBUSENV 2>/dev/null || true
+        else
+            echo 'dbus-launch missing in rootfs'
+        fi"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Init.d inventory
+# ---------------------------------------------------------------------------
+probe_initd() {
+    logsection "ROOTFS INIT.D INVENTORY"
+    if [ -d "$ROOTFS/etc/init.d" ]; then
+        for svc in "$ROOTFS/etc/init.d/"*; do
+            [ -f "$svc" ] && logok "init.d: /etc/init.d/$(basename "$svc")"
+        done
+    else
+        logw "No $ROOTFS/etc/init.d directory"
+    fi
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Alpine graphical stack inventory
+# ---------------------------------------------------------------------------
+probe_graphical_stack() {
+    logsection "ALPINE GRAPHICAL STACK INVENTORY"
+    logvk "Rootfs: $ROOTFS"
+
+    logsub "Compositor binaries"
+    for b in \
+        /usr/bin/weston /usr/local/bin/weston \
+        /usr/bin/Xwayland \
+        /usr/games/gamescope /usr/bin/gamescope \
+        /usr/bin/mir-x11-kiosk /usr/bin/mir-x11-kiosk-launch \
+        /usr/bin/miral-app /usr/bin/miral-kiosk \
+        /usr/bin/miral-shell /usr/bin/miral-system-compositor \
+        /usr/bin/miral-terminal /usr/bin/mir-wayland-generator
+    do
+        [ -e "$ROOTFS$b" ] && logvk "  [+] $b  $(ls -lh "$ROOTFS$b" 2>/dev/null | awk '{print $5}')" \
+                           || logvk "  [·] missing $b"
+    done
+
+    logsub "Weston version"
+    WESTBIN=""
+    [ -x "$ROOTFS/usr/local/bin/weston" ] && WESTBIN=/usr/local/bin/weston
+    [ -x "$ROOTFS/usr/bin/weston"       ] && WESTBIN=/usr/bin/weston
+    [ -n "$WESTBIN" ] && chrootexec logvk "$WESTBIN --version 2>&1 | head -3" || logvk "weston not found"
+
+    logsub "Vulkan loader"
+    for f in \
+        /usr/lib/libvulkan.so \
+        /usr/lib/libvulkan.so.1 \
+        /usr/local/lib/libvulkan.so \
+        /usr/local/lib/libvulkan.so.1
+    do
+        [ -e "$ROOTFS$f" ] && logvk "  [+] $f -> $(readlink -f "$ROOTFS$f" 2>/dev/null)  $(ls -lh "$ROOTFS$f" 2>/dev/null | awk '{print $5}')"
+    done
+
+    logsub "Mali ICD JSONs"
+    for icd in \
+        /etc/vulkan/icd.d/mali_icd.aarch64.json \
+        /etc/vulkan/icd.d/mali_icd.json
+    do
+        if [ -f "$ROOTFS$icd" ]; then
+            logvk "  [+] $icd"
+            cat "$ROOTFS$icd" | while read -r l; do logvk "      $l"; done
+        else
+            logvk "  [·] missing $icd"
+        fi
+    done
+    MALIREAL="$(readlink -f /vendor/lib64/hw/vulkan.ums512.so 2>/dev/null)"
+    [ -n "$MALIREAL" ] && [ -e "$MALIREAL" ] \
+        && logvk "  [+] vendor Mali blob: $MALIREAL  $(stat -c%s "$MALIREAL" 2>/dev/null) bytes" \
+        || logvk "  [!] vendor Mali blob not resolved"
+
+    logsub "Implicit Vulkan layers"
+    for dir in \
+        /usr/local/share/vulkan/implicit_layer.d \
+        /usr/share/vulkan/implicit_layer.d
+    do
+        [ -d "$ROOTFS$dir" ] || continue
+        for j in "$ROOTFS$dir/"*.json; do
+            [ -f "$j" ] || continue
+            lname="$(python3 -c "import json,sys; d=json.load(open('$j')); print(d.get('layer',{}).get('name','?'))" 2>/dev/null || echo "?")"
+            logvk "  [+] $dir/$(basename "$j")  name=$lname"
+        done
+    done
+
+    logsub "Mesa / EGL / GLES libraries"
+    for f in \
+        /usr/lib/libGL.so* \
+        /usr/lib/libEGL.so* \
+        /usr/lib/libGLES*.so* \
+        /usr/lib/libgbm.so*
+    do
+        ls -lh "$ROOTFS$f" 2>/dev/null | while read -r l; do logvk "  $l"; done
+    done
+
+    logsub "Wayland libraries"
+    for lib in libwayland-client libwayland-server libwayland-egl; do
+        found="$(find "$ROOTFS/usr/lib" "$ROOTFS/usr/local/lib" -name "${lib}.so*" 2>/dev/null | sort)"
+        if [ -n "$found" ]; then
+            logvk "  [+] $lib"
+            echo "$found" | while read -r wf; do logvk "      $(ls -lh "$wf" 2>/dev/null | awk '{print $5,$9}')"; done
+        else
+            logvk "  [!] $lib not found"
+        fi
+    done
+
+    logsub "Input / session libraries"
+    for f in \
+        /usr/lib/libinput.so* \
+        /usr/lib/libseat.so* \
+        /usr/lib/libevdev.so* \
+        /usr/lib/libxkbcommon.so*
+    do
+        ls -lh "$ROOTFS$f" 2>/dev/null | while read -r l; do logi "  $l"; done
+    done
+
+    logsub "Profile.d hooks"
+    for f in \
+        "$ROOTFS/etc/profile.d/vulkan.sh" \
+        "$ROOTFS/etc/profile.d/mali_vulkan.sh" \
+        "$ROOTFS/etc/profile.d/angle.sh"
+    do
+        [ -f "$f" ] || continue
+        logvk "  FILE: $f"
+        cat "$f" | while read -r l; do logvk "    $l"; done
+    done
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# WSI manifest patch + validation (Alpine paths only)
+# ---------------------------------------------------------------------------
+fix_wsi_manifest() {
+    logsection "WSI MANIFEST PATCH"
+    WSIJSON="$ROOTFS/usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json"
+    [ -f "$WSIJSON" ] || { logerr "WSI JSON missing: $WSIJSON"; return 1; }
+    cp -f "$WSIJSON" "${WSIJSON}.bak" 2>/dev/null || true
+
+    chrootexec logvk ". $ROOTFSENVFILE
+python3 - << 'PY'
+import json
+path='/usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json'
+with open(path,'r',encoding='utf-8') as f: data=json.load(f)
+layer=data.get('layer',{})
+if not isinstance(layer,dict): raise SystemExit('no layer object')
+de=layer.get('disable_environment')
+if not isinstance(de,dict): layer['disable_environment']={}
+with open(path,'w',encoding='utf-8') as f: json.dump(data,f,indent=4); f.write('\n')
+print('WSI patch applied')
+PY"
+
+    chrootexec logvk ". $ROOTFSENVFILE
+python3 -m json.tool /usr/local/share/vulkan/implicit_layer.d/VkLayer_window_system_integration.json /tmp/wsi_validated.json \
+    && echo 'json.tool OK' || echo 'json.tool FAILED'
+sed -n '1,60p' /tmp/wsi_validated.json 2>/dev/null || true"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# strace availability check
+# ---------------------------------------------------------------------------
+probe_strace() {
+    logsection "STRACE AVAILABILITY (ALPINE)"
+    if [ -x "$ROOTFS/usr/bin/strace" ]; then
+        logok "strace found: $ROOTFS/usr/bin/strace"
+        chrootexec logvk "strace --version 2>&1 | head -3"
+    else
+        logw "strace not found at $ROOTFS/usr/bin/strace — strace passes will be skipped"
+    fi
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# dlopen probe (compiled inside chroot)
+# ---------------------------------------------------------------------------
+probe_dlopen() {
+    logsection "DLOPEN PROBE"
+    PROBESRC="$ROOTFS/tmp/dlopen_probe.c"
+    PROBEBIN="$ROOTFS/tmp/dlopen_probe"
+
+    cat > "$PROBESRC" << 'CSRC'
+#include <dlfcn.h>
+#include <stdio.h>
+static const char *libs[]={
+  "libvulkan.so.1",
+  "/usr/local/share/vulkan/implicit_layer.d/libVkLayer_window_system_integration.so",
+  "/usr/lib/libEGL.so",
+  "/usr/lib/libGL.so",
+  "/usr/lib/libgbm.so",
+  "libwayland-client.so.0",
+  "libwayland-server.so.0",
+  "libwayland-egl.so.1",
+  NULL
+};
+int main(void){
+  int ok=0,fail=0;
+  for(int i=0;libs[i];i++){
+    void*h=dlopen(libs[i],RTLD_LAZY|RTLD_LOCAL);
+    if(h){printf("OK   %s\n",libs[i]);dlclose(h);ok++;}
+    else {printf("FAIL %s -- %s\n",libs[i],dlerror());fail++;}
+  }
+  printf("dlopen summary: %d OK, %d FAILED\n",ok,fail);
+  return fail?1:0;
+}
+CSRC
+
+    if [ -x "$ROOTFS/usr/bin/gcc" ] || [ -x "$ROOTFS/usr/bin/cc" ]; then
+        logvk "Compiling dlopen probe..."
+        chrootexec logvk ". $ROOTFSENVFILE
+cd /tmp
+gcc -o dlopen_probe dlopen_probe.c -ldl 2>/dev/null || cc -o dlopen_probe dlopen_probe.c -ldl 2>&1 || echo 'compile failed'"
+        if [ -x "$PROBEBIN" ]; then
+            chrootstrace "dlopen" "dlopen_probe" ". $ROOTFSENVFILE /tmp/dlopen_probe"
+        fi
+    else
+        logw "gcc/cc not present in Alpine rootfs — skipping dlopen compile"
+    fi
+    rm -f "$PROBESRC" "$PROBEBIN" 2>/dev/null || true
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Vulkan layer name discovery (auto from JSONs)
+# ---------------------------------------------------------------------------
+discover_layer_names() {
+    logsection "AUTO-DISCOVER VULKAN LAYER NAMES"
+    chrootexec logvk ". $ROOTFSENVFILE
+python3 - << 'PY'
+import json,glob,os
+dirs=['/usr/local/share/vulkan/implicit_layer.d','/usr/share/vulkan/implicit_layer.d']
+for d in dirs:
+    for p in sorted(glob.glob(d+'/*.json')):
+        try:
+            with open(p,'r',encoding='utf-8') as f: data=json.load(f)
+            layer=data.get('layer',{})
+            print(f'  LAYER  name={layer.get(\"name\",\"?\")}  lib={layer.get(\"library_path\",\"?\")}  file={p}')
+        except Exception as e:
+            print(f'  ERROR  {p}: {e}')
+PY"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# vulkaninfo: 3 required passes + all-layer-combination passes
+# ---------------------------------------------------------------------------
+VK_BASE_ENV="VK_LOADER_DEBUG=all VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json"
+VK_LAYER_DIRS="/usr/local/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d"
+
+run_vulkaninfo() {
+    label="$1"; envvars="$2"; outbase="$3"
+    logsub "vulkaninfo: $label"
+    hardware_status
+    chrootstrace "$label" "$outbase" \
+        "env -i HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+             LANG=C $envvars \
+             /usr/bin/vulkaninfo --summary"
+    log ""
+}
+
+probe_vulkaninfo() {
+    logsection "VULKANINFO — 3 REQUIRED PASSES"
+
+    run_vulkaninfo \
+        "Pass 1: Default Alpine environment" \
+        "$VK_BASE_ENV VK_LAYER_PATH=$VK_LAYER_DIRS" \
+        "vk_pass1_default"
+
+    run_vulkaninfo \
+        "Pass 2: Mali ICD only — no implicit layers" \
+        "$VK_BASE_ENV VK_LAYER_PATH=/nonexistent VK_INSTANCE_LAYERS= VK_LOADER_LAYERS_DISABLE=~implicit~" \
+        "vk_pass2_mali_only"
+
+    run_vulkaninfo \
+        "Pass 3: Mali ICD + ARM WSI only" \
+        "$VK_BASE_ENV VK_LAYER_PATH=/usr/local/share/vulkan/implicit_layer.d \
+             VK_INSTANCE_LAYERS=VKLAYER_ARM_window_system_integration \
+             VK_LOADER_LAYERS_DISABLE=~implicit~" \
+        "vk_pass3_mali_armwsi"
+
+    logsub "vkcube / vkcubepp / vkcube-wayland presence"
+    chrootexec logvk ". $ROOTFSENVFILE
+for b in vkcube vkcubepp vkcube-wayland; do
+    command -v \$b >/dev/null 2>&1 && echo \"  found: \$b\" || echo \"  missing: \$b\"
+done"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Vulkan layer compatibility matrix (isolated + combined)
+# ---------------------------------------------------------------------------
+probe_vulkan_layer_matrix() {
+    logsection "VULKAN LAYER COMPATIBILITY MATRIX"
+
+    # Layer name constants — derived from JSON discovery above; override if needed
+    L_WSI="VKLAYER_ARM_window_system_integration"
+    L_LSFG="VK_LAYER_LS_frame_generation"
+    L_VKBASALT="VK_LAYER_VKBASALT_overlay_postprocessing"
+    L_FROG="VK_LAYER_FROG_gamescope_wsi"
+
+    _vktest() {
+        local label="$1" layers="$2" layerpath="$3"
+        logsub "LAYER TEST: $label"
+        hardware_status
+        chrootstrace "$label" "vkmatrix_$(echo "$label" | tr ' /+' '___')" \
+            "env -i HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+                  LANG=C $VK_BASE_ENV \
+                  VK_LAYER_PATH=${layerpath:-$VK_LAYER_DIRS} \
+                  VK_INSTANCE_LAYERS=${layers} \
+                  VK_LOADER_LAYERS_DISABLE=~implicit~ \
+                  /usr/bin/vulkaninfo --summary"
+        log ""
+    }
+
+    # Individual layers
+    _vktest "Mali only"            ""          "/nonexistent"
+    _vktest "ARM WSI"              "$L_WSI"    "/usr/local/share/vulkan/implicit_layer.d"
+    _vktest "LSFG"                 "$L_LSFG"   "/usr/local/share/vulkan/implicit_layer.d"
+    _vktest "vkBasalt"             "$L_VKBASALT" "/usr/share/vulkan/implicit_layer.d"
+    _vktest "Gamescope FROG"       "$L_FROG"   "/usr/share/vulkan/implicit_layer.d"
+
+    # Two-layer combos
+    _vktest "ARM WSI + LSFG"       "${L_WSI}:${L_LSFG}"   "$VK_LAYER_DIRS"
+    _vktest "ARM WSI + vkBasalt"   "${L_WSI}:${L_VKBASALT}" "$VK_LAYER_DIRS"
+    _vktest "ARM WSI + FROG"       "${L_WSI}:${L_FROG}"   "$VK_LAYER_DIRS"
+    _vktest "LSFG + vkBasalt"      "${L_LSFG}:${L_VKBASALT}" "$VK_LAYER_DIRS"
+
+    # Three-layer combos
+    _vktest "ARM WSI + LSFG + vkBasalt"   "${L_WSI}:${L_LSFG}:${L_VKBASALT}"         "$VK_LAYER_DIRS"
+    _vktest "ARM WSI + LSFG + FROG"       "${L_WSI}:${L_LSFG}:${L_FROG}"             "$VK_LAYER_DIRS"
+    _vktest "ARM WSI + vkBasalt + FROG"   "${L_WSI}:${L_VKBASALT}:${L_FROG}"         "$VK_LAYER_DIRS"
+
+    # All four layers
+    _vktest "ALL layers"  "${L_WSI}:${L_LSFG}:${L_VKBASALT}:${L_FROG}"  "$VK_LAYER_DIRS"
+}
+
+# ---------------------------------------------------------------------------
+# Binary inventory
+# ---------------------------------------------------------------------------
+probe_binary_inventory() {
+    logsection "ALPINE BINARY INVENTORY"
+
+    logsub "/usr/bin"
+    chrootexec logtools ". $ROOTFSENVFILE
+for b in \
+  alsaucm alsamixer alsabat alsatplg alsaloop \
+  antimicrox \
+  distrobox distrobox-enter distrobox-create distrobox-list distrobox-stop \
+  distrobox-rm distrobox-export distrobox-host-exec distrobox-init \
+  distrobox-upgrade distrobox-ephemeral distrobox-generate-entry \
+  FEX FEXBash FEXInterpreter FEXOfflineCompiler FEXServer FEXGetConfig \
+  FEXpidof FEXRootFSFetcher \
+  ffmpeg \
+  firefox firefox-esr \
+  gamescope \
+  gnome-keyring gnome-keyring-daemon \
+  gtk-launch gtk4-launch gtk-builder-tool gtk-query-settings \
+  gtk-update-icon-cache gtk-encode-symbolic-svg \
+  lutris \
+  obs obs-ffmpeg-mux \
+  pipewire pipewire-pulse pipewire-avb \
+  qemu-edid qemu-img qemu-io qemu-keymap qemu-microblazeel \
+  qemu-nbd qemu-storage-daemon \
+  qemu-system-aarch64 qemu-system-arm qemu-system-x86_64 \
+  qemu-aarch64 qemu-arm qemu-x86_64 \
+  readelf retroarch \
+  sensors sensors-conf-convert \
+  squashfuse squashfuse_ll upower \
+  virgltestserver \
+  vkcube vkcubepp vkcube-wayland vulkaninfo \
+  vlc vlc-wrapper \
+  wayland-scanner \
+  wine wine-stable wineboot wineboot-stable winecfg winecfg-stable \
+  wineconsole wineconsole-stable winedbg winedbg-stable \
+  winefile winefile-stable winemine \
+  wineserver wineserver-stable winepath winepath-stable winetricks \
+  Xwayland \
+  dbus-daemon dbus-launch dbus-run-session dbus-send dbus-monitor \
+  dbus-cleanup-sockets dbus-update-activation-environment dbus-uuidgen \
+  python3 \
+  mir-x11-kiosk mir-x11-kiosk-launch miral-app miral-kiosk \
+  miral-shell miral-system-compositor miral-terminal mir-wayland-generator
+do
+  command -v \"\$b\" >/dev/null 2>&1 && echo \"  found: \$b\" || echo \"  missing: \$b\"
+done"
+
+    logsub "/usr/games"
+    [ -x "$ROOTFS/usr/games/gamescope" ] && logok "found: /usr/games/gamescope" || logw "missing: /usr/games/gamescope"
+
+    logsub "/usr/local/bin"
+    chrootexec logtools ". $ROOTFSENVFILE
+for b in antimicrox box64 box64-bash box64-python box86 \
+  ares attractplus es-de fex-run fex-bash \
+  install-flatpaks.sh portmaster \
+  wayland-scanner wcap-decode weston weston-screenshooter winetricks
+do
+  command -v \"\$b\" >/dev/null 2>&1 && echo \"  found: \$b\" || echo \"  missing: \$b\"
+done"
+
+    logsub "/opt emulators"
+    for entry in duckstation eden es-de gopher64 melonds rpcs3 ryujinx sarek \
+                 vulkan-wsi-layer win-emu xemu ymir
+    do
+        [ -d "$ROOTFS/opt/$entry" ] && logok "  found: /opt/$entry" || logi "  missing: /opt/$entry"
+    done
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# CLI version tests
+# ---------------------------------------------------------------------------
+probe_cli_tests() {
+    logsection "ROOTFS CLI VERSION TESTS"
+    chrootexec logtools ". $ROOTFSENVFILE
+for cmd_args in \
+  'ffmpeg:-version' \
+  'firefox:--version' 'firefox-esr:--version' \
+  'retroarch:--version' \
+  'Xwayland:-version' \
+  'wine:--version' 'wine-stable:--version' \
+  'box64:-v' 'box86:-v' \
+  'FEXInterpreter:--help' \
+  'gamescope:--help' \
+  'upower:--version' \
+  'python3:--version' \
+  'obs:--version' \
+  'qemu-system-aarch64:--version' \
+  'qemu-system-x86_64:--version' \
+  'qemu-aarch64:--version' \
+  'qemu-img:--version' \
+  'virglrenderer-test-server:--help' \
+  'vkcube:--version' \
+  'vulkaninfo:--version'
+do
+  CMD=\"\${cmd_args%%:*}\"
+  ARGS=\"\${cmd_args##*:}\"
+  command -v \"\$CMD\" >/dev/null 2>&1 \
+    && { echo \"=== \$CMD \$ARGS ===\"; timeout 6 \"\$CMD\" \$ARGS 2>&1 | head -5; } \
+    || echo \"MISSING: \$CMD\"
+done"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Wine prefix init
+# ---------------------------------------------------------------------------
+prepare_wine_prefix() {
+    logsection "WINE PREFIX INITIALIZATION"
+    chrootexec logtools ". $ROOTFSENVFILE
+export WINEPREFIX=$WINEPREFIX
+mkdir -p \$WINEPREFIX
+if [ -f \"\$WINEPREFIX/system.reg\" ]; then
+    echo 'wine prefix already initialized'
+else
+    echo 'running wineboot --init'
+    if command -v wineboot >/dev/null 2>&1; then
+        timeout 120 wineboot --init >/tmp/alp_gpu_wineboot.log 2>&1 || true
+    elif command -v wineboot-stable >/dev/null 2>&1; then
+        timeout 120 wineboot-stable --init >/tmp/alp_gpu_wineboot.log 2>&1 || true
+    else
+        echo 'wineboot not found'
+    fi
+    command -v wineserver >/dev/null 2>&1 && timeout 30 wineserver -w >/dev/null 2>&1 || true
+    command -v wineserver-stable >/dev/null 2>&1 && timeout 30 wineserver-stable -w >/dev/null 2>&1 || true
+fi
+[ -f \"\$WINEPREFIX/system.reg\" ] && echo 'wine prefix: READY' || echo 'wine prefix: INCOMPLETE'
+cat /tmp/alp_gpu_wineboot.log 2>/dev/null | head -80 || true"
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# Compositor start / stop helpers
+# ---------------------------------------------------------------------------
+start_compositor() {
+    cname="$1"; ccmd="$2"; sock="$3"; envvars="$4"
+    logsub "Starting compositor: $cname"
+    chrootexec logvk ". $ROOTFSENVFILE
+mkdir -p /tmp/alp_gpu_compositors /run/user/0 2>/dev/null || true
+chmod 700 /run/user/0 2>/dev/null || true
+rm -f /tmp/alp_gpu_compositors/${cname}.pid /tmp/alp_gpu_compositors/${cname}.sock
+export $envvars
+nohup $ccmd >/tmp/alp_gpu_compositors/${cname}.stdout 2>&1 &
+echo \$! > /tmp/alp_gpu_compositors/${cname}.pid
+sleep 8
+[ -S '${sock}' ] && echo 'COMPOSITOR_READY: ${cname}  socket: ${sock}' || echo 'COMPOSITOR_NOT_READY: ${cname}'
+tail -n 60 /tmp/alp_gpu_compositors/${cname}.stdout 2>/dev/null || true"
+    log ""
+}
+
+stop_compositor() {
+    cname="$1"
+    chrootexec logvk "
+PID=\$(cat /tmp/alp_gpu_compositors/${cname}.pid 2>/dev/null)
+[ -n \"\$PID\" ] && { kill \$PID 2>/dev/null; sleep 2; kill -9 \$PID 2>/dev/null; } || true
+echo '${cname} stopped'"
+}
+
+# ---------------------------------------------------------------------------
+# App matrix — run a set of apps under a given display environment
+# ---------------------------------------------------------------------------
+run_app_matrix() {
+    compositorname="$1"; display_envvars="$2"; layer_envvars="$3"
+    logsub "APP MATRIX: $compositorname"
+
+    _app() {
+        local appname="$1"; local appcmd="$2"
+        logsub "  APP $appname @ $compositorname"
+        chrootstrace "${compositorname}_${appname}" \
+            "appmatrix_${compositorname}_$(echo "$appname" | tr '/ ' '__')" \
+            ". $ROOTFSENVFILE
+             export $display_envvars
+             export $layer_envvars
+             VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json
+             $appcmd" \
+        2>&1 | while IFS= read -r l; do logtools "$l"; done
+        log ""
+    }
+
+    _app "retroarch"   "command -v retroarch >/dev/null 2>&1 && timeout 8 retroarch --version 2>&1 | head -5 || echo 'retroarch missing'"
+    _app "firefox"     "command -v firefox >/dev/null 2>&1 && timeout 8 firefox --version 2>&1 | head -3 || { command -v firefox-esr >/dev/null 2>&1 && timeout 8 firefox-esr --version 2>&1 | head -3; } || echo 'firefox missing'"
+    _app "lutris"      "command -v lutris >/dev/null 2>&1 && timeout 8 lutris --version 2>&1 | head -3 || echo 'lutris missing'"
+    _app "obs"         "command -v obs >/dev/null 2>&1 && obs --version 2>&1 | head -3 || echo 'obs missing'"
+    _app "obs-ffmpeg-mux" "command -v obs-ffmpeg-mux >/dev/null 2>&1 && obs-ffmpeg-mux --help 2>&1 | head -5 || echo 'obs-ffmpeg-mux missing'"
+    _app "wine"        "command -v wine >/dev/null 2>&1 && wine --version 2>&1 | head -3 || echo 'wine missing'"
+    _app "wineconsole" "command -v wineconsole >/dev/null 2>&1 && wineconsole --version 2>&1 | head -3 || echo 'wineconsole missing'"
+    _app "winecfg"     "command -v winecfg >/dev/null 2>&1 && timeout 6 winecfg 2>&1 | head -5 || echo 'winecfg missing'"
+    _app "vkcube"      "command -v vkcube >/dev/null 2>&1 && timeout 8 vkcube 2>&1 | head -30 || echo 'vkcube missing'"
+    _app "vkcubepp"    "command -v vkcubepp >/dev/null 2>&1 && timeout 8 vkcubepp 2>&1 | head -30 || echo 'vkcubepp missing'"
+    _app "vulkaninfo"  "command -v vulkaninfo >/dev/null 2>&1 && vulkaninfo --summary 2>&1 | head -40 || echo 'vulkaninfo missing'"
+    _app "virglrenderer" "command -v virgltestserver >/dev/null 2>&1 && timeout 6 virgltestserver --help 2>&1 | head -10 || echo 'virgltestserver missing'"
+
+    # QEMU variants
+    for q in qemu-system-aarch64 qemu-system-arm qemu-system-x86_64 \
+              qemu-aarch64 qemu-arm qemu-x86_64 qemu-img qemu-io \
+              qemu-storage-daemon qemu-nbd qemu-edid qemu-keymap qemu-microblazeel; do
+        _app "$q" "command -v $q >/dev/null 2>&1 && $q --version 2>&1 | head -5 || echo 'missing: $q'"
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Compositor + app compatibility matrix
+# ---------------------------------------------------------------------------
+probe_compositor_matrix() {
+    logsection "COMPOSITOR + APP COMPATIBILITY MATRIX"
+
+    ALL_LAYERS="VK_LAYER_PATH=$VK_LAYER_DIRS VK_LOADER_DEBUG=all"
+
+    # ── Weston (headless Vulkan) ──────────────────────────────────────────
+    start_compositor \
+        "weston" \
+        "/usr/bin/weston --backend=headless --renderer=vulkan --socket=wayland-1 --idle-time=0 --log=/tmp/alp_gpu_compositors/weston.log" \
+        "/run/user/0/wayland-1" \
+        "XDG_RUNTIME_DIR=/run/user/0 VK_ICD_FILENAMES=/etc/vulkan/icd.d/mali_icd.aarch64.json $ALL_LAYERS"
+
+    run_app_matrix "weston" \
+        "XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-1" \
+        "$ALL_LAYERS"
+    stop_compositor "weston"
+
+    # ── Weston fallback (headless DRM) ───────────────────────────────────
+    start_compositor \
+        "weston_drm" \
+        "/usr/bin/weston --backend=drm --socket=wayland-1 --idle-time=0 --log=/tmp/alp_gpu_compositors/weston_drm.log" \
+        "/run/user/0/wayland-1" \
+        "XDG_RUNTIME_DIR=/run/user/0 $ALL_LAYERS"
+    run_app_matrix "weston_drm" \
+        "XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-1" \
+        "$ALL_LAYERS"
+    stop_compositor "weston_drm"
+
+    # ── Mir launchers ─────────────────────────────────────────────────────
+    for mir_bin in \
+        "/usr/bin/mir-x11-kiosk" \
+        "/usr/bin/miral-kiosk" \
+        "/usr/bin/miral-shell" \
+        "/usr/bin/miral-system-compositor"
+    do
+        mir_name="$(basename "$mir_bin" | tr '-' '_')"
+        if [ -x "$ROOTFS$mir_bin" ]; then
+            start_compositor \
+                "$mir_name" \
+                "$mir_bin" \
+                "/run/user/0/wayland-0" \
+                "XDG_RUNTIME_DIR=/run/user/0 $ALL_LAYERS"
+            run_app_matrix "$mir_name" \
+                "XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-0" \
+                "$ALL_LAYERS"
+            stop_compositor "$mir_name"
+        else
+            logw "Skipping compositor (missing): $mir_bin"
+        fi
+    done
+
+    # ── Gamescope (steam) ─────────────────────────────────────────────────
+    GSBIN=""
+    [ -x "$ROOTFS/usr/bin/gamescope"   ] && GSBIN=/usr/bin/gamescope
+    [ -x "$ROOTFS/usr/games/gamescope" ] && GSBIN=/usr/games/gamescope
+    if [ -n "$GSBIN" ]; then
+        start_compositor \
+            "gamescope" \
+            "$GSBIN -W 1280 -H 720 -r 60 --backend wayland -- /bin/true" \
+            "/run/user/0/wayland-0" \
+            "XDG_RUNTIME_DIR=/run/user/0 $ALL_LAYERS"
+        run_app_matrix "gamescope" \
+            "XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-0" \
+            "$ALL_LAYERS"
+        stop_compositor "gamescope"
+    else
+        logw "gamescope binary not found — skipping compositor"
+    fi
+
+    # ── XWayland probe (standalone, no compositor) ────────────────────────
+    logsub "Xwayland probe (standalone)"
+    chrootstrace "xwayland_probe" "xwayland_probe" \
+        ". $ROOTFSENVFILE; Xwayland -version 2>&1 | head -20"
+
+    # ── Mesa library sanity ───────────────────────────────────────────────
+    logsub "Mesa library sanity"
+    chrootexec logvk ". $ROOTFSENVFILE
+for f in /usr/lib/libGL.so* /usr/lib/libEGL.so* /usr/lib/libGLES*.so* /usr/lib/libgbm.so*; do
+    ls -lh \$f 2>/dev/null || true
+done"
+
+    # ── Miral desktop file ────────────────────────────────────────────────
+    logsub "miral-shell.desktop"
+    [ -f "$ROOTFS/usr/share/applications/miral-shell.desktop" ] \
+        && cat "$ROOTFS/usr/share/applications/miral-shell.desktop" | while read -r l; do logi "  $l"; done \
+        || logw "miral-shell.desktop missing"
+
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# /opt payload scan (AppImage-style / .exe)
+# ---------------------------------------------------------------------------
+probe_opt_payloads() {
+    logsection "OPT PAYLOAD SCAN"
+    if [ ! -d "$ROOTFS/opt" ]; then
+        logw "No $ROOTFS/opt directory"
+        return 0
+    fi
+
+    for sub in "$ROOTFS/opt/"*/; do
+        [ -d "$sub" ] || continue
+        name="$(basename "$sub")"
+        logsub "opt/$name"
+        EXE="$(find "$sub" -maxdepth 3 \( -iname '*.exe' -o -iname '*.EXE' \) 2>/dev/null | head -1)"
+        APPRUN=""; [ -x "${sub}AppRun" ] && APPRUN="/opt/${name}/AppRun"
+        DESKTOP="$(find "$sub" -maxdepth 2 -name '*.desktop' 2>/dev/null | head -1)"
+
+        if [ -n "$EXE" ]; then
+            relexe="${EXE#"$ROOTFS"}"
+            logok "Found .exe: $relexe"
+            for runner in wine wine-stable; do
+                chrootstrace "opt_${name}_${runner}" "opt_${name}_${runner}" \
+                    ". $ROOTFSENVFILE; command -v $runner >/dev/null 2>&1 && timeout 12 $runner $relexe || echo '$runner not available'"
+            done
+            chrootstrace "opt_${name}_box64wine" "opt_${name}_box64wine" \
+                ". $ROOTFSENVFILE; command -v box64 >/dev/null 2>&1 && command -v wine >/dev/null 2>&1 \
+                 && timeout 12 box64 \$(command -v wine) $relexe || echo 'box64+wine not available'"
+        elif [ -n "$APPRUN" ]; then
+            logok "Found AppRun: $APPRUN  desktop: $(basename "$DESKTOP")"
+            chrootstrace "opt_${name}_apprun" "opt_${name}_apprun" \
+                ". $ROOTFSENVFILE; cd /opt/$name && timeout 12 ./AppRun --help 2>&1 | head -30 || timeout 12 ./AppRun 2>&1 | head -30"
+        else
+            logi "No .exe or AppRun in /opt/$name"
+        fi
+    done
+    log ""
+}
+
+# ---------------------------------------------------------------------------
+# TWRP flash
+# ---------------------------------------------------------------------------
+twrp_partitions() {
+    logsection "FLASHING TWRP"
+    if [ ! -f "$TWRPIMAGE" ]; then
+        logerr "TWRP image not found: $TWRPIMAGE"
+        return 1
+    fi
+    logi "Image: $TWRPIMAGE  ($(stat -c%s "$TWRPIMAGE" 2>/dev/null || echo ?) bytes)"
+    for part in /dev/block/mmcblk0p42 /dev/block/mmcblk0p43; do
+        logsub "Flashing $part"
+        if [ -b "$part" ]; then
+            dd if="$TWRPIMAGE" of="$part" bs=1048576 2>&1 | while read -r l; do log "$l"; done
+            sync
+            [ "${PIPESTATUS[0]:-$?}" -eq 0 ] && logok "Flashed $part" || logerr "Failed $part"
+        else
+            logerr "Not a block device: $part"
+        fi
+    done
+    logok "TWRP flash complete"
+    sync
+    log ""
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+logsection "OPENRC HAL SEATD DBUS ALPINE GPU TEST"
+logi "Started: $(date '+%Y-%m-%d %H:%M:%S')"
+log ""
+
+hardware_status
+
+logsection "SYSTEM INIT WAIT"
+logi "Waiting for Alpine rootfs to become ready (up to ${MOUNTWAIT}s)..."
+ALPINE="${ROOTFS:-/mnt/alpine}"
+WAITED=0
+while [ "$WAITED" -lt "$MOUNTWAIT" ]; do
+    if [ -r "${ALPINE}/etc/alpine-release" ]; then
+        logok "Alpine rootfs detected after ${WAITED}s: $(cat "${ALPINE}/etc/alpine-release" 2>/dev/null)"
+        break
+    fi
+    sleep 1
+    WAITED=$((WAITED+1))
+    [ $((WAITED % 10)) -eq 0 ] && logi "  still waiting... ${WAITED}s"
+done
+if [ ! -r "${ALPINE}/etc/alpine-release" ]; then
+    logerr "Alpine rootfs not ready after ${MOUNTWAIT}s — aborting"
+    exit 1
+fi
+log ""
+
+hardware_status
+
+logsection "SYSTEM INFORMATION"
+logi "Kernel:       $(uname -r)"
+logi "Architecture: $(uname -m)"
+logi "Hostname:     $(hostname -f 2>/dev/null || hostname)"
+logi "Alpine OS:    $(grep PRETTY_NAME "$ROOTFS/etc/os-release" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo unknown)"
+logi "Rootfs:       $ROOTFS"
+log ""
+
+dev_checks
+start_daemons
+android_service_managers
+android_hal_services
+
+hardware_status
+input_devices
+
+# Chroot setup
+bind_mounts
+probe_ld_config
+write_rootfs_env
+fix_wsi_manifest
+start_rootfs_dbus
+probe_initd
+
+# Stack inventory + probes
+probe_graphical_stack
+probe_strace
+probe_dlopen
+
+# Vulkan
+discover_layer_names
+probe_vulkaninfo
+probe_vulkan_layer_matrix
+
+# Binaries + CLI
+probe_binary_inventory
+probe_cli_tests
+
+# Wine
+prepare_wine_prefix
+
+# Compositor + app matrix
+probe_compositor_matrix
+
+# /opt payloads
+probe_opt_payloads
+
+# TWRP
+twrp_partitions
+
+# Final
+logsection "FINAL SYSTEM STATUS"
+hardware_status
+ENDTIME="$(date +%s)"
+logok "Total duration: $((ENDTIME - STARTTIME))s"
+log ""
+logi "Logs:"
+logi "  Main:        $LOGFILE"
+logi "  HAL:         $HALLOG"
+logi "  Services:    $SERVICESLOG"
+logi "  Input:       $INPUTLOG"
+logi "  Tools:       $TOOLSLOG"
+logi "  seatd:       $SEATDLOG"
+logi "  dbus:        $DBUSLOG"
+logi "  Vulkan:      $VULKANLOG"
+logi "  strace dir:  $STRACEDIR"
+log ""
+logok "All logs on SD card"
+sync
+sleep 2
+
+unbind_mounts
+
+logi "Launching realrecovery..."
+exec /system/bin/realrecovery

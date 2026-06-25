@@ -1,0 +1,54 @@
+#!/system/bin/sh
+# UNISOC Hardware Device Configuration Script
+#
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_clock_test.log"
+ALPINE="/mnt/alpine"
+
+# Logging
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_subsection() {
+    log ""
+    log "--- $* ---"
+}
+
+log_info() {
+    log "  ℹ $*"
+}
+
+log_warning() {
+    log "  ⚠ $*"
+}
+
+log_success() {
+    log "  ✓ $*"
+}
+
+if [ -x system/bin/tzdatacheck ] && [ -d "$ALPINE/usr/share/zoneinfo" ]; then
+    log "Running tzdatacheck..."
+    system/bin/tzdatacheck "$ALPINE/usr/share/zoneinfo" "$ALPINE/usr/share/zoneinfo" 2>&1 | head -5 | tee -a "$LOGFILE"
+fi
+
+sleep 2
+exit 0

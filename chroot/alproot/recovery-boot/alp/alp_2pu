@@ -1,0 +1,323 @@
+#!/system/bin/sh
+# UNISOC Hardware Device Configuration Script
+
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_2pu_test.log"
+ALPINE="/mnt/alpine"
+
+# Logging
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_subsection() {
+    log ""
+    log "--- $* ---"
+}
+
+log_info() {
+    log "  ℹ $*"
+}
+
+log_warning() {
+    log "  ⚠ $*"
+}
+
+log_success() {
+    log "  ✓ $*"
+}
+
+# CPU FREQUENCY CONFIGURATION
+# ==============================================
+# SIMPLIFIED MODES:
+#   1 = POWER_SAVE (minimum frequency)
+#   2 = BALANCED (50% of range)
+#   3 = PERFORMANCE (maximum frequency)
+
+CPU_FREQ_MODE=2  # 1=power_save, 2=balanced, 3=performance
+
+# ==============================================
+# DIAGNOSTICS
+# ==============================================
+
+diagnose_cpu_freq_control() {
+    printf "\n[%s] === CPU FREQUENCY DIAGNOSTICS (V10 - SIMPLIFIED) ===\n" "$(date '+%H:%M:%S')" | tee -a "$LOGFILE"
+    
+    printf "\n1. Hardware Capabilities:\n" | tee -a "$LOGFILE"
+    
+    for cpu_idx in 0 6; do
+        local cpufreq="/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq"
+        
+        [ $cpu_idx -eq 0 ] && printf "   Little cores (cpu0-5):\n" | tee -a "$LOGFILE" || \
+            printf "   Big cores (cpu6-7):\n" | tee -a "$LOGFILE"
+        
+        local hw_min=$(cat "$cpufreq/cpuinfo_min_freq" 2>/dev/null || echo "0")
+        local hw_max=$(cat "$cpufreq/cpuinfo_max_freq" 2>/dev/null || echo "0")
+        local cur=$(cat "$cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+        local gov=$(cat "$cpufreq/scaling_governor" 2>/dev/null || echo "N/A")
+        
+        printf "     Hardware range: %d-%d MHz\n" $((hw_min/1000)) $((hw_max/1000)) | tee -a "$LOGFILE"
+        printf "     Current: %d MHz (governor: %s)\n" $((cur/1000)) "$gov" | tee -a "$LOGFILE"
+        printf "     Driver: %s\n" "$(cat "$cpufreq/scaling_driver" 2>/dev/null)" | tee -a "$LOGFILE"
+    done
+    
+    printf "\n2. Recovery Mode Limitations:\n" | tee -a "$LOGFILE"
+    printf "   • Custom frequency setting is NOT supported\n" | tee -a "$LOGFILE"
+    printf "   • Spreadtrum driver restricts frequency control in recovery\n" | tee -a "$LOGFILE"
+    printf "   • Only 3 modes available: POWER_SAVE, BALANCED, PERFORMANCE\n" | tee -a "$LOGFILE"
+    
+    printf "\n3. Available Modes:\n" | tee -a "$LOGFILE"
+    printf "   Mode 1 (POWER_SAVE): Lock to minimum frequency\n" | tee -a "$LOGFILE"
+    printf "   Mode 2 (BALANCED): Set moderate frequency limits\n" | tee -a "$LOGFILE"
+    printf "   Mode 3 (PERFORMANCE): Lock to maximum frequency\n" | tee -a "$LOGFILE"
+    
+    printf "\n=== END DIAGNOSTICS ===\n\n" | tee -a "$LOGFILE"
+}
+
+# ==============================================
+# SET CPU FREQUENCY
+# ==============================================
+
+set_cpu_frequency() {
+    printf "[%s]   • Setting CPU mode: " "$(date '+%H:%M:%S')" | tee -a "$LOGFILE"
+    
+    case $CPU_FREQ_MODE in
+        1) printf "POWER_SAVE (minimum)\n" | tee -a "$LOGFILE" ;;
+        2) printf "BALANCED (moderate)\n" | tee -a "$LOGFILE" ;;
+        3) printf "PERFORMANCE (maximum)\n" | tee -a "$LOGFILE" ;;
+        *) printf "UNKNOWN (defaulting to balanced)\n" | tee -a "$LOGFILE"; CPU_FREQ_MODE=2 ;;
+    esac
+    
+    local SUCCESS=0
+    local TOTAL=0
+    
+    for cpu_idx in 0 1 2 3 4 5 6 7; do
+        local cpufreq="/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq"
+        [ ! -e "$cpufreq/scaling_governor" ] && continue
+        
+        TOTAL=$((TOTAL + 1))
+        
+        # Get hardware limits
+        local hw_min=$(cat "$cpufreq/cpuinfo_min_freq" 2>/dev/null || echo "614400")
+        local hw_max=$(cat "$cpufreq/cpuinfo_max_freq" 2>/dev/null || echo "2000000")
+        local hw_range=$((hw_max - hw_min))
+        
+        # Determine core type
+        [ $cpu_idx -lt 6 ] && local type="A55" || local type="A75"
+        
+        # Calculate target based on mode
+        case $CPU_FREQ_MODE in
+            1) # POWER_SAVE - lock to minimum
+                local target_min=$hw_min
+                local target_max=$hw_min
+                local gov="powersave"
+                ;;
+            2) # BALANCED - allow 25-75% of range
+                local target_min=$((hw_min + hw_range / 4))
+                local target_max=$((hw_min + hw_range * 3 / 4))
+                local gov="schedutil"
+                ;;
+            3) # PERFORMANCE - lock to maximum
+                local target_min=$hw_max
+                local target_max=$hw_max
+                local gov="performance"
+                ;;
+        esac
+        
+        # Try to apply settings
+        echo "$gov" > "$cpufreq/scaling_governor" 2>/dev/null
+        echo "$target_max" > "$cpufreq/scaling_max_freq" 2>/dev/null
+        echo "$target_min" > "$cpufreq/scaling_min_freq" 2>/dev/null
+        
+        sleep 0.05
+        
+        # Verify
+        local actual_min=$(cat "$cpufreq/scaling_min_freq" 2>/dev/null || echo "0")
+        local actual_max=$(cat "$cpufreq/scaling_max_freq" 2>/dev/null || echo "0")
+        local actual_cur=$(cat "$cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+        
+        printf "      cpu%d (%s): %dMHz [%d-%dMHz]\n" \
+            $cpu_idx "$type" $((actual_cur/1000)) $((actual_min/1000)) $((actual_max/1000)) | tee -a "$LOGFILE"
+        
+        SUCCESS=$((SUCCESS + 1))
+    done
+    
+    printf "   ✓ Applied mode to %d/%d CPUs\n" $SUCCESS $TOTAL | tee -a "$LOGFILE"
+    
+    return 0
+}
+
+# ==============================================
+# CHANGE CPU MODE (SIMPLIFIED)
+# ==============================================
+
+change_cpu_mode() {
+    local new_mode=$1
+    local msg=$2
+    
+    [ -z "$new_mode" ] || [ $new_mode -lt 1 ] || [ $new_mode -gt 3 ] && return 1
+    
+    CPU_FREQ_MODE=$new_mode
+    
+    [ -n "$msg" ] && printf "%s\n" "$msg" | tee -a "$LOGFILE"
+    
+    case $new_mode in
+        1) printf "   • Switching to POWER_SAVE mode\n" | tee -a "$LOGFILE" ;;
+        2) printf "   • Switching to BALANCED mode\n" | tee -a "$LOGFILE" ;;
+        3) printf "   • Switching to PERFORMANCE mode\n" | tee -a "$LOGFILE" ;;
+    esac
+    
+    # Apply the mode
+    for cpu_idx in 0 1 2 3 4 5 6 7; do
+        local cpufreq="/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq"
+        [ ! -e "$cpufreq/scaling_governor" ] && continue
+        
+        local hw_min=$(cat "$cpufreq/cpuinfo_min_freq" 2>/dev/null || echo "614400")
+        local hw_max=$(cat "$cpufreq/cpuinfo_max_freq" 2>/dev/null || echo "2000000")
+        local hw_range=$((hw_max - hw_min))
+        
+        case $new_mode in
+            1) # POWER_SAVE
+                echo "powersave" > "$cpufreq/scaling_governor" 2>/dev/null
+                echo "$hw_min" > "$cpufreq/scaling_max_freq" 2>/dev/null
+                echo "$hw_min" > "$cpufreq/scaling_min_freq" 2>/dev/null
+                ;;
+            2) # BALANCED
+                echo "schedutil" > "$cpufreq/scaling_governor" 2>/dev/null
+                echo "$((hw_min + hw_range * 3 / 4))" > "$cpufreq/scaling_max_freq" 2>/dev/null
+                echo "$((hw_min + hw_range / 4))" > "$cpufreq/scaling_min_freq" 2>/dev/null
+                ;;
+            3) # PERFORMANCE
+                echo "performance" > "$cpufreq/scaling_governor" 2>/dev/null
+                echo "$hw_max" > "$cpufreq/scaling_max_freq" 2>/dev/null
+                echo "$hw_max" > "$cpufreq/scaling_min_freq" 2>/dev/null
+                ;;
+        esac
+    done
+    
+    return 0
+}
+
+# ==============================================
+# PRINT CPU FREQUENCIES
+# ==============================================
+
+print_cpu_frequencies() {
+    local mode=$1
+    
+    printf "[%s] " "$(date '+%H:%M:%S')" | tee -a "$LOGFILE"
+    
+    if [ "$mode" = "compact" ]; then
+        printf "  • CPU Freq: " | tee -a "$LOGFILE"
+        for cpu_idx in 0 1 2 3 4 5 6 7; do
+            local freq=$(cat "/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+            printf "cpu%d:%dMHz " $cpu_idx $((freq / 1000)) | tee -a "$LOGFILE"
+        done
+        printf "\n" | tee -a "$LOGFILE"
+        
+    elif [ "$mode" = "verify" ]; then
+        printf "  • Mode Status: " | tee -a "$LOGFILE"
+        
+        case $CPU_FREQ_MODE in
+            1) printf "POWER_SAVE active" | tee -a "$LOGFILE" ;;
+            2) printf "BALANCED active" | tee -a "$LOGFILE" ;;
+            3) printf "PERFORMANCE active" | tee -a "$LOGFILE" ;;
+        esac
+        
+        local all_cpus_ok=true
+        for cpu_idx in 0 1 2 3 4 5 6 7; do
+            local cpufreq="/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq"
+            [ ! -r "$cpufreq/scaling_cur_freq" ] && all_cpus_ok=false
+        done
+        
+        [ "$all_cpus_ok" = "true" ] && printf " ✓\n" | tee -a "$LOGFILE" || printf "\n" | tee -a "$LOGFILE"
+        
+    else
+        printf "  • CPU Details:\n" | tee -a "$LOGFILE"
+        
+        for cpu_idx in 0 1 2 3 4 5 6 7; do
+            local cpufreq="/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq"
+            
+            local cur=$(cat "$cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+            local min=$(cat "$cpufreq/scaling_min_freq" 2>/dev/null || echo "0")
+            local max=$(cat "$cpufreq/scaling_max_freq" 2>/dev/null || echo "0")
+            local gov=$(cat "$cpufreq/scaling_governor" 2>/dev/null || echo "N/A")
+            
+            [ $cpu_idx -lt 6 ] && local type="A55" || local type="A75"
+            
+            printf "      cpu%d (%s): %dMHz [%d-%dMHz] %s\n" \
+                $cpu_idx "$type" $((cur/1000)) $((min/1000)) $((max/1000)) "$gov" | tee -a "$LOGFILE"
+        done
+    fi
+    
+    return 0
+}
+
+cpu_status() {
+    printf "[%s]   • CPU Status: " "$(date '+%H:%M:%S')" | tee -a "$LOGFILE"
+    
+    local little_sum=0
+    local big_sum=0
+    
+    for cpu_idx in 0 1 2 3 4 5; do
+        local freq=$(cat "/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+        little_sum=$((little_sum + freq))
+    done
+    
+    for cpu_idx in 6 7; do
+        local freq=$(cat "/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq/scaling_cur_freq" 2>/dev/null || echo "0")
+        big_sum=$((big_sum + freq))
+    done
+    
+    local little_avg=$((little_sum / 6 / 1000))
+    local big_avg=$((big_sum / 2 / 1000))
+    
+    case $CPU_FREQ_MODE in
+        1) local mode_name="POWER_SAVE" ;;
+        2) local mode_name="BALANCED" ;;
+        3) local mode_name="PERFORMANCE" ;;
+        *) local mode_name="UNKNOWN" ;;
+    esac
+    
+    printf "Little=%dMHz, Big=%dMHz [Mode: %s]\n" $little_avg $big_avg "$mode_name" | tee -a "$LOGFILE"
+    return 0
+}
+
+# ==============================================
+# USAGE
+# ==============================================
+
+log ""
+log "--- CPU Frequency Configuration ---"
+
+# Show what's possible
+diagnose_cpu_freq_control
+
+# Apply simplified mode
+set_cpu_frequency || true
+
+# Status
+cpu_status || true
+print_cpu_frequencies compact || true
+print_cpu_frequencies verify || true
+
+sleep 2
+exit 0

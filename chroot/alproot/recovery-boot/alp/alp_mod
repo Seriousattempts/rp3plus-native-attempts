@@ -1,0 +1,427 @@
+#!/system/bin/sh
+# UNISOC Hardware Device Configuration Script
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SOCKO_PARTITION="/dev/block/mmcblk0p52"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_modules.log"
+ALPINE="/mnt/alpine"
+CLEANUP_ACTIONS=""
+
+# 64-bit path for the recovery shell and host 64-bit tools.
+# pservice gets its own isolated 32-bit path — see launch block below.
+export LD_LIBRARY_PATH=/system/lib64:/system/lib:/vendor/lib64:/vendor/lib:/apex
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_subsection() {
+    log ""
+    log "--- $* ---"
+}
+
+log_info()    { log "  ℹ $*"; }
+log_warning() { log "  ⚠ $*"; }
+log_success() { log "  ✓ $*"; }
+log_error()   { log "  ✗ ERROR: $*"; }
+
+set_perm_if_exists() {
+    local dev="$1"
+    local mode="$2"
+    local owner="$3"
+    local group="$4"
+
+    if [ -e "$dev" ]; then
+        chmod "$mode" "$dev" 2>/dev/null
+        chown "$owner:$group" "$dev" 2>/dev/null
+        log_success "Configured $dev ($mode $owner:$group)"
+        return 0
+    else
+        log_warning "Device node missing: $dev"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------
+# Basic logging and BOOT mount
+# ------------------------------------------------------------
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log_section "ALP_MOD START"
+log_info "Log file: $LOGFILE"
+
+# ------------------------------------------------------------
+# KERNEL MODULE LOADING
+# ------------------------------------------------------------
+log_section "KERNEL MODULE LOADING"
+
+INSMOD_CMD="/system/bin/insmod"
+log_info "Using insmod: $INSMOD_CMD"
+
+SOCKO_MOUNT="/mnt/super/socko"
+if mount | grep -q " $SOCKO_MOUNT "; then
+    log_info "Found socko already mounted by alp_mnt at $SOCKO_MOUNT"
+else
+    log_warning "alp_mnt did not mount socko at $SOCKO_MOUNT. Attempting local mount..."
+    if [ -b "$SOCKO_PARTITION" ]; then
+        mkdir -p "$SOCKO_MOUNT" 2>/dev/null
+        if mount -t ext4 -o ro "$SOCKO_PARTITION" "$SOCKO_MOUNT" 2>/dev/null; then
+            log_success "Socko locally mounted at $SOCKO_MOUNT"
+            CLEANUP_ACTIONS="umount $SOCKO_MOUNT;$CLEANUP_ACTIONS"
+        else
+            log_error "Failed to mount socko locally"
+            SOCKO_MOUNT=""
+        fi
+    else
+        log_warning "Socko partition device not found: $SOCKO_PARTITION"
+        SOCKO_MOUNT=""
+    fi
+fi
+
+log_subsection "Loading socko modules"
+
+SOCKO_LOADED=0
+SOCKO_FAILED=0
+SOCKO_MODULES="mali_gondul.ko mmdvfs.ko sprd_cpp.ko sprd_sensor.ko sprd_flash_drv.ko sprdbt_tty.ko sprd_fm.ko sprdwl_ng.ko"
+
+if [ -n "$SOCKO_MOUNT" ] && [ -d "$SOCKO_MOUNT" ]; then
+    log_info "Loading socko modules from $SOCKO_MOUNT..."
+
+    for mod in $SOCKO_MODULES; do
+        if [ -f "$SOCKO_MOUNT/$mod" ]; then
+            log_info "Loading $mod..."
+            if $INSMOD_CMD "$SOCKO_MOUNT/$mod" 2>&1 | tee -a "$LOGFILE"; then
+                SOCKO_LOADED=$((SOCKO_LOADED + 1))
+            else
+                log_warning "Failed to load $mod"
+                SOCKO_FAILED=$((SOCKO_FAILED + 1))
+            fi
+            sleep 0.3
+        else
+            log_warning "Module not found on socko: $mod"
+        fi
+    done
+    log_info "Socko modules: $SOCKO_LOADED loaded, $SOCKO_FAILED failed"
+else
+    log_warning "Skipping socko modules (partition not mounted)"
+fi
+
+log_subsection "Loading vendor modules"
+
+VENDOR_MODULES="/vendor/lib/modules"
+VENDOR_LOADED=0
+VENDOR_FAILED=0
+
+if [ -d "$VENDOR_MODULES" ]; then
+    for mod in incrementalfs.ko kheaders.ko; do
+        if [ -f "$VENDOR_MODULES/$mod" ]; then
+            log_info "Loading $mod..."
+            if $INSMOD_CMD "$VENDOR_MODULES/$mod" 2>&1 | tee -a "$LOGFILE"; then
+                VENDOR_LOADED=$((VENDOR_LOADED + 1))
+            else
+                log_warning "Failed to load $mod"
+                VENDOR_FAILED=$((VENDOR_FAILED + 1))
+            fi
+            sleep 0.3
+        else
+            log_warning "Vendor module not found: $mod"
+        fi
+    done
+    log_info "Vendor modules: $VENDOR_LOADED loaded, $VENDOR_FAILED failed"
+else
+    log_warning "Vendor modules directory not found: $VENDOR_MODULES"
+fi
+
+log_subsection "Loaded modules (lsmod)"
+lsmod | tee -a "$LOGFILE"
+log_info "Module load summary: Socko=$SOCKO_LOADED, Vendor=$VENDOR_LOADED, Total=$((SOCKO_LOADED + VENDOR_LOADED))"
+
+# ------------------------------------------------------------
+# DEVICE NODE INITIALIZATION
+# ------------------------------------------------------------
+log_section "DEVICE NODE INITIALIZATION"
+
+# Binder
+/system/bin/modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>/dev/null \
+    || /system/bin/modprobe binder devices="binder,hwbinder,vndbinder" 2>/dev/null
+sleep 1
+mkdir -p /dev/binderfs 2>/dev/null
+if ! mount | grep -q "/dev/binderfs"; then
+    mount -t binder binder /dev/binderfs 2>/dev/null
+fi
+
+set_perm_if_exists "/dev/binderfs/binder"    "666" "root" "root"
+set_perm_if_exists "/dev/binderfs/hwbinder"  "666" "root" "root"
+set_perm_if_exists "/dev/binderfs/vndbinder" "666" "root" "root"
+
+for node in binder hwbinder vndbinder; do
+    if [ -e "/dev/binderfs/$node" ]; then
+        if [ ! -e "/dev/$node" ]; then
+            if ln -s "/dev/binderfs/$node" "/dev/$node" 2>/dev/null; then
+                log_success "Created symlink /dev/$node -> /dev/binderfs/$node"
+            fi
+        fi
+    fi
+done
+
+if [ ! -d /dev/binderfs ]; then
+    set_perm_if_exists "/dev/binder"    "666" "root" "root"
+    set_perm_if_exists "/dev/hwbinder"  "666" "root" "root"
+    set_perm_if_exists "/dev/vndbinder" "666" "root" "root"
+fi
+
+# Mali & Camera
+/system/bin/modprobe mali 2>/dev/null || true
+sleep 1
+set_perm_if_exists "/dev/mali0" "666" "system" "graphics"
+
+/system/bin/modprobe sprd_sensor 2>/dev/null || true
+/system/bin/modprobe sprd_cpp    2>/dev/null || true
+/system/bin/modprobe sprd_flash  2>/dev/null || true
+sleep 1
+
+set_perm_if_exists "/dev/sprd_sensor" "660" "system" "camera"
+set_perm_if_exists "/dev/sprd_cpp"    "660" "system" "camera"
+set_perm_if_exists "/dev/sprd_flash"  "660" "system" "camera"
+
+for i in $(seq 0 15); do
+    [ ! -e "/dev/video$i" ] && mknod "/dev/video$i" c 81 "$i" 2>/dev/null
+    set_perm_if_exists "/dev/video$i" "660" "system" "camera"
+done
+
+for i in $(seq 0 3); do
+    [ ! -e "/dev/media$i" ] && mknod "/dev/media$i" c 250 "$i" 2>/dev/null
+    set_perm_if_exists "/dev/media$i" "660" "system" "camera"
+done
+
+for i in $(seq 0 7); do
+    minor=$((128 + i))
+    [ ! -e "/dev/v4l-subdev$i" ] && mknod "/dev/v4l-subdev$i" c 81 "$minor" 2>/dev/null
+    set_perm_if_exists "/dev/v4l-subdev$i" "660" "system" "camera"
+done
+
+set_perm_if_exists "/dev/ttyBT0" "660" "bluetooth" "net_bt_admin"
+set_perm_if_exists "/dev/ttyBT1" "660" "bluetooth" "net_bt_admin"
+set_perm_if_exists "/dev/fm"     "660" "media"     "media"
+
+# ------------------------------------------------------------
+# RSCOM & CONTROLLER INPUT NODES
+# ------------------------------------------------------------
+log_section "RSCOM AND CONTROLLER INPUT NODES"
+
+# /dev/rscom — major 236, minor 0 confirmed from live Android enumeration.
+# Created unconditionally; mknod is silent if the node already exists.
+mknod /dev/rscom c 236 0 2>/dev/null || true
+chmod 666 /dev/rscom
+log_success "rscom node ready: $(ls -la /dev/rscom | awk '{print $5, $6}')"
+
+# /dev/uinput — needed by librsinput.so to register the virtual gamepad
+if [ -c /dev/uinput ]; then
+    chmod 666 /dev/uinput 2>/dev/null
+    log_success "/dev/uinput ready"
+else
+    modprobe uinput 2>/dev/null || true
+    sleep 1
+    [ -c /dev/uinput ] \
+        && { chmod 666 /dev/uinput; log_success "/dev/uinput ready after modprobe"; } \
+        || log_error "/dev/uinput still missing"
+fi
+
+# /dev/rsinput and /dev/rstouch — created by pservice after init;
+# chmod here only catches a leftover node from a previous run.
+[ -e /dev/rsinput ] && chmod 666 /dev/rsinput 2>/dev/null
+[ -e /dev/rstouch ] && chmod 666 /dev/rstouch 2>/dev/null
+
+# librsinput.so crash-log directory — must exist before pservice starts.
+mkdir -p /data/devices/rsinput 2>/dev/null
+
+# ---------------------------------------------------------------
+# VERIFY librsinput.so
+# ---------------------------------------------------------------
+log_subsection "Verifying librsinput.so"
+
+RSINPUT_LIB="${ALPINE}/home/librsinput.so"
+if [ -f "$RSINPUT_LIB" ]; then
+    chmod 755 "$RSINPUT_LIB" 2>/dev/null
+    log_success "librsinput.so present: $(ls -la "$RSINPUT_LIB" | awk '{print $5}') bytes"
+else
+    log_error "librsinput.so not found at $RSINPUT_LIB"
+fi
+
+# ---------------------------------------------------------------
+# 32-BIT LINKER FOR PSERVICE
+# ---------------------------------------------------------------
+log_subsection "Checking 32-bit linker"
+
+if [ -e /system/bin/linker ]; then
+    log_success "32-bit linker present: $(ls -la /system/bin/linker | awk '{print $NF}')"
+else
+    log_warning "/system/bin/linker missing — searching"
+    FOUND_LINKER=""
+    for candidate in \
+        /system/bin/linker32 \
+        /system/lib/ld-android.so \
+        /apex/com.android.runtime/bin/linker \
+        /apex/com.android.art.release/bin/linker; do
+        [ -x "$candidate" ] && { FOUND_LINKER="$candidate"; break; }
+    done
+    if [ -z "$FOUND_LINKER" ]; then
+        FOUND_LINKER=$(find /system /vendor /apex \
+            -name "linker" -not -name "linker64" 2>/dev/null | head -1)
+    fi
+    if [ -n "$FOUND_LINKER" ]; then
+        ln -sf "$FOUND_LINKER" /system/bin/linker 2>/dev/null \
+            && log_success "Created /system/bin/linker -> $FOUND_LINKER" \
+            || log_error "Failed to symlink /system/bin/linker (read-only fs?)"
+    else
+        log_error "No 32-bit linker found"
+    fi
+fi
+
+# ---------------------------------------------------------------
+# BOOT STATE PROPERTIES FOR PSERVICE
+# pservice checks sys.boot_completed before starting the input
+# stack. In recovery this is never set so pservice exits early.
+# ---------------------------------------------------------------
+log_subsection "Setting boot state properties (replicating pservice)"
+
+for entry in \
+    "sys.boot_completed=1" \
+    "dev.bootcomplete=1" \
+    "sys.init.perf_lsm_hooks=1" \
+    "persist.vendor.app.version=1" \
+    "persist.sys.cpugpumode=0" \
+    "persist.sys.performance=0"; do
+    key="${entry%%=*}"
+    val="${entry#*=}"
+    current=$(getprop "$key" 2>/dev/null)
+    if [ -z "$current" ] || [ "$current" = "0" ]; then
+        setprop "$key" "$val" 2>/dev/null \
+            && log_success "setprop $key = $val" \
+            || log_warning "setprop $key failed (read-only in recovery)"
+    else
+        log_info "  $key already '$current' — skipping"
+    fi
+done
+
+# ---------------------------------------------------------------
+# ENUMERATE /dev/input EVENT NODES
+# Scan by sysfs name — never hardcode eventN number.
+# Sets CONTROLLER_DEV and MOUSE_DEV for downstream consumers.
+# ---------------------------------------------------------------
+log_subsection "Enumerating /dev/input event nodes"
+
+chmod 666 /dev/input/event* 2>/dev/null || true
+CONTROLLER_DEV=""
+MOUSE_DEV=""
+
+for node in /dev/input/event*; do
+    [ -c "$node" ] || continue
+    base=$(basename "$node")
+    devname=$(cat "/sys/class/input/$base/device/name" 2>/dev/null || echo "(unknown)")
+    log_info "$node -> $devname"
+    case "$devname" in
+        *Retroid*Pocket*Controller*|*Pocket*Controller*)
+            CONTROLLER_DEV="$node"
+            chmod 666 "$node" 2>/dev/null
+            log_success "Gamepad node: $node ($devname)"
+            ;;
+        *Retro*Station*Virtual*Mouse*|*Virtual*Mouse*)
+            MOUSE_DEV="$node"
+            chmod 666 "$node" 2>/dev/null
+            log_success "Virtual mouse node: $node ($devname)"
+            ;;
+    esac
+done
+
+[ -e /dev/input/js0 ] && { chmod 666 /dev/input/js0 2>/dev/null; log_success "Joystick interface: /dev/input/js0"; }
+[ -z "$CONTROLLER_DEV" ] && log_warning "Retroid Pocket Controller not yet visible in /dev/input/"
+
+# ------------------------------------------------------------
+# CAMERA GPIO INITIALIZATION
+# ------------------------------------------------------------
+log_section "CAMERA GPIO INITIALIZATION"
+
+export_gpio() {
+    local gpio="$1"
+    if [ -d "/sys/class/gpio/gpio$gpio" ]; then
+        log_info "GPIO $gpio already exported"
+        echo "out" > "/sys/class/gpio/gpio$gpio/direction" 2>/dev/null
+        echo "0"   > "/sys/class/gpio/gpio$gpio/value"     2>/dev/null
+        return 0
+    fi
+
+    EXPORT_OUT=$(echo "$gpio" > /sys/class/gpio/export 2>&1)
+    EXPORT_RC=$?
+
+    if [ $EXPORT_RC -eq 0 ]; then
+        echo "out" > "/sys/class/gpio/gpio$gpio/direction" 2>/dev/null
+        echo "0"   > "/sys/class/gpio/gpio$gpio/value"     2>/dev/null
+        chmod 666 "/sys/class/gpio/gpio$gpio/direction" 2>/dev/null
+        chmod 666 "/sys/class/gpio/gpio$gpio/value"     2>/dev/null
+        log_success "Exported and initialized GPIO $gpio"
+    else
+        if [ -d "/sys/class/gpio/gpio$gpio" ]; then
+            log_info "GPIO $gpio export returned non-zero but sysfs entry exists (driver-owned, OK)"
+        elif echo "$EXPORT_OUT" | grep -qi "busy" || [ -z "$EXPORT_OUT" ]; then
+            log_warning "GPIO $gpio is busy — owned by sprd_sensor driver (expected)"
+        else
+            log_error "Failed to export GPIO $gpio: $EXPORT_OUT"
+        fi
+    fi
+}
+
+CAM_MAIN_AVDD=$((128 + 25))   # GPIO 153 — sprd_sensor-owned, expect busy
+CAM_MAIN_DVDD=$((128 + 15))   # GPIO 143 — sprd_sensor-owned, expect busy
+CAM_MAIN_PWDN=$((128 + 46))   # GPIO 174
+CAM_MAIN_RST=$((128 + 44))    # GPIO 172
+CAM_MAIN2_RST=$((128 + 41))   # GPIO 169 — sprd_sensor-owned, expect busy
+
+for gpio in $CAM_MAIN_AVDD $CAM_MAIN_DVDD $CAM_MAIN_PWDN $CAM_MAIN_RST $CAM_MAIN2_RST; do
+    export_gpio "$gpio"
+done
+
+# ------------------------------------------------------------
+log_section "alp_mod SUMMARY"
+log_info "Finished at: $(date '+%Y-%m-%d %H:%M:%S')"
+
+log ""
+log_info "Binder IPC nodes present:"
+ls -l /dev/binder* /dev/binderfs/*binder 2>/dev/null | tee -a "$LOGFILE"
+
+log_info "Camera/V4L2 nodes present:"
+ls -l /dev/sprd_sensor /dev/sprd_cpp /dev/sprd_flash 2>/dev/null | tee -a "$LOGFILE"
+ls -l /dev/video* 2>/dev/null | tee -a "$LOGFILE"
+ls -l /dev/media* 2>/dev/null | tee -a "$LOGFILE"
+ls -l /dev/v4l-subdev* 2>/dev/null | tee -a "$LOGFILE"
+
+log_info "Bluetooth serial + FM nodes present:"
+ls -l /dev/ttyBT* /dev/fm 2>/dev/null | tee -a "$LOGFILE"
+
+log_info "Mali node:"
+ls -l /dev/mali0 2>/dev/null | tee -a "$LOGFILE"
+
+log_info "Controller nodes:"
+ls -l /dev/rscom /dev/uinput 2>/dev/null | tee -a "$LOGFILE"
+ls -l /dev/input/event* 2>/dev/null | tee -a "$LOGFILE"
+
+log_info "Log: $LOGFILE"
+
+sleep 2
+exit 0

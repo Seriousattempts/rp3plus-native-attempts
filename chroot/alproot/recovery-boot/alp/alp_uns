@@ -1,0 +1,1101 @@
+#!/system/bin/sh
+BOOT_PARTITION="/dev/block/mmcblk1p1"
+SD_MOUNT="/sdcard"
+LOGFILE="/sdcard/alpine_camera_hardware.log"
+ALPINE="/mnt/alpine"
+HARDWARE_LOG="/sdcard/alpine_unisoc_hardware.log"
+echo "=== UNISOC Hardware Configuration Started at $(date) ===" > "$HARDWARE_LOG"
+# Logging
+
+if ! mount | grep -q "$BOOT_PARTITION"; then
+    mkdir -p "$SD_MOUNT"
+    mount -t exfat "$BOOT_PARTITION" "$SD_MOUNT" 2>/dev/null
+    CLEANUP_ACTIONS="umount $SD_MOUNT;$CLEANUP_ACTIONS"
+fi
+
+> "$LOGFILE"
+
+log() {
+    echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOGFILE"
+    sync
+}
+
+log_section() {
+    log "========================================="
+    log "=== $* ==="
+    log "========================================="
+}
+
+log_subsection() {
+    log ""
+    log "--- $* ---"
+}
+
+log_info() {
+    log "  ℹ $*"
+}
+
+log_warning() {
+    log "  ⚠ $*"
+}
+
+log_success() {
+    log "  ✓ $*"
+}
+
+hw_log() {
+    echo "$(date '+%H:%M:%S') - $1" | tee -a "$HARDWARE_LOG"
+}
+
+log ""
+# Configure device with specific permissions and optional owner:group
+configure_device_perm() {
+    local device="$1"
+    local perm="$2"
+    local owner="${3:-root}"
+    local group="${4:-root}"
+    
+    if [ -e "$device" ]; then
+        if chmod "$perm" "$device" 2>/dev/null; then
+            chown "$owner:$group" "$device" 2>/dev/null
+            hw_log "  ✓ Configured: $device ($perm $owner:$group)"
+            return 0
+        else
+            hw_log "  ⚠ Failed: $device (permission denied)"
+            return 1
+        fi
+    fi
+    return 2
+}
+
+# Devices not in ueventd.rc but shown in adb shell that I'm willing to give full access
+configure_device() {
+    local device="$1"
+    configure_device_perm "$device" "666" "root" "root"
+}
+
+configure_device_group() {
+    local pattern="$1"
+    local description="$2"
+    local count=0
+
+    hw_log "Configuring $description..."
+    for device in $pattern; do
+        if configure_device "$device"; then
+            count=$((count + 1))
+        fi
+    done
+    hw_log "  Total configured: $count"
+    return $count
+}
+
+# Configure device group with specific permissions
+configure_device_group_perm() {
+    local pattern="$1"
+    local perm="$2"
+    local owner="$3"
+    local group="$4"
+    local description="$5"
+    local count=0
+
+    hw_log "Configuring $description..."
+    for device in $pattern; do
+        if configure_device_perm "$device" "$perm" "$owner" "$group"; then
+            count=$((count + 1))
+        fi
+    done
+    hw_log "  Total configured: $count"
+    return $count
+}
+
+# === V4L2 CAMERA INITIALIZATION FUNCTION ===
+initialize_v4l2_cameras() {
+    hw_log "=== Initializing V4L2 Camera System ==="
+    
+    # Check if camera modules are loaded
+    if ! lsmod | grep -q sprd_sensor; then
+        hw_log "  ⚠ sprd_sensor module not loaded, attempting to load..."
+        modprobe sprd_sensor 2>/dev/null || insmod /vendor/lib/modules/sprd_sensor.ko 2>/dev/null
+        sleep 1
+    fi
+    
+    if ! lsmod | grep -q sprd_cpp; then
+        hw_log "  ⚠ sprd_cpp module not loaded, attempting to load..."
+        modprobe sprd_cpp 2>/dev/null || insmod /vendor/lib/modules/sprd_cpp.ko 2>/dev/null
+        sleep 1
+    fi
+    
+    # Check for camera platform device
+    if [ -d /sys/devices/platform/soc/soc:cam-subsys ] || \
+       [ -d /sys/devices/platform/camera ] || \
+       [ -d /sys/devices/virtual/video4linux ]; then
+        hw_log "  ✓ Camera platform device detected"
+    else
+        hw_log "  ⚠ Camera platform device not found"
+    fi
+    
+    # Trigger V4L2 device creation by writing to sysfs
+    hw_log "  Triggering V4L2 device enumeration..."
+    
+    # Method 1: Trigger camera sensor probe
+    if [ -f /sys/devices/platform/soc/soc:cam-subsys/driver/probe ]; then
+        echo "soc:cam-subsys" > /sys/devices/platform/soc/soc:cam-subsys/driver/probe 2>/dev/null
+        hw_log "    Triggered camera subsystem probe"
+    fi
+    
+    # Method 2: Manually create video devices if they don't exist
+    if [ ! -e /dev/video0 ]; then
+        hw_log "  Creating V4L2 video device nodes..."
+        
+        # Create video devices (typically 0-15 for SPRD camera system)
+        for i in $(seq 0 15); do
+            if [ ! -e /dev/video$i ]; then
+                mknod /dev/video$i c 81 $i 2>/dev/null
+                hw_log "    Created: /dev/video$i"
+            fi
+        done
+    fi
+    
+    # Create media devices
+    if [ ! -e /dev/media0 ]; then
+        hw_log "  Creating media controller devices..."
+        for i in $(seq 0 3); do
+            if [ ! -e /dev/media$i ]; then
+                mknod /dev/media$i c 250 $i 2>/dev/null
+                hw_log "    Created: /dev/media$i"
+            fi
+        done
+    fi
+    
+    # Create v4l-subdev devices
+    if [ ! -e /dev/v4l-subdev0 ]; then
+        hw_log "  Creating V4L2 subdev nodes..."
+        for i in $(seq 0 7); do
+            minor=$((128 + i))
+            if [ ! -e /dev/v4l-subdev$i ]; then
+                mknod /dev/v4l-subdev$i c 81 $minor 2>/dev/null
+                hw_log "    Created: /dev/v4l-subdev$i"
+            fi
+        done
+    fi
+    
+    # Wait for devices to settle
+    sleep 2
+    
+    # Verify V4L2 devices were created
+    VIDEO_COUNT=$(ls /dev/video* 2>/dev/null | wc -l)
+    MEDIA_COUNT=$(ls /dev/media* 2>/dev/null | wc -l)
+    SUBDEV_COUNT=$(ls /dev/v4l-subdev* 2>/dev/null | wc -l)
+    
+    hw_log "  V4L2 Initialization Summary:"
+    hw_log "    Video devices: $VIDEO_COUNT"
+    hw_log "    Media devices: $MEDIA_COUNT"
+    hw_log "    Subdev devices: $SUBDEV_COUNT"
+    
+    if [ $VIDEO_COUNT -gt 0 ] || [ $MEDIA_COUNT -gt 0 ]; then
+        hw_log "  ✓ V4L2 camera system initialized successfully"
+        return 0
+    else
+        hw_log "  ⚠ V4L2 camera initialization incomplete"
+        return 1
+    fi
+}
+
+# === CAMERA REGULATOR AND GPIO VERIFICATION ===
+verify_camera_power() {
+    hw_log "=== Verifying Camera Power Supplies and GPIOs ==="
+    
+    # Check for camera voltage regulators
+    hw_log "  Checking camera regulators..."
+    
+    if [ -d /sys/class/regulator/regulator.302 ] || \
+       grep -q "vddcama" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+        hw_log "    ✓ vddcama regulator available (analog power)"
+    else
+        hw_log "    ⚠ vddcama regulator not found"
+    fi
+    
+    if [ -d /sys/class/regulator/regulator.299 ] || \
+       grep -q "vddcamd" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+        hw_log "    ✓ vddcamd regulator available (digital power)"
+    else
+        hw_log "    ⚠ vddcamd regulator not found"
+    fi
+    
+    if [ -d /sys/class/regulator/regulator.142 ] || \
+       grep -q "vddio" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+        hw_log "    ✓ vddio regulator available (I/O power)"
+    else
+        hw_log "    ⚠ vddio regulator not found"
+    fi
+    
+    # Check sprd_sensor module for GPIO status
+    hw_log "  Checking camera GPIO configuration..."
+    dmesg | grep -i "sprd_sensor_parse_gpio" | tail -n 5 | while read line; do
+        hw_log "    dmesg: $line"
+    done
+}
+
+# === CAMERA GPIO INITIALIZATION ===
+initialize_camera_gpio() {
+    hw_log "=== Initializing Camera GPIOs ==="
+    
+    # Export common camera GPIOs
+    CAMERA_GPIOS="119 120 121 122 123 124 125 126"
+    
+    for gpio in $CAMERA_GPIOS; do
+        if [ ! -d /sys/class/gpio/gpio$gpio ]; then
+            echo $gpio > /sys/class/gpio/export 2>/dev/null
+            if [ $? -eq 0 ]; then
+                hw_log "  ✓ Exported GPIO $gpio"
+                echo out > /sys/class/gpio/gpio$gpio/direction 2>/dev/null
+                echo 0 > /sys/class/gpio/gpio$gpio/value 2>/dev/null
+            fi
+        fi
+    done
+    
+    hw_log "  Camera GPIO initialization complete"
+}
+
+# === DCAM (Digital Camera) INITIALIZATION ===
+initialize_dcam() {
+    hw_log "=== Initializing DCAM (Digital Camera Controller) ==="
+    
+    # Check for DCAM device in sysfs
+    DCAM_PATHS="/sys/devices/platform/soc/soc:cam-subsys/dcam* \
+                /sys/devices/platform/dcam* \
+                /sys/module/sprd_sensor/parameters"
+    
+    for path in $DCAM_PATHS; do
+        if [ -e "$path" ]; then
+            hw_log "  ✓ Found DCAM path: $path"
+        fi
+    done
+    
+    # Enable DCAM if control file exists
+    if [ -f /sys/devices/platform/soc/soc:cam-subsys/dcam_enable ]; then
+        echo 1 > /sys/devices/platform/soc/soc:cam-subsys/dcam_enable 2>/dev/null
+        hw_log "  ✓ Enabled DCAM controller"
+    fi
+    
+    if [ -d /sys/module/sprd_sensor/parameters ]; then
+        hw_log "  ✓ DCAM parameters accessible"
+    fi
+}
+
+# === VIRTUAL FILESYSTEM INITIALIZATION ===
+hw_log "=== Creating Virtual Filesystems ==="
+
+mkdir -p /dev/pts 2>/dev/null
+mkdir -p /dev/shm 2>/dev/null
+mkdir -p /tmp 2>/dev/null
+mkdir -p /tmp/runtime 2>/dev/null
+mkdir -p /run 2>/dev/null
+
+if ! mount | grep -q "/dev/pts"; then
+    mount -t devpts devpts /dev/pts -o mode=0620,gid=5 2>/dev/null
+    if [ $? -eq 0 ]; then
+        hw_log "  ✓ Mounted /dev/pts (pseudo-terminals)"
+    else
+        hw_log "  ⚠ Failed to mount /dev/pts"
+    fi
+else
+    hw_log "  ✓ /dev/pts already mounted"
+fi
+
+if ! mount | grep -q "/dev/shm"; then
+    mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /dev/shm 2>/dev/null
+    if [ $? -eq 0 ]; then
+        hw_log "  ✓ Mounted /dev/shm (shared memory)"
+    else
+        hw_log "  ⚠ Failed to mount /dev/shm"
+    fi
+else
+    hw_log "  ✓ /dev/shm already mounted"
+fi
+
+if ! mount | grep -q "tmpfs on /tmp"; then
+    mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp 2>/dev/null
+    if [ $? -eq 0 ]; then
+        hw_log "  ✓ Mounted /tmp as tmpfs"
+        mkdir -p /tmp/runtime 2>/dev/null
+        chmod 1777 /tmp/runtime 2>/dev/null
+    else
+        hw_log "  ⚠ Failed to mount /tmp as tmpfs"
+    fi
+else
+    hw_log "  ✓ /tmp already mounted as tmpfs"
+fi
+
+if ! mount | grep -q "/run"; then
+    mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run 2>/dev/null
+    if [ $? -eq 0 ]; then
+        hw_log "  ✓ Mounted /run (runtime data)"
+    else
+        hw_log "  ⚠ Failed to mount /run"
+    fi
+else
+    hw_log "  ✓ /run already mounted"
+fi
+log ""
+
+system/bin/busybox chroot /bin/ash -c "
+    # Export camera GPIOs based on device tree analysis
+    # GPIO controller base: 128 (from 32070000.gpio)
+    
+    # Main Camera (I2C 0x20) - pins relative to base 128
+    # AVDD: 25, DVDD: 15, Power-Down: 46, Reset: 44
+    CAM_MAIN_AVDD=\$((128 + 25))
+    CAM_MAIN_DVDD=\$((128 + 15))
+    CAM_MAIN_PWDN=\$((128 + 46))
+    CAM_MAIN_RST=\$((128 + 44))
+    
+    # Second Main Camera (I2C 0x2A) - Reset: 41
+    CAM_MAIN2_RST=\$((128 + 41))
+    
+    echo 'Exporting camera GPIOs...'
+    
+    for gpio in \$CAM_MAIN_AVDD \$CAM_MAIN_DVDD \$CAM_MAIN_PWDN \$CAM_MAIN_RST \$CAM_MAIN2_RST; do
+        if [ ! -d /sys/class/gpio/gpio\$gpio ]; then
+            echo \$gpio > /sys/class/gpio/export 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo out > /sys/class/gpio/gpio\$gpio/direction 2>/dev/null
+                echo 0 > /sys/class/gpio/gpio\$gpio/value 2>/dev/null
+                echo \"  ✓ Exported GPIO \$gpio\"
+            else
+                echo \"  ✗ Failed to export GPIO \$gpio\"
+            fi
+        else
+            echo \"  • GPIO \$gpio already exported\"
+        fi
+    done
+    
+    echo '✓ Camera GPIO initialization complete'
+" 2>&1 | tee -a "$LOGFILE"
+
+log "✓ Camera GPIOs configured"
+log ""
+
+# === ANDROID/HALIUM SPECIFIC DIRECTORIES ===
+hw_log "=== Creating Android/Halium Directories ==="
+
+# Android property system directory (Halium 9+)
+mkdir -p /dev/__properties__ 2>/dev/null
+chmod 755 /dev/__properties__ 2>/dev/null
+if [ -d /dev/__properties__ ]; then
+    hw_log "  ✓ Created /dev/__properties__ (Android property system)"
+else
+    hw_log "  ⚠ Failed to create /dev/__properties__"
+fi
+
+# Android socket communication directory
+mkdir -p /dev/socket 2>/dev/null
+chmod 755 /dev/socket 2>/dev/null
+if [ -d /dev/socket ]; then
+    hw_log "  ✓ Created /dev/socket (Android socket directory)"
+else
+    hw_log "  ⚠ Failed to create /dev/socket"
+fi
+
+# Mount /apex as tmpfs if it exists (Halium 9+, Android modular system components)
+if [ -e "/apex" ]; then
+    if ! mount | grep -q "/apex"; then
+        mount -t tmpfs tmpfs /apex 2>/dev/null
+        if [ $? -eq 0 ]; then
+            hw_log "  ✓ Mounted /apex as tmpfs (Android modular components)"
+        else
+            hw_log "  ⚠ Failed to mount /apex"
+        fi
+    else
+        hw_log "  ✓ /apex already mounted"
+    fi
+else
+    hw_log "  ℹ /apex does not exist, skipping mount"
+fi
+
+hw_log "=== Starting Hardware Device Configuration ==="
+
+# === CORE SYSTEM DEVICES (per ueventd.rc) ===
+hw_log "=== Configuring Core System Devices ==="
+configure_device_perm "/dev/null" "666" "root" "root"
+configure_device_perm "/dev/zero" "666" "root" "root"
+configure_device_perm "/dev/full" "666" "root" "root"
+configure_device_perm "/dev/ptmx" "666" "root" "root"
+configure_device_perm "/dev/tty" "666" "root" "root"
+configure_device_perm "/dev/random" "666" "root" "root"
+configure_device_perm "/dev/urandom" "666" "root" "root"
+configure_device_perm "/dev/hw_random" "440" "root" "system"
+
+# === BINDERFS INITIALIZATION (Android Binder IPC) ===
+hw_log "=== Initializing Binderfs (Android Binder IPC) ==="
+
+mkdir -p /dev/binderfs 2>/dev/null
+
+if ! lsmod | grep -q "^binder_linux"; then
+    hw_log "  Loading binder_linux module..."
+    modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>/dev/null || \
+    modprobe binder devices="binder,hwbinder,vndbinder" 2>/dev/null
+    sleep 1
+fi
+
+if ! mount | grep -q "/dev/binderfs"; then
+    mount -t binder binder /dev/binderfs 2>/dev/null
+    if [ $? -eq 0 ]; then
+        hw_log "  ✓ Mounted binderfs at /dev/binderfs"
+    else
+        hw_log "  ⚠ Failed to mount binderfs (trying legacy method)"
+        if [ -c /dev/binder ]; then
+            hw_log "  ✓ Using legacy binder devices"
+        fi
+    fi
+else
+    hw_log "  ✓ binderfs already mounted"
+fi
+
+# Configure binder devices (0666 per ueventd.rc)
+hw_log "  Configuring binder device nodes..."
+if [ -d /dev/binderfs ]; then
+    configure_device_perm "/dev/binderfs/binder" "666" "root" "root"
+    configure_device_perm "/dev/binderfs/hwbinder" "666" "root" "root"
+    configure_device_perm "/dev/binderfs/vndbinder" "666" "root" "root"
+    
+    # Create symlinks from /dev/binderfs/*binder to /dev (Halium compatibility)
+    hw_log "  Creating binder symlinks for Halium compatibility..."
+    for binder_dev in binder hwbinder vndbinder; do
+        if [ -e "/dev/binderfs/$binder_dev" ] && [ ! -e "/dev/$binder_dev" ]; then
+            ln -s "/dev/binderfs/$binder_dev" "/dev/$binder_dev" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                hw_log "    ✓ Created symlink: /dev/$binder_dev -> /dev/binderfs/$binder_dev"
+            else
+                hw_log "    ⚠ Failed to create symlink for $binder_dev"
+            fi
+        elif [ -e "/dev/$binder_dev" ]; then
+            hw_log "    ✓ /dev/$binder_dev already exists"
+        fi
+    done
+else
+    configure_device_perm "/dev/binder" "666" "root" "root"
+    configure_device_perm "/dev/hwbinder" "666" "root" "root"
+    configure_device_perm "/dev/vndbinder" "666" "root" "root"
+fi
+
+hw_log "  Binderfs initialization complete"
+
+# === ZRAM (0666) ===
+configure_device_group_perm "/dev/zram*" "666" "root" "root" "zram"
+
+# === ASHMEM (0666) ===
+configure_device_group_perm "/dev/ashmem*" "666" "root" "root" "Ashmem Devices"
+
+# === PMSG (0222 write-only for logging) ===
+configure_device_perm "/dev/pmsg0" "222" "root" "log"
+
+# === UNISOC LTE DEVICES ===
+hw_log "=== Configuring UNISOC LTE Devices ==="
+# Most LTE pipes are 0660 system:system
+configure_device_group_perm "/dev/spipe_lte*" "660" "system" "system" "UNISOC LTE Pipe Devices (default)"
+
+# Override specific LTE pipes with different permissions
+configure_device_perm "/dev/spipe_lte4" "660" "media" "audio"
+configure_device_perm "/dev/spipe_lte5" "660" "radio" "system"
+configure_device_perm "/dev/spipe_lte6" "660" "media" "audio"
+configure_device_perm "/dev/spipe_lte9" "660" "radio" "radio"
+configure_device_perm "/dev/spipe_lte14" "660" "audioserver" "audio"
+
+# LTE TTY Devices (0660 radio:system)
+configure_device_group_perm "/dev/stty_lte*" "660" "radio" "system" "UNISOC LTE TTY Devices"
+
+# === UNISOC LOG DEVICES (0660 system:system) ===
+hw_log "=== Configuring UNISOC Log Devices ==="
+configure_device_perm "/dev/slog_lte" "660" "system" "system"
+configure_device_perm "/dev/slog_pm" "660" "system" "system"
+configure_device_perm "/dev/slog_gnss" "660" "system" "system"
+configure_device_perm "/dev/slog_wcn0" "660" "system" "system"
+configure_device_group_perm "/dev/slog_*" "660" "system" "system" "Additional UNISOC Log Devices"
+
+# === UNISOC DIAGNOSTIC DEVICES (0660 system:system) ===
+configure_device_perm "/dev/sdiag_lte" "660" "system" "system"
+
+# === UNISOC POWER MANAGEMENT DEVICES ===
+hw_log "=== Configuring UNISOC Power Management Devices ==="
+configure_device_perm "/dev/sctl_pm" "660" "system" "system"
+configure_device_perm "/dev/power_ctl" "660" "system" "system"
+# spipe_pm devices are 0666 per ueventd.rc
+configure_device_group_perm "/dev/spipe_pm*" "666" "system" "system" "UNISOC Power Management Pipes"
+
+# === TTY GADGET SERIAL DEVICES (0660 system:system) ===
+hw_log "=== Configuring TTY Gadget Serial Devices ==="
+tty_count=0
+for i in $(seq 0 7); do
+    if configure_device_perm "/dev/ttyGS$i" "660" "system" "system"; then
+        tty_count=$((tty_count + 1))
+    fi
+done
+hw_log "  Total TTY gadget devices configured: $tty_count"
+
+# === STANDARD SERIAL DEVICES (0660 system:system) ===
+hw_log "=== Configuring Standard Serial Devices ==="
+configure_device_perm "/dev/ttyS0" "660" "system" "system"
+configure_device_perm "/dev/ttyS1" "660" "system" "system"
+configure_device_perm "/dev/ttyS3" "660" "system" "system"
+configure_device_perm "/dev/ttyS4" "660" "system" "system"
+
+# === ADDITIONAL SERIAL DEVICES ===
+configure_device_perm "/dev/vser" "660" "system" "system"
+configure_device_perm "/dev/tty0" "660" "root" "system"
+
+# === GPIO CONTROLLER DEVICES ===
+hw_log "=== Configuring GPIO Controller Devices ==="
+gpio_count=0
+for i in $(seq 0 5); do
+    # Not in ueventd.rc, using default 660 root:system
+    if configure_device_perm "/dev/gpiochip$i" "660" "root" "system"; then
+        gpio_count=$((gpio_count + 1))
+    fi
+done
+hw_log "  Total GPIO devices configured: $gpio_count"
+
+# === I2C BUS AND CAMERA SENSOR INITIALIZATION ===
+hw_log "=== Configuring I2C Bus Devices with Camera Sensors ==="
+
+# I2C devices shown to specifications in adb shell
+hw_log "Configuring I2C-0 (0x70300000) - Main Camera Bus..."
+if configure_device_perm "/dev/i2c-0" "660" "root" "system"; then
+    hw_log "  ✓ I2C-0 configured"
+    
+    if [ -d /sys/bus/i2c/devices/0-0020 ]; then
+        hw_log "    ✓ Detected sensor-main@20 (I2C address 0x20)"
+        if [ -f /sys/bus/i2c/devices/0-0020/name ]; then
+            SENSOR_NAME=$(cat /sys/bus/i2c/devices/0-0020/name 2>/dev/null)
+            hw_log "      Sensor name: $SENSOR_NAME"
+        fi
+    else
+        hw_log "    ⚠ sensor-main@20 not detected on I2C-0"
+    fi
+    
+    if [ -d /sys/bus/i2c/devices/0-0021 ]; then
+        hw_log "    ✓ Detected deputy-camera@21 (I2C address 0x21)"
+    else
+        hw_log "    ⚠ deputy-camera@21 not detected on I2C-0"
+    fi
+fi
+
+hw_log "Configuring I2C-1 (0x70400000) - Secondary Camera Bus..."
+if configure_device_perm "/dev/i2c-1" "660" "root" "system"; then
+    hw_log "  ✓ I2C-1 configured"
+    
+    if [ -d /sys/bus/i2c/devices/1-002a ]; then
+        hw_log "    ✓ Detected sensor-main2@2a (I2C address 0x2A)"
+    else
+        hw_log "    ⚠ sensor-main2@2a not detected on I2C-1"
+    fi
+    
+    if [ -d /sys/bus/i2c/devices/1-006c ]; then
+        hw_log "    ✓ Detected sensor-sub@6c (I2C address 0x6C)"
+    else
+        hw_log "    ⚠ sensor-sub@6c not detected on I2C-1"
+    fi
+fi
+
+hw_log "Configuring I2C-2 (0x70500000) - Reserved Bus..."
+configure_device_perm "/dev/i2c-2" "660" "root" "system"
+
+hw_log "Configuring I2C-3 (0x70600000) - Unknown Device Bus..."
+if configure_device_perm "/dev/i2c-3" "660" "root" "system"; then
+    if [ -d /sys/bus/i2c/devices/3-005a ]; then
+        hw_log "    ✓ Detected device at 3-005a (I2C address 0x5A)"
+    fi
+fi
+
+hw_log "Configuring I2C-4 (0x70700000) - Unknown Device Bus..."
+if configure_device_perm "/dev/i2c-4" "660" "root" "system"; then
+    if [ -d /sys/bus/i2c/devices/4-006a ]; then
+        hw_log "    ✓ Detected device at 4-006a (I2C address 0x6A)"
+    fi
+fi
+
+hw_log "Configuring I2C-5 (0x32060000) - AON Power Management Bus..."
+if configure_device_perm "/dev/i2c-5" "660" "root" "system"; then
+    hw_log "  ✓ I2C-5 (AON bus) configured"
+    
+    if [ -d /sys/bus/i2c/devices/5-0060 ]; then
+        hw_log "    ✓ Detected power management device at 5-0060"
+    fi
+    
+    if [ -d /sys/bus/i2c/devices/5-0062 ]; then
+        hw_log "    ✓ Detected power management device at 5-0062"
+    fi
+fi
+
+hw_log "  Total I2C buses configured: 6"
+
+# === IIO SENSOR DEVICES (0660 system:system) ===
+hw_log "=== Configuring IIO Sensor Devices ==="
+configure_device_perm "/dev/iio:device1" "660" "system" "system"
+for i in 0 1; do
+    configure_device_perm "/dev/iio:device$i" "660" "system" "system"
+done
+configure_device_group_perm "/dev/iio:device*" "660" "system" "system" "Additional IIO Sensor Devices"
+
+# === INPUT DEVICES (0660 system:input OR root:input) ===
+hw_log "=== Configuring Input Devices ==="
+configure_device_group_perm "/dev/input/event*" "660" "system" "input" "Input Event Devices"
+configure_device_group_perm "/dev/input/*" "660" "root" "input" "Additional Input Devices"
+configure_device_group_perm "/dev/v4l-touch*" "660" "root" "input" "V4L Touch Devices"
+
+# === RETROID POCKET CONTROLLER (UINPUT-BASED) ===
+hw_log "=== Configuring Retroid Pocket Controller System ==="
+
+# The controller is created by pservice + rsmapping via /dev/uinput
+# Not a physical device - it's software-synthesized
+
+# 1. Ensure uinput device exists and is accessible
+if [ ! -e /dev/uinput ]; then
+    hw_log "  ⚠ /dev/uinput missing - controller will not work"
+    # Try to load uinput module (if it's modular)
+    modprobe uinput 2>/dev/null
+fi
+
+if [ -e /dev/uinput ]; then
+    configure_device_perm "/dev/uinput" "666" "root" "root"
+    hw_log "  ✓ /dev/uinput configured"
+else
+    hw_log "  ✗ /dev/uinput not available - check kernel config"
+fi
+
+# 2. Configure rsinput socket (created by pservice)
+configure_device_perm "/dev/rsinput" "666" "root" "root"
+
+# 3. Configure rstouch (Retroid virtual touch device)
+configure_device_perm "/dev/rstouch" "666" "root" "root"
+
+# 4. Check if pservice is running
+if ps -A | grep -q "pservice"; then
+    hw_log "  ✓ pservice daemon is running"
+    
+    # Wait for virtual devices to be created
+    wait_count=0
+    while [ ! -e /dev/input/event5 ] && [ $wait_count -lt 10 ]; do
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+    
+    if [ -e /dev/input/event5 ]; then
+        hw_log "  ✓ Controller created: /dev/input/event5"
+        configure_device_perm "/dev/input/event5" "660" "system" "input"
+        
+        if [ -e /dev/input/js0 ]; then
+            configure_device_perm "/dev/input/js0" "660" "system" "input"
+            hw_log "  ✓ Joystick interface: /dev/input/js0"
+        fi
+        
+        if [ -e /dev/input/event6 ]; then
+            hw_log "  ✓ Virtual mouse: /dev/input/event6"
+            configure_device_perm "/dev/input/event6" "660" "system" "input"
+        fi
+    else
+        hw_log "  ⚠ Controller not created (rsmapping may not be running)"
+    fi
+else
+    hw_log "  ⚠ pservice not running - controller unavailable"
+    hw_log "    To enable: start pservice or run Android system"
+fi
+
+# === ALSA AUDIO DEVICES (0660 system:audio) ===
+hw_log "=== Configuring ALSA Audio Devices ==="
+configure_device_group_perm "/dev/snd/*" "660" "system" "audio" "ALSA Audio Devices"
+
+# === AUDIO PIPE DEVICES ===
+hw_log "=== Configuring Audio Pipe Devices ==="
+configure_device_perm "/dev/apipe-pcm" "660" "system" "audio"
+configure_device_perm "/dev/apipe-cmd-in" "660" "system" "audio"
+configure_device_perm "/dev/apipe-cmd-out" "660" "system" "audio"
+configure_device_group_perm "/dev/audio_dsp*" "666" "audioserver" "audio" "Audio DSP Devices"
+configure_device_group_perm "/dev/audio_pipe*" "660" "audioserver" "audio" "Audio Pipe Devices"
+
+# === GRAPHICS DEVICES ===
+hw_log "=== Configuring Graphics Devices ==="
+configure_device_group_perm "/dev/dri/*" "666" "root" "graphics" "DRM Graphics Devices"
+configure_device_group_perm "/dev/graphics/*" "660" "root" "graphics" "Graphics Devices"
+configure_device_perm "/dev/gsp" "660" "system" "graphics"
+configure_device_perm "/dev/mali0" "666" "system" "graphics"
+configure_device_perm "/dev/pvr_sync" "666" "system" "graphics"
+configure_device_perm "/dev/ion" "666" "system" "graphics"
+
+# === USB DEVICES (0660 root:usb) ===
+hw_log "=== Configuring USB Devices ==="
+configure_device_group_perm "/dev/bus/usb/*/*" "660" "root" "usb" "USB Bus Devices"
+configure_device_perm "/dev/mtp_usb" "660" "root" "mtp"
+configure_device_perm "/dev/usb_accessory" "660" "root" "usb"
+
+# === RTC DEVICES ===
+hw_log "=== Configuring RTC Devices ==="
+configure_device_perm "/dev/rtc0" "640" "system" "system"
+configure_device_group_perm "/dev/rtc*" "660" "system" "system" "Additional RTC Devices"
+
+# === NETWORK DEVICES ===
+hw_log "=== Configuring Network Devices ==="
+configure_device_perm "/dev/tun" "660" "system" "vpn"
+configure_device_perm "/dev/ppp" "660" "radio" "vpn"
+
+# === WIRELESS/CELLULAR DEVICES (shown in adb shell) ===
+hw_log "=== Configuring Wireless/Cellular Devices ==="
+configure_device "/dev/wcn"
+configure_device "/dev/wcn_op"
+
+# === GNSS DEVICES ===
+hw_log "=== Configuring GNSS Devices ==="
+configure_device_perm "/dev/data0_gnss" "666" "system" "system"
+configure_device_perm "/dev/sttygnss0" "660" "system" "system"
+configure_device_perm "/dev/spipe_gnss0" "660" "system" "system"
+configure_device_perm "/dev/spipe_gnss1" "660" "system" "system"
+configure_device_perm "/dev/gnss_dbg" "660" "system" "system"
+# shown in adb shell
+configure_device "/dev/gnss_common_ctl"
+configure_device "/dev/gnss_pmnotify_ctl"
+
+# === CAMERA DEVICES ===
+hw_log "=== Configuring Camera Devices ==="
+configure_device_perm "/dev/sprd_jpg" "666" "system" "camera"
+configure_device_perm "/dev/sprd_jpg1" "660" "system" "camera"
+configure_device_perm "/dev/sprd_vsp" "660" "system" "camera"
+configure_device_perm "/dev/sprd_vpp" "660" "system" "camera"
+configure_device_perm "/dev/sprd_vsp_enc" "660" "system" "camera"
+configure_device_perm "/dev/sprd_image" "660" "system" "camera"
+configure_device_perm "/dev/sprd_isp" "660" "system" "camera"
+configure_device_perm "/dev/sprd_sensor" "660" "system" "camera"
+configure_device_perm "/dev/sprd_cpp" "660" "system" "camera"
+configure_device_perm "/dev/sprd_fd" "660" "system" "camera"
+
+# shown in adb shell
+configure_device "/dev/sprd_flash"
+configure_device "/dev/sprd_uid"
+
+# VDSP (0660 cameraserver:system)
+configure_device_group_perm "/dev/vdsp*" "660" "cameraserver" "system" "Video DSP Devices"
+
+# === BLUETOOTH DEVICES (0660 bluetooth:net_bt_admin) ===
+hw_log "=== Configuring Bluetooth Devices ==="
+configure_device_perm "/dev/ttyBT0" "660" "bluetooth" "net_bt_admin"
+configure_device_perm "/dev/sttybt0" "660" "bluetooth" "net_bt_admin"
+configure_device_perm "/dev/ttyM0" "660" "bluetooth" "net_bt_admin"
+configure_device_perm "/dev/ttyM1" "660" "bluetooth" "net_bt_admin"
+# Legacy device
+configure_device "/dev/ttyBT1"
+
+# === UHID/UINPUT (0660 uhid:uhid) ===
+configure_device_perm "/dev/uhid" "660" "uhid" "uhid"
+configure_device_perm "/dev/uinput" "660" "uhid" "uhid"
+
+# === FM RADIO (0660 media:media) ===
+configure_device_perm "/dev/fm" "660" "media" "media"
+
+# === MAP_USER (0660 system:system) ===
+configure_device_perm "/dev/map_user" "660" "system" "system"
+
+# === TRUSTY IPC (0660 system:system) ===
+configure_device_perm "/dev/trusty-ipc-dev0" "660" "system" "system"
+
+# === ADDITIONAL SYSTEM DEVICES (shown in adb shell) ===
+hw_log "=== Configuring Additional System Devices ==="
+configure_device "/dev/rfkill"
+configure_device "/dev/fuse"
+configure_device "/dev/cptl"
+
+# === INITIALIZE CAMERA SYSTEM ===
+hw_log "=== Camera System Initialization Sequence ==="
+verify_camera_power
+initialize_camera_gpio
+initialize_dcam
+initialize_v4l2_cameras
+
+# V4L2 devices not shown in adb shell
+hw_log "=== Configuring V4L2 Camera Devices ==="
+v4l2_count=0
+for device in /dev/video* /dev/media* /dev/v4l-subdev*; do
+    if configure_device "$device"; then
+        v4l2_count=$((v4l2_count + 1))
+    fi
+done
+hw_log "  Total V4L2 devices configured: $v4l2_count"
+
+# === RS COMMUNICATION DEVICES (shown in adb shell) ===
+hw_log "=== Configuring RS Communication Devices ==="
+configure_device "/dev/rscom"
+configure_device "/dev/rsinput"
+configure_device "/dev/rstouch"
+
+# === SPECIAL FUNCTION DEVICES (shown in adb shell) ===
+hw_log "=== Configuring Special Function Devices ==="
+configure_device "/dev/autotest0"
+configure_device "/dev/retrostation_hdmi"
+
+hw_log "=== Hardware Configuration Completed at $(date) ==="
+
+# === GENERATE SUMMARY ===
+echo ""
+echo "=========================================="
+echo "UNISOC Hardware Configuration Summary"
+echo "=========================================="
+
+# Virtual Filesystems
+hw_log "=== Virtual Filesystems ==="
+if mount | grep -q "/dev/pts"; then
+    hw_log "  ✓ /dev/pts: mounted"
+else
+    hw_log "  ✗ /dev/pts: Not mounted"
+fi
+
+if mount | grep -q "/dev/shm"; then
+    hw_log "  ✓ /dev/shm: mounted"
+else
+    hw_log "  ✗ /dev/shm: Not mounted"
+fi
+
+if mount | grep -q "tmpfs on /tmp"; then
+    hw_log "  ✓ /tmp: mounted as tmpfs"
+    if [ -d /tmp/runtime ]; then
+        hw_log "    ✓ /tmp/runtime exists"
+    fi
+else
+    hw_log "  ✗ /tmp: Not mounted as tmpfs"
+fi
+
+if mount | grep -q "/run"; then
+    hw_log "  ✓ /run: mounted"
+else
+    hw_log "  ✗ /run: Not mounted"
+fi
+
+if mount | grep -q "/apex"; then
+    hw_log "  ✓ /apex: mounted as tmpfs"
+else
+    hw_log "  ✗ /apex: Not mounted"
+fi
+
+# Android/Halium Directories
+hw_log "=== Android/Halium Directories ==="
+[ -d /dev/__properties__ ] && hw_log "  ✓ /dev/__properties__ exists" || hw_log "  ✗ /dev/__properties__ missing"
+[ -d /dev/socket ] && hw_log "  ✓ /dev/socket exists" || hw_log "  ✗ /dev/socket missing"
+
+# Binderfs / Android IPC
+hw_log "=== Android Binder IPC ==="
+if [ -d /dev/binderfs ]; then
+    hw_log "  ✓ binderfs mounted at /dev/binderfs"
+    BINDER_COUNT=$(ls /dev/binderfs/binder* 2>/dev/null | grep -v "binder-control" | wc -l)
+    hw_log "    Binder devices: $BINDER_COUNT"
+    for binder_dev in /dev/binderfs/binder /dev/binderfs/hwbinder /dev/binderfs/vndbinder; do
+        if [ -e "$binder_dev" ]; then
+            hw_log "    ✓ $(basename $binder_dev)"
+        fi
+    done
+    # Check symlinks
+    for binder_dev in binder hwbinder vndbinder; do
+        if [ -L "/dev/$binder_dev" ]; then
+            hw_log "    ✓ Symlink: /dev/$binder_dev -> $(readlink /dev/$binder_dev)"
+        fi
+    done
+elif [ -c /dev/binder ]; then
+    hw_log "  ✓ Using legacy binder devices"
+    [ -c /dev/binder ] && hw_log "    ✓ binder"
+    [ -c /dev/hwbinder ] && hw_log "    ✓ hwbinder"
+    [ -c /dev/vndbinder ] && hw_log "    ✓ vndbinder"
+else
+    hw_log "  ✗ No binder IPC available"
+fi
+
+# UNISOC Communication Devices
+hw_log "=== UNISOC Communication Devices ==="
+hw_log "  LTE devices: $(ls /dev/spipe_lte* /dev/stty_lte* 2>/dev/null | wc -l)"
+hw_log "  Log devices: $(ls /dev/slog_* 2>/dev/null | wc -l)"
+hw_log "  Power management: $(ls /dev/spipe_pm* /dev/sctl_pm 2>/dev/null | wc -l)"
+
+# Serial Interfaces
+hw_log "=== Serial Interfaces ==="
+hw_log "  TTY Gadget (USB): $(ls /dev/ttyGS* 2>/dev/null | wc -l)"
+hw_log "  Standard Serial: $(ls /dev/ttyS* 2>/dev/null | wc -l)"
+hw_log "  Bluetooth: $(ls /dev/ttyBT* /dev/sttybt* /dev/ttyM* 2>/dev/null | wc -l)"
+
+# I2C Buses and Camera Sensors
+hw_log "=== I2C Buses and Camera Sensors ==="
+hw_log "  I2C buses configured: $(ls /dev/i2c-* 2>/dev/null | wc -l)"
+
+if [ -d /sys/bus/i2c/devices/0-0020 ] || [ -d /sys/bus/i2c/devices/0-0021 ]; then
+    hw_log "  I2C-0 (0x70300000) - Main Camera Bus:"
+    [ -d /sys/bus/i2c/devices/0-0020 ] && hw_log "    ✓ sensor-main@20 (0x20)"
+    [ -d /sys/bus/i2c/devices/0-0021 ] && hw_log "    ✓ deputy-camera@21 (0x21)"
+else
+    hw_log "  I2C-0: No camera sensors detected"
+fi
+
+if [ -d /sys/bus/i2c/devices/1-002a ] || [ -d /sys/bus/i2c/devices/1-006c ]; then
+    hw_log "  I2C-1 (0x70400000) - Secondary Camera Bus:"
+    [ -d /sys/bus/i2c/devices/1-002a ] && hw_log "    ✓ sensor-main2@2a (0x2A)"
+    [ -d /sys/bus/i2c/devices/1-006c ] && hw_log "    ✓ sensor-sub@6c (0x6C)"
+else
+    hw_log "  I2C-1: No camera sensors detected"
+fi
+
+if [ -d /sys/bus/i2c/devices/5-0060 ] || [ -d /sys/bus/i2c/devices/5-0062 ]; then
+    hw_log "  I2C-5 (0x32060000) - AON Power Management:"
+    [ -d /sys/bus/i2c/devices/5-0060 ] && hw_log "    ✓ PM device@60 (0x60)"
+    [ -d /sys/bus/i2c/devices/5-0062 ] && hw_log "    ✓ PM device@62 (0x62)"
+fi
+
+# Camera System
+hw_log "=== Camera System ==="
+hw_log "  Video devices: $(ls /dev/video* 2>/dev/null | wc -l)"
+hw_log "  Media controllers: $(ls /dev/media* 2>/dev/null | wc -l)"
+hw_log "  V4L2 subdevices: $(ls /dev/v4l-subdev* 2>/dev/null | wc -l)"
+
+if lsmod | grep -q sprd_sensor; then
+    hw_log "  ✓ sprd_sensor module loaded"
+else
+    hw_log "  ✗ sprd_sensor module not loaded"
+fi
+
+if lsmod | grep -q sprd_cpp; then
+    hw_log "  ✓ sprd_cpp module loaded"
+else
+    hw_log "  ✗ sprd_cpp module not loaded"
+fi
+
+REGULATOR_COUNT=0
+if grep -q "vddcama" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+    REGULATOR_COUNT=$((REGULATOR_COUNT + 1))
+fi
+if grep -q "vddcamd" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+    REGULATOR_COUNT=$((REGULATOR_COUNT + 1))
+fi
+if grep -q "vddio" /sys/kernel/debug/regulator/regulator_summary 2>/dev/null; then
+    REGULATOR_COUNT=$((REGULATOR_COUNT + 1))
+fi
+hw_log "  Camera regulators: $REGULATOR_COUNT/3 available"
+
+# Media Processing Hardware
+hw_log "=== Media Processing Hardware ==="
+MEDIA_HW_COUNT=0
+for dev in /dev/sprd_vsp /dev/sprd_jpg /dev/sprd_cpp /dev/gsp /dev/vdsp0; do
+    if [ -e "$dev" ]; then
+        MEDIA_HW_COUNT=$((MEDIA_HW_COUNT + 1))
+    fi
+done
+hw_log "  UNISOC media accelerators: $MEDIA_HW_COUNT/5"
+[ -e /dev/mali0 ] && hw_log "  ✓ Mali GPU (/dev/mali0)"
+[ -e /dev/dri/card0 ] && hw_log "  ✓ DRM Graphics (/dev/dri/card0)"
+
+# Audio System
+hw_log "=== Audio System ==="
+hw_log "  ALSA devices: $(ls /dev/snd/* 2>/dev/null | wc -l)"
+hw_log "  Audio pipes: $(ls /dev/audio_pipe_* /dev/apipe-* 2>/dev/null | wc -l)"
+
+# Wireless and GNSS
+hw_log "=== Wireless and GNSS ==="
+WIRELESS_COUNT=0
+[ -e /dev/wcn ] && WIRELESS_COUNT=$((WIRELESS_COUNT + 1))
+[ -e /dev/wcn_op ] && WIRELESS_COUNT=$((WIRELESS_COUNT + 1))
+hw_log "  Wireless devices: $WIRELESS_COUNT"
+
+GNSS_COUNT=$(ls /dev/gnss_* /dev/data0_gnss /dev/sttygnss* /dev/spipe_gnss* 2>/dev/null | wc -l)
+hw_log "  GNSS devices: $GNSS_COUNT"
+
+# System Buses and Controllers
+hw_log "=== System Buses and Controllers ==="
+hw_log "  GPIO controllers: $(ls /dev/gpiochip* 2>/dev/null | wc -l)"
+hw_log "  Input devices: $(ls /dev/input/* 2>/dev/null | wc -l)"
+hw_log "  IIO sensors: $(ls /dev/iio:device* 2>/dev/null | wc -l)"
+hw_log "  USB devices: $(ls /dev/bus/usb/*/* 2>/dev/null | wc -l)"
+
+# Network and System Services
+hw_log "=== Network and System Services ==="
+NETWORK_COUNT=0
+[ -e /dev/ppp ] && NETWORK_COUNT=$((NETWORK_COUNT + 1))
+[ -e /dev/tun ] && NETWORK_COUNT=$((NETWORK_COUNT + 1))
+hw_log "  Network devices: $NETWORK_COUNT"
+
+SYSTEM_COUNT=0
+for dev in /dev/uhid /dev/uinput /dev/rfkill /dev/fuse /dev/ion /dev/ashmem; do
+    if [ -e "$dev" ]; then
+        SYSTEM_COUNT=$((SYSTEM_COUNT + 1))
+    fi
+done
+hw_log "  System service devices: $SYSTEM_COUNT/6"
+
+# Special Function Devices
+hw_log "=== Special Function Devices ==="
+[ -e /dev/fm ] && hw_log "  ✓ FM Radio"
+[ -e /dev/retrostation_hdmi ] && hw_log "  ✓ HDMI Interface"
+[ -e /dev/rtc0 ] && hw_log "  ✓ Real-Time Clock"
+[ -e /dev/map_user ] && hw_log "  ✓ Memory Mapper"
+
+log "=== CAMERA GPIO INITIALIZATION ==="
+
+# GPIO operations outside chroot - direct kernel interface
+# GPIO controller base: 128 (from device tree: 32070000.gpio)
+
+# Calculate GPIO numbers
+CAM_MAIN_AVDD=$((128 + 25))    # GPIO 153
+CAM_MAIN_DVDD=$((128 + 15))    # GPIO 143
+CAM_MAIN_PWDN=$((128 + 46))    # GPIO 174
+CAM_MAIN_RST=$((128 + 44))     # GPIO 172
+CAM_MAIN2_RST=$((128 + 41))    # GPIO 169
+
+log "Exporting camera GPIOs (base 128)..."
+
+for gpio in $CAM_MAIN_AVDD $CAM_MAIN_DVDD $CAM_MAIN_PWDN $CAM_MAIN_RST $CAM_MAIN2_RST; do
+    GPIO_PATH="/sys/class/gpio/gpio${gpio}"
+    
+    if [ -d "$GPIO_PATH" ]; then
+        log "  • GPIO $gpio already exported"
+    else
+        # Try to export
+        if echo "$gpio" > /sys/class/gpio/export 2>/dev/null; then
+            sleep 0.1  # Give kernel time to create sysfs entries
+            
+            # Set direction and initial value
+            if [ -d "$GPIO_PATH" ]; then
+                echo "out" > "${GPIO_PATH}/direction" 2>/dev/null
+                echo "0" > "${GPIO_PATH}/value" 2>/dev/null
+                log "  ✓ Exported GPIO $gpio (output, low)"
+            else
+                log "  ⚠ GPIO $gpio exported but sysfs entry not created"
+            fi
+        else
+            # Check if it's a permission issue or invalid GPIO
+            if [ -w /sys/class/gpio/export ]; then
+                log "  ✗ Failed to export GPIO $gpio (invalid or in use)"
+            else
+                log "  ✗ Cannot write to /sys/class/gpio/export (permission denied)"
+            fi
+        fi
+    fi
+done
+
+log "✓ Camera GPIO initialization complete"
+log ""
+echo ""
+echo "Full log: $HARDWARE_LOG"
+echo "=========================================="
+hw_log "=== Hardware Configuration Completed at $(date) ==="
+
+# Generate summary
+echo ""
+echo "=========================================="
+echo "UNISOC Hardware Configuration Summary"
+echo "=========================================="
+hw_log "zram: $(ls /dev/spipe_lte* /dev/zram* 2>/dev/null | wc -l)"
+hw_log "UNISOC LTE devices: $(ls /dev/spipe_lte* /dev/stty_lte* 2>/dev/null | wc -l)"
+hw_log "Serial devices: $(ls /dev/ttyGS* /dev/ttyS* 2>/dev/null | wc -l)"
+hw_log "GPIO devices: $(ls /dev/gpiochip* 2>/dev/null | wc -l)"
+hw_log "I2C devices: $(ls /dev/i2c-* 2>/dev/null | wc -l)"
+hw_log "Audio devices: $(ls /dev/snd/* 2>/dev/null | wc -l)"
+hw_log "Input devices: $(ls /dev/input/* 2>/dev/null | wc -l)"
+hw_log "V4L2 video devices: $(ls /dev/video* 2>/dev/null | wc -l)"
+hw_log "V4L2 media devices: $(ls /dev/media* 2>/dev/null | wc -l)"
+hw_log "V4L2 subdev devices: $(ls /dev/v4l-subdev* 2>/dev/null | wc -l)"
+echo ""
+echo "Full log: $HARDWARE_LOG"
+echo "=========================================="
+
+sleep 2
+exit 0

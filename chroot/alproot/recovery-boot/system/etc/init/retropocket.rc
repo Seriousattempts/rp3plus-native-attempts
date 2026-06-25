@@ -1,0 +1,12 @@
+on boot
+    start pservice
+    chmod 666 /dev/rstouch
+    chmod 666 /sys/hdmi/driver_ctl
+    setprop persist.vendor.app.version ""
+
+service pservice /system/bin/pservice
+    class core
+    disabled
+    user root
+    group root
+    seclabel u:r:pservice:s0
